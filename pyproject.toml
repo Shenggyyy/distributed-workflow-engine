@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "distributed-workflow-engine"
+version = "0.1.0"
+description = "A distributed DAG workflow engine with durable task ownership and recovery."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = []
+
+[project.scripts]
+engine = "workflow_engine.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3.5,<10"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/workflow_engine"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib", "--strict-config", "--strict-markers"]
