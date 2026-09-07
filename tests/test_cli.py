@@ -23,9 +23,7 @@ def test_installed_console_reports_distribution_version(tmp_path: Path) -> None:
         timeout=10,
     )
 
-    assert result.stdout.strip() == (
-        f"engine {version('distributed-workflow-engine')}"
-    )
+    assert result.stdout.strip() == (f"engine {version('distributed-workflow-engine')}")
     assert result.stderr == ""
 
 
@@ -39,9 +37,7 @@ def test_module_entry_point_works_outside_repository(tmp_path: Path) -> None:
         timeout=10,
     )
 
-    assert result.stdout.strip() == (
-        f"engine {version('distributed-workflow-engine')}"
-    )
+    assert result.stdout.strip() == (f"engine {version('distributed-workflow-engine')}")
 
 
 def test_help_describes_current_capabilities(tmp_path: Path) -> None:
@@ -55,7 +51,9 @@ def test_help_describes_current_capabilities(tmp_path: Path) -> None:
     )
 
     assert "--version" in result.stdout
-    assert "workflow execution is not implemented yet" in " ".join(result.stdout.split())
+    assert "workflow execution is not implemented yet" in " ".join(
+        result.stdout.split()
+    )
 
 
 def test_unimplemented_command_fails_explicitly(tmp_path: Path) -> None:

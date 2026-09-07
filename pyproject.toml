@@ -14,7 +14,11 @@ dependencies = []
 engine = "workflow_engine.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8.3.5,<10"]
+dev = [
+    "mypy>=1.15,<3",
+    "pytest>=8.3.5,<10",
+    "ruff>=0.11,<1",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/workflow_engine"]
@@ -22,3 +26,17 @@ packages = ["src/workflow_engine"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--import-mode=importlib", "--strict-config", "--strict-markers"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+src = ["src"]
+extend-exclude = [".uv-cache"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.13"
+files = ["src", "tests"]
+strict = true

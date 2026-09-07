@@ -10,15 +10,17 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M0.1: Python project bootstrap.**
+**M0.2: Automated quality checks and CI configuration.**
 
 Available now:
 
 - An installable Python package using a `src/` layout.
 - A CLI exposing help and the installed package version.
 - A uv dependency lockfile and pytest entry-point smoke tests.
+- Ruff lint/format checks and strict mypy checks for source code and tests.
+- A GitHub Actions workflow targeting Python 3.13 on Linux and Windows.
 
-Workflow submission, scheduling, workers, database storage, Docker, and CI are
+Workflow submission, scheduling, workers, database storage, and Docker are
 **not implemented yet**. The architecture below is the agreed target design.
 
 ## Planned architecture
@@ -65,6 +67,7 @@ that an old worker has stopped. The MVP assumes trusted workers and handlers.
 ## Local setup
 
 Prerequisites: Python 3.13 and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+CI pins uv to 0.12.5; use that version locally when reproducing CI behavior.
 Run these commands from the repository root:
 
 ```console
@@ -85,6 +88,48 @@ The CLI does not start a server or execute a workflow at this stage.
 Development dependencies are included by default. Python support is deliberately
 limited to 3.13 until additional versions are tested.
 
+### Quality checks
+
+Run the same checks as CI:
+
+```console
+uv sync --locked
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv run --locked mypy
+uv run --locked pytest
+uv build
+```
+
+Ruff checks Python errors, imports, modernization rules, and common bug patterns.
+It also owns formatting (88-column target). mypy uses strict mode for both
+`src/` and `tests/`. All configuration lives in `pyproject.toml`; tool versions
+are recorded in `uv.lock`.
+
+To apply formatting locally:
+
+```console
+uv run --locked ruff format .
+```
+
+CI only checks formatting; it does not edit or commit files.
+
+### Continuous integration
+
+[CI workflow runs](https://github.com/Shenggyyy/distributed-workflow-engine/actions/workflows/ci.yml)
+
+The workflow runs on pushes to `main`, pull requests, and manual dispatch.
+Each Linux/Windows job installs Python from `.python-version`, syncs locked
+dependencies, and runs lint, format, type, test, and package build checks.
+Jobs have a 10-minute timeout; newer runs cancel superseded runs for the same
+ref. Actions are pinned to commit SHAs and repository permissions are read-only.
+No deployment or publishing is performed.
+
+Local checks do not establish a successful GitHub run. After pushing this
+subtask, inspect the Actions tab and confirm both platform jobs pass before
+starting the next subtask. Making CI mandatory for merges requires a separate
+GitHub branch protection/ruleset configuration; this workflow does not enable it.
+
 ### Build the package
 
 ```console
@@ -96,6 +141,8 @@ The source distribution and wheel are written to `dist/`, which is ignored by Gi
 ## Repository layout
 
 ```text
+.github/workflows/
+    ci.yml
 src/workflow_engine/
     __init__.py
     __main__.py
@@ -124,7 +171,8 @@ root to catch packaging and entry-point problems. No PYTHONPATH override is used
 | M5 | Failure propagation, aggregation, idempotency demonstration, end-to-end acceptance |
 
 Each milestone is divided into independently verifiable commit-sized subtasks.
-After M0.1, the next subtask is M0.2: Ruff, type checking, and GitHub Actions.
+After M0.2 is committed, pushed, and its CI run passes, the next subtask is
+M0.3: environment-based application configuration and validation.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any
