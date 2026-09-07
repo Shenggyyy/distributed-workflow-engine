@@ -114,8 +114,10 @@ docker compose exec api alembic current
 docker compose exec api alembic check
 ```
 
-Current revision should be `0003 (head)`. Upgrading an existing 0002 database
-preserves its published definitions. No runtime records are created automatically.
+Current revision should be `0004 (head)`. Runtime tables originated in 0003;
+0004 adds [request bindings](run-idempotency.md) and a composite reference target
+on workflow_runs. Upgrading preserves published definitions and existing runtime
+records. Migrations do not create runs automatically.
 
 **Downgrading from 0003 to 0002 deletes all runs, tasks and attempts.** It leaves
 workflow identities and definition versions intact. Re-upgrading creates empty
@@ -135,5 +137,5 @@ concurrent attempt insertion through separate connections, and a populated
 0002 upgrade/downgrade round trip that preserves definitions.
 
 M1.7 implements [transactional run creation](run-creation.md) and DAG-node/root
-initialization using this schema. Durable request idempotency follows as a separate
-subtask before exposing run creation over HTTP.
+initialization using this schema. M1.8a adds request-binding storage; M1.8b will
+implement the idempotent creation protocol before exposing run creation over HTTP.

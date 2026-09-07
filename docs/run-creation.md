@@ -2,7 +2,9 @@
 
 M1.7 introduces `RunRepository.create(workflow_version_id)` in
 `repositories/runs.py`. It initializes one run from an existing immutable
-version. Revision `0003` is sufficient; no migration or HTTP route is added.
+version. Its original schema requirement is revision `0003`; the current head
+`0004` adds [request-binding storage](run-idempotency.md). The create method here
+remains unkeyed and no Run HTTP route is exposed.
 
 ## Contract and transaction ownership
 
@@ -96,9 +98,9 @@ records inserted by unsupported direct SQL writers, enforce handler capability,
 or prove worker availability. Creation does not implement dispatch, leases,
 retries, runtime dependency resolution after completion, or status aggregation.
 
-**Do not retry an uncertain creation as if it were idempotent.** M1.8 will add
-durable request-key/result handling as a separate subtask before run creation
-is exposed over HTTP. Business side-effect idempotency remains a separate concern.
+**Do not retry an uncertain creation as if it were idempotent.** M1.8a adds
+request-binding storage; M1.8b will connect durable request-key/result handling
+before run creation is exposed over HTTP. Business side-effect idempotency remains a separate concern.
 
 ## Runnable example
 

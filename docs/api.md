@@ -3,7 +3,8 @@
 M1.4 publishes and retrieves workflow definitions. It does not create runs or
 execute tasks. OpenAPI is at `/openapi.json`; interactive documentation is at
 `/docs`. These routes use the definition tables introduced in revision `0002`.
-The current head is `0003`, adding runtime storage without changing these routes.
+The current head is `0004`, adding runtime and request-binding storage without
+changing these routes. Request deduplication is not exposed by this API.
 
 ## Endpoints
 

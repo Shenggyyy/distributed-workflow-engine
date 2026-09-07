@@ -5,6 +5,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     MetaData,
@@ -82,6 +83,7 @@ workflow_runs = Table(
     CheckConstraint(
         "status IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED')", name="status_values"
     ),
+    UniqueConstraint("id", "workflow_version_id"),
 )
 
 task_runs = Table(
@@ -146,4 +148,28 @@ Index(
     task_attempts.c.task_id,
     unique=True,
     postgresql_where=text("status = 'RUNNING'"),
+)
+
+# Existing unkeyed runs remain valid. The optional request row is immutable and
+# its composite reference is checked when the creating transaction commits.
+run_creation_requests = Table(
+    "run_creation_requests",
+    metadata,
+    Column("idempotency_key", String(128, collation="C"), primary_key=True),
+    Column("workflow_version_id", Uuid, nullable=False),
+    Column("run_id", Uuid, nullable=False),
+    Column(
+        "created_at", DateTime(timezone=True), nullable=False, server_default=func.now()
+    ),
+    UniqueConstraint("run_id"),
+    CheckConstraint(
+        "idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'", name="key_format"
+    ),
+    ForeignKeyConstraint(
+        ["run_id", "workflow_version_id"],
+        ["workflow_runs.id", "workflow_runs.workflow_version_id"],
+        ondelete="NO ACTION",
+        deferrable=True,
+        initially="DEFERRED",
+    ),
 )

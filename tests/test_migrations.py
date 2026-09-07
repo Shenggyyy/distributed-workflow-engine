@@ -25,7 +25,7 @@ def run_alembic(tmp_path: Path, *arguments: str) -> subprocess.CompletedProcess[
 
 def test_revision_history_has_one_head_and_preserves_baseline() -> None:
     scripts = ScriptDirectory.from_config(Config(str(CONFIG)))
-    assert scripts.get_heads() == ["0003"]
+    assert scripts.get_heads() == ["0004"]
     assert scripts.get_bases() == ["0001"]
     assert files("workflow_engine.migrations").joinpath("script.py.mako").is_file()
 
@@ -36,7 +36,7 @@ def test_heads_work_outside_repository_without_settings(
     monkeypatch.setenv("DWE_API_PORT", "invalid")
     result = run_alembic(tmp_path, "heads")
     assert result.returncode == 0
-    assert "0003 (head)" in result.stdout
+    assert "0004 (head)" in result.stdout
 
 
 def test_offline_upgrade_does_not_load_credentials(
@@ -85,5 +85,5 @@ def test_packaged_template_can_generate_a_revision(tmp_path: Path) -> None:
         config, message="template smoke", rev_id="template_test"
     )
     assert isinstance(revision, Script)
-    assert revision.down_revision == "0003"
+    assert revision.down_revision == "0004"
     assert ScriptDirectory.from_config(config).get_heads() == ["template_test"]

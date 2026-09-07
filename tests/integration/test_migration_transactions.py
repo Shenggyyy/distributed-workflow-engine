@@ -28,7 +28,7 @@ def test_upgrade_repeat_downgrade_and_reupgrade(
             else:
                 command.upgrade(config, "head")
                 assert MigrationContext.configure(connection).get_current_heads() == (
-                    "0003",
+                    "0004",
                 )
                 command.check(config)
     with engine.connect() as connection:
@@ -39,6 +39,7 @@ def test_upgrade_repeat_downgrade_and_reupgrade(
             "workflow_runs",
             "task_runs",
             "task_attempts",
+            "run_creation_requests",
         }
 
 
@@ -54,7 +55,7 @@ def test_failed_revision_rolls_back_ddl_and_version(
     (scripts / "versions" / "test_failure.py").write_text(
         "from alembic import op\n"
         'revision = "test_failure"\n'
-        'down_revision = "0003"\n'
+        'down_revision = "0004"\n'
         "def upgrade():\n"
         '    op.execute("CREATE TABLE rollback_probe (id integer)")\n'
         '    op.execute("SELECT 1 / 0")\n'
@@ -69,7 +70,7 @@ def test_failed_revision_rolls_back_ddl_and_version(
             command.upgrade(config, "head")
     with engine.begin() as connection:
         migration_config(connection, migration_schema)
-        assert MigrationContext.configure(connection).get_current_heads() == ("0003",)
+        assert MigrationContext.configure(connection).get_current_heads() == ("0004",)
         assert not inspect(connection).has_table(
             "rollback_probe", schema=migration_schema
         )

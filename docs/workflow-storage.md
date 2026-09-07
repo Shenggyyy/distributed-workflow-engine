@@ -4,8 +4,9 @@ M1.2 adds revision `0002`, containing `workflows` and `workflow_versions`.
 It defines storage and database invariants. M1.3 adds transactional publication,
 version allocation, and retrieval through a Python repository. M1.4 exposes
 [HTTP endpoints](api.md); request idempotency remains future work. Definition
-tables remain defined by `0002`; the current head `0003` adds
-[runtime storage](runtime-storage.md).
+tables remain defined by `0002`; revision `0003` adds
+[runtime storage](runtime-storage.md) and the current head `0004` adds
+[run-creation request bindings](run-idempotency.md).
 
 ```mermaid
 erDiagram
@@ -119,8 +120,8 @@ uv run --locked alembic current
 uv run --locked alembic check
 ```
 
-Current revision should be `0003 (head)`. This supports a fresh database or an
-existing `0001`/`0002` database. No published revision was rewritten.
+Current revision should be `0004 (head)`. This supports a fresh database or an
+existing `0001`/`0002`/`0003` database. No published revision was rewritten.
 The existing migration transaction and advisory lock also cover the trigger DDL.
 
 Downgrading from `0002` to `0001` drops both business tables, the trigger, and its

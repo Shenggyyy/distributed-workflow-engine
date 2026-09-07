@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M1.7: Transactional run creation and DAG-node/root initialization.**
+**M1.8a: Durable run-creation request binding schema and constraints.**
 
 Available now:
 
@@ -46,7 +46,10 @@ Available now:
 - Transactional creation of version-pinned runs and complete DAG task sets.
 - Root-only readiness with rollback, concurrent creation and visibility tests.
 
-Request-idempotent run creation, scheduling and workers are **not implemented yet**.
+- Durable request-binding storage with immutable keys and deferred Run/Version validation.
+
+Application request deduplication, scheduling and workers are **not implemented yet**.
+M1.8b will connect the [idempotency storage](docs/run-idempotency.md) to run creation.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -318,7 +321,8 @@ uv run --locked alembic check
 
 Revision `0001` records the initial baseline; `0002` adds workflow identity and
 append-only version tables; `0003` adds run/task/attempt storage and lifecycle guards.
-Current revision should be `0003 (head)`. See the
+Revision `0004` adds immutable run-creation request bindings.
+Current revision should be `0004 (head)`. See the
 [runtime storage contract](docs/runtime-storage.md) for guarantees and boundaries.
 Migration commands are explicit and never run on API startup. With Compose,
 `docker compose exec api alembic upgrade head` uses the container's existing
@@ -529,6 +533,7 @@ docs/
     runtime.md
     runtime-storage.md
     run-creation.md
+    run-idempotency.md
     workflows.md
     workflow-storage.md
 examples/
@@ -565,6 +570,7 @@ src/workflow_engine/
             0001_baseline.py
             0002_workflow_versions.py
             0003_runtime_storage.py
+            0004_run_creation_requests.py
     api/
         __init__.py
         app.py
@@ -597,6 +603,7 @@ tests/
         test_workflow_http.py
         test_runtime_schema.py
         test_run_repository.py
+        test_run_request_schema.py
 alembic.ini
 Dockerfile
 compose.yaml
@@ -637,8 +644,9 @@ exposes HTTP publication/retrieval with commit and error contracts.
 M1.5 defines runtime identities and explicit legal state transitions for
 runs/tasks/attempts. M1.6 adds runtime storage, database lifecycle constraints and
 migration verification. M1.7 implements transactional run creation and DAG-node/root
-initialization. After M1.7 is committed, pushed, and all three CI jobs pass,
-continue to M1.8: durable run-creation request idempotency. Run HTTP endpoints
+initialization. M1.8a adds durable request-binding storage and migration tests.
+After M1.8a is committed, pushed, and all three CI jobs pass, continue to M1.8b:
+atomic keyed creation, duplicate replay and conflict handling. Run HTTP endpoints
 follow after that contract is implemented and verified.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
