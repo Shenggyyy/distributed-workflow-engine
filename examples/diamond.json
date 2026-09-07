@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "name": "diamond",
+  "tasks": [
+    {"task_id": "A", "task_type": "demo.echo"},
+    {"task_id": "B", "task_type": "demo.echo", "depends_on": ["A"]},
+    {"task_id": "C", "task_type": "demo.echo", "depends_on": ["B"]},
+    {"task_id": "D", "task_type": "demo.echo", "depends_on": ["B", "C"]}
+  ]
+}

@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M0.7b: Alembic migration infrastructure. M0 foundation implemented.**
+**M1.1: Immutable workflow definitions and DAG validation.**
 
 Available now:
 
@@ -27,9 +27,33 @@ Available now:
 - A bounded PostgreSQL connection pool using SQLAlchemy 2 and psycopg 3.
 - Real PostgreSQL integration tests for transactions, pool limits, and SQL timeouts.
 - Packaged Alembic revisions with explicit upgrades and a PostgreSQL migration lock.
+- Frozen workflow/task definitions with strict fields and complete DAG validation.
+- Deterministic topological ordering, root detection, and dependency indexes.
 
 Workflow submission, scheduling, workers, business tables, and API database integration are
 **not implemented yet**. The architecture below is the agreed target design.
+
+## Validate a workflow
+
+```console
+uv run --locked python examples/validate_workflow.py
+```
+
+Expected output:
+
+```text
+Workflow: diamond
+Roots: A
+Topological order: A, B, C, D
+Validation only; no tasks were executed.
+```
+
+The [example definition](examples/diamond.json) declares A → B → C → D and an
+additional B → D dependency. Validation rejects duplicate IDs, invalid references,
+self-dependencies, and cycles. Multiple roots and independent branches are
+allowed. Topological order describes dependencies; it is not a serial execution
+plan. See the [workflow/DAG contract](docs/workflows.md) for field rules, limits,
+immutability, and errors.
 
 ## Planned architecture
 
@@ -334,7 +358,7 @@ uv build
 
 Ruff checks Python errors, imports, modernization rules, and common bug patterns.
 It also owns formatting (88-column target). mypy uses strict mode with the
-Pydantic plugin for `src/`, `tests/`, and development `scripts/`. All configuration
+Pydantic plugin for `src/`, `tests/`, `scripts/`, and `examples/`. All configuration
 lives in `pyproject.toml`; tool versions are recorded in `uv.lock`.
 
 To apply formatting locally:
@@ -383,6 +407,10 @@ docs/
     database.md
     local-development.md
     migrations.md
+    workflows.md
+examples/
+    diamond.json
+    validate_workflow.py
 scripts/
     init_dev_secrets.py
 src/workflow_engine/
@@ -393,6 +421,10 @@ src/workflow_engine/
     database.py
     logging.py
     schema.py
+    domain/
+        __init__.py
+        dag.py
+        workflow.py
     migrations/
         __init__.py
         env.py
@@ -409,10 +441,12 @@ tests/
     test_api.py
     test_cli.py
     test_config.py
+    test_dag.py
     test_database.py
     test_dev_secrets.py
     test_logging.py
     test_migrations.py
+    test_workflow.py
     integration/
         __init__.py
         conftest.py
@@ -451,9 +485,10 @@ not suppressed and does not occur during normal API startup.
 | M5 | Failure propagation, aggregation, idempotency demonstration, end-to-end acceptance |
 
 Each milestone is divided into independently verifiable commit-sized subtasks.
-M0.7a provides database connectivity and transaction boundaries; M0.7b adds
-Alembic migration infrastructure. After M0.7b is committed, pushed, and all three
-CI jobs pass, continue to M1.1: workflow/DAG domain models and validation.
+M0 provides the tested infrastructure foundation. M1.1 introduces workflow/DAG
+domain models and validation. After M1.1 is committed, pushed, and all three CI
+jobs pass, continue to M1.2: workflow/version database schema and migrations.
+Persistence APIs and idempotent run creation follow as separate subtasks.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any
