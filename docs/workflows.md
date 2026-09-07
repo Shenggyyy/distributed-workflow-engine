@@ -50,7 +50,8 @@ numbers/bytes. Unknown fields are rejected, including misspelled dependency keys
 
 `schema_version` describes the document format. It is not a stored workflow
 version number, run ID, or optimistic-lock version. Persistent immutable workflow
-versions will be designed in the next subtask.
+versions now have a [storage schema](workflow-storage.md); publication logic is
+implemented in the next subtask.
 
 This contract currently contains graph identity and structure. Handler inputs,
 outputs, retries, task timeout, runtime state, conditional branches, dynamic
@@ -170,8 +171,8 @@ are not suitable for untrusted definition updates. Re-enter through
 to be revalidated, including nested tasks. Frozen objects are an application
 invariant, not protection against Python reflection or deliberate bypasses.
 
-This immutability protects in-memory definitions. Durable version immutability,
-concurrent update control, and run snapshots require the persistence layer.
+This immutability protects in-memory definitions. The [storage layer](workflow-storage.md) now guards version rows against mutation;
+publication concurrency and run snapshots require subsequent repository work.
 
 ## Verification and next steps
 
@@ -184,6 +185,6 @@ frozen nested fields, deterministic ordering across declaration permutations,
 long chains, inclusive edge limits, and reproducibly generated DAGs whose every
 edge must respect the resulting order.
 
-M1.2 will define the workflow/version database schema and migrations.
-Submission APIs, immutable version storage, and durable/idempotent run creation
-will follow as separate commit-sized subtasks.
+M1.2 adds the [workflow/version database schema](workflow-storage.md).
+Transactional repository operations, submission APIs, and durable/idempotent run
+creation follow as separate commit-sized subtasks.

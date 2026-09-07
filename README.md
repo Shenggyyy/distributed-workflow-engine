@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M1.1: Immutable workflow definitions and DAG validation.**
+**M1.2: Workflow identity and append-only version storage schema.**
 
 Available now:
 
@@ -29,8 +29,9 @@ Available now:
 - Packaged Alembic revisions with explicit upgrades and a PostgreSQL migration lock.
 - Frozen workflow/task definitions with strict fields and complete DAG validation.
 - Deterministic topological ordering, root detection, and dependency indexes.
+- Migrated workflow/version tables with JSONB snapshots and database mutation guards.
 
-Workflow submission, scheduling, workers, business tables, and API database integration are
+Workflow publication/retrieval APIs, scheduling, workers, and run/task storage are
 **not implemented yet**. The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -208,8 +209,11 @@ uv run --locked alembic current
 uv run --locked alembic check
 ```
 
-The initial `0001` revision records an empty baseline; no workflow tables exist
-yet. Migration commands are explicit and never run on API startup. See
+Revision `0001` records the initial baseline; `0002` adds workflow identity and
+append-only version tables. Current revision should be `0002 (head)`.
+Migration commands are explicit and never run on API startup. See the
+[workflow storage schema](docs/workflow-storage.md) for constraints, snapshot
+semantics, and the limits of database immutability. See
 [migration execution and failure semantics](docs/migrations.md) for transactions,
 concurrent migration protection, SQL review, and authoring new revisions.
 
@@ -381,7 +385,7 @@ ref. Actions are pinned to commit SHAs and repository permissions are read-only.
 After both Python jobs pass, a 15-minute Ubuntu container job builds and starts
 the Compose services, checks the API/runtime image, runs the application's
 PostgreSQL connectivity/transaction and migration tests, applies and checks the
-baseline revision, and verifies that data survives
+current revision, and verifies that data survives
 database container replacement. Its credentials
 and volumes are disposable. No deployment or publishing is performed.
 
@@ -408,6 +412,7 @@ docs/
     local-development.md
     migrations.md
     workflows.md
+    workflow-storage.md
 examples/
     diamond.json
     validate_workflow.py
@@ -431,6 +436,7 @@ src/workflow_engine/
         script.py.mako
         versions/
             0001_baseline.py
+            0002_workflow_versions.py
     api/
         __init__.py
         app.py
@@ -450,8 +456,10 @@ tests/
     integration/
         __init__.py
         conftest.py
+        migration_helpers.py
         test_migration_transactions.py
         test_postgresql.py
+        test_workflow_schema.py
 alembic.ini
 Dockerfile
 compose.yaml
@@ -485,10 +493,11 @@ not suppressed and does not occur during normal API startup.
 | M5 | Failure propagation, aggregation, idempotency demonstration, end-to-end acceptance |
 
 Each milestone is divided into independently verifiable commit-sized subtasks.
-M0 provides the tested infrastructure foundation. M1.1 introduces workflow/DAG
-domain models and validation. After M1.1 is committed, pushed, and all three CI
-jobs pass, continue to M1.2: workflow/version database schema and migrations.
-Persistence APIs and idempotent run creation follow as separate subtasks.
+M0 provides the infrastructure foundation. M1.1 adds DAG definitions and
+validation; M1.2 adds workflow/version storage schema and migrations. After M1.2
+is committed, pushed, and all three CI jobs pass, continue to M1.3: transactional
+workflow/version repository operations. HTTP submission and idempotent run
+creation follow as separate subtasks.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

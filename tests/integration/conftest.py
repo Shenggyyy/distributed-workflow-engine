@@ -1,9 +1,10 @@
 """Database fixtures shared by PostgreSQL and migration integration tests."""
 
 from collections.abc import Iterator
+from uuid import uuid4
 
 import pytest
-from sqlalchemy import Engine
+from sqlalchemy import Engine, text
 
 from workflow_engine.config import Settings, load_settings
 from workflow_engine.database import database_engine
@@ -21,3 +22,15 @@ def database_settings(pytestconfig: pytest.Config) -> Settings:
 def engine(database_settings: Settings) -> Iterator[Engine]:
     with database_engine(database_settings) as value:
         yield value
+
+
+@pytest.fixture
+def migration_schema(engine: Engine) -> Iterator[str]:
+    name = "dwe_migration_test_" + uuid4().hex
+    with engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{name}"'))
+    try:
+        yield name
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{name}" CASCADE'))

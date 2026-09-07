@@ -1,8 +1,9 @@
 # PostgreSQL connectivity and transaction boundaries
 
 M0.7a introduces SQLAlchemy 2 Core with psycopg 3 and an explicit engine lifetime.
-It does not create workflow tables or connect the HTTP API to PostgreSQL.
-M0.7b adds [explicit Alembic migration commands](migrations.md) using this engine. The API liveness endpoint remains independent of the database.
+The connectivity module does not create tables or connect the HTTP API to
+PostgreSQL. [Explicit Alembic commands](migrations.md) use this engine; M1.2 adds
+[workflow/version tables](workflow-storage.md) in revision 0002. The API liveness endpoint remains independent of the database.
 
 ## Configuration and CLI
 

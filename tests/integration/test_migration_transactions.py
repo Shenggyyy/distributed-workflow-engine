@@ -1,41 +1,19 @@
 """Exercise revision history and transactional DDL against real PostgreSQL."""
 
-from collections.abc import Iterator
 from importlib.resources import files
 from pathlib import Path
 from shutil import copytree
-from uuid import uuid4
 
 import pytest
 from alembic import command
-from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.util import CommandError
-from sqlalchemy import Connection, Engine, inspect, text
+from sqlalchemy import Engine, inspect, text
 
+from tests.integration.migration_helpers import migration_config
 from workflow_engine.migrations import MIGRATION_LOCK_KEY
 
 pytestmark = pytest.mark.integration
-
-
-@pytest.fixture
-def migration_schema(engine: Engine) -> Iterator[str]:
-    name = "dwe_migration_test_" + uuid4().hex
-    with engine.begin() as connection:
-        connection.execute(text(f'CREATE SCHEMA "{name}"'))
-    try:
-        yield name
-    finally:
-        with engine.begin() as connection:
-            connection.execute(text(f'DROP SCHEMA "{name}" CASCADE'))
-
-
-def migration_config(connection: Connection, schema: str) -> Config:
-    connection.execute(text(f'SET LOCAL search_path TO "{schema}"'))
-    config = Config()
-    config.set_main_option("script_location", "workflow_engine:migrations")
-    config.attributes["connection"] = connection
-    return config
 
 
 def test_upgrade_repeat_downgrade_and_reupgrade(
@@ -50,13 +28,15 @@ def test_upgrade_repeat_downgrade_and_reupgrade(
             else:
                 command.upgrade(config, "head")
                 assert MigrationContext.configure(connection).get_current_heads() == (
-                    "0001",
+                    "0002",
                 )
                 command.check(config)
     with engine.connect() as connection:
-        assert inspect(connection).get_table_names(schema=migration_schema) == [
-            "alembic_version"
-        ]
+        assert set(inspect(connection).get_table_names(schema=migration_schema)) == {
+            "alembic_version",
+            "workflow_versions",
+            "workflows",
+        }
 
 
 def test_failed_revision_rolls_back_ddl_and_version(
@@ -68,10 +48,10 @@ def test_failed_revision_rolls_back_ddl_and_version(
     # Copy the migration environment into test-owned storage, never edit history.
     scripts = tmp_path / "migrations"
     copytree(str(files("workflow_engine.migrations")), scripts)
-    (scripts / "versions" / "0002_failure.py").write_text(
+    (scripts / "versions" / "test_failure.py").write_text(
         "from alembic import op\n"
-        'revision = "0002"\n'
-        'down_revision = "0001"\n'
+        'revision = "test_failure"\n'
+        'down_revision = "0002"\n'
         "def upgrade():\n"
         '    op.execute("CREATE TABLE rollback_probe (id integer)")\n'
         '    op.execute("SELECT 1 / 0")\n'
@@ -86,7 +66,7 @@ def test_failed_revision_rolls_back_ddl_and_version(
             command.upgrade(config, "head")
     with engine.begin() as connection:
         migration_config(connection, migration_schema)
-        assert MigrationContext.configure(connection).get_current_heads() == ("0001",)
+        assert MigrationContext.configure(connection).get_current_heads() == ("0002",)
         assert not inspect(connection).has_table(
             "rollback_probe", schema=migration_schema
         )
