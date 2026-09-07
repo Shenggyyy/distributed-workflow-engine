@@ -102,7 +102,7 @@ I/O concurrency warrants it.
   need manual URL encoding.
 - Isolation is explicitly READ COMMITTED. A transaction alone does not prevent
   concurrent scheduling races. Workflow publication now uses a row lock and
-  unique constraints. Task state transitions, leases, and fencing are later milestones.
+  unique constraints. Durable task state transitions, leases, and fencing are later milestones.
 - Pool overflow is disabled. Each process opens at most its configured pool size;
   additional callers wait up to the pool timeout. Multiple processes multiply
   this connection budget. This does not yet implement task backpressure.

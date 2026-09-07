@@ -31,7 +31,8 @@ flowchart TD
 
 `B.depends_on = ["A"]` declares the edge A → B. D requires both B and C.
 Edges represent successful prerequisite completion in the intended execution
-model. Runtime readiness and state transitions will be implemented later.
+model. M1.5 defines [runtime state transitions](runtime.md); checking readiness
+against actual task records remains scheduler work.
 
 | Field | Contract |
 | --- | --- |
@@ -50,8 +51,8 @@ numbers/bytes. Unknown fields are rejected, including misspelled dependency keys
 
 `schema_version` describes the document format. It is not a stored workflow
 version number, run ID, or optimistic-lock version. Persistent immutable workflow
-versions now have a [storage schema](workflow-storage.md); publication logic is
-implemented in the next subtask.
+versions have a [storage schema and publication repository](workflow-storage.md)
+and [HTTP publication/query endpoints](api.md).
 
 This contract currently contains graph identity and structure. Handler inputs,
 outputs, retries, task timeout, runtime state, conditional branches, dynamic
@@ -130,7 +131,7 @@ Graph error context includes `task_ids`. For a cycle this is the set of
 cycle, not only nodes inside a cycle. It is not an exact cycle witness.
 The validator reports the first graph error found, after field validation.
 
-The graph limits bound domain work; a future HTTP API still needs request-body
+The graph limits bound domain work; the current HTTP API still needs request-body
 limits because parsing and field validation happen before whole-graph analysis.
 
 ## Analysis and scheduling boundary
@@ -172,7 +173,8 @@ to be revalidated, including nested tasks. Frozen objects are an application
 invariant, not protection against Python reflection or deliberate bypasses.
 
 This immutability protects in-memory definitions. The [storage layer](workflow-storage.md) now guards version rows against mutation;
-publication concurrency and run snapshots require subsequent repository work.
+the repository coordinates publication concurrency. Durable run snapshots remain
+subsequent storage/transaction work.
 
 ## Verification and next steps
 
@@ -186,5 +188,6 @@ long chains, inclusive edge limits, and reproducibly generated DAGs whose every
 edge must respect the resulting order.
 
 M1.2 adds the [workflow/version database schema](workflow-storage.md).
-Transactional repository operations, submission APIs, and durable/idempotent run
-creation follow as separate commit-sized subtasks.
+M1.3/M1.4 implement transactional publication and its HTTP API; M1.5 adds
+[runtime identity/state models](runtime.md). Durable/idempotent run creation
+follows as separate commit-sized subtasks.

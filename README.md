@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M1.4: Workflow publication and retrieval HTTP API.**
+**M1.5: Runtime identity models and explicit lifecycle transitions.**
 
 Available now:
 
@@ -36,6 +36,9 @@ Available now:
 - Workflow publication and version lookup HTTP endpoints with typed OpenAPI contracts.
 - Commit-before-success responses, sanitized validation/storage errors, and lazy API pooling.
 - Real HTTP container checks plus PostgreSQL tests for commit failure and concurrent requests.
+
+- Immutable Run, TaskRun and TaskAttempt snapshots with explicit event-driven transitions.
+- Terminal-state protection and separate task-retry versus attempt-outcome semantics.
 
 Scheduling, workers, and run/task storage are **not implemented yet**.
 The architecture below is the agreed target design.
@@ -119,6 +122,23 @@ Expected output: `HTTP workflow checks passed: publication, history, latest, 404
 This check creates two versions under a unique workflow name; it does not execute
 tasks. See [HTTP API contracts and failure semantics](docs/api.md) for all routes,
 responses, configuration, and limitations.
+
+## Explore runtime state transitions
+
+```console
+uv run --locked python examples/runtime_lifecycle.py
+```
+
+```text
+Attempt 1: FAILED; task: RETRY_WAIT
+Attempt 2: SUCCEEDED; task: SUCCEEDED; run: SUCCEEDED
+In-memory lifecycle only; no scheduling, waiting or task execution.
+```
+
+The [runtime model contract](docs/runtime.md) defines identities, event/state
+tables, terminal states, retry semantics, and the checks required from future
+database transactions. This example requires no Docker or database. A legal
+in-memory transition alone does not prove dependency readiness or task ownership.
 
 ## Planned architecture
 
@@ -484,12 +504,14 @@ docs/
     database.md
     local-development.md
     migrations.md
+    runtime.md
     workflows.md
     workflow-storage.md
 examples/
     diamond.json
     validate_workflow.py
     publish_workflow.py
+    runtime_lifecycle.py
 scripts/
     init_dev_secrets.py
     check_workflow_api.py
@@ -504,6 +526,7 @@ src/workflow_engine/
     domain/
         __init__.py
         dag.py
+        runtime.py
         workflow.py
     repositories/
         __init__.py
@@ -533,6 +556,7 @@ tests/
     test_dev_secrets.py
     test_logging.py
     test_migrations.py
+    test_runtime.py
     test_workflow.py
     test_workflow_api.py
     integration/
@@ -581,9 +605,10 @@ M0 provides the infrastructure foundation. M1.1 adds DAG definitions and
 validation; M1.2 adds workflow/version storage schema and migrations; M1.3 adds
 transactional publication and retrieval with concurrency/failure tests. M1.4
 exposes HTTP publication/retrieval with commit and error contracts.
-After M1.4 is committed, pushed, and all three CI jobs pass, continue to M1.5:
-runtime domain models and explicit legal state transitions for runs/tasks/attempts.
-Run storage and idempotent run creation follow as separate subtasks.
+M1.5 defines runtime identities and explicit legal state transitions for
+runs/tasks/attempts. After M1.5 is committed, pushed, and all three CI jobs pass,
+continue to M1.6: runtime storage schema, constraints and migrations.
+Transactional run creation and request idempotency follow as separate subtasks.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any
