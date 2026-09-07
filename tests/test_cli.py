@@ -6,6 +6,8 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 
+import pytest
+
 
 def console_script() -> str:
     """Locate the console script installed beside the test interpreter."""
@@ -67,4 +69,76 @@ def test_unimplemented_command_fails_explicitly(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 2
-    assert "unrecognized arguments: worker" in result.stderr
+    assert "invalid choice: 'worker'" in result.stderr
+
+
+def test_check_config_accepts_an_explicit_file(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("DWE_API_PORT=9000\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [console_script(), "check-config", "--env-file", str(env_file)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=10,
+    )
+
+    assert result.stdout.strip() == "Configuration is valid."
+    assert result.stderr == ""
+
+
+def test_check_config_error_does_not_echo_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sensitive_value = "example-sensitive-value"
+    monkeypatch.setenv("DWE_API_PORT", sensitive_value)
+
+    result = subprocess.run(
+        [console_script(), "check-config"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+
+    assert result.returncode == 2
+    assert "api_port (int_parsing)" in result.stderr
+    assert sensitive_value not in result.stdout + result.stderr
+    assert "Traceback" not in result.stderr
+    assert result.stdout == ""
+
+
+def test_check_config_missing_file_exits_cleanly(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [console_script(), "check-config", "--env-file", "missing.env"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+
+    assert result.returncode == 2
+    assert "Environment file could not be read as UTF-8." in result.stderr
+    assert "Traceback" not in result.stderr
+    assert result.stdout == ""
+
+
+def test_help_does_not_load_invalid_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DWE_API_PORT", "invalid")
+
+    result = subprocess.run(
+        [console_script(), "--help"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=10,
+    )
+
+    assert "check-config" in result.stdout

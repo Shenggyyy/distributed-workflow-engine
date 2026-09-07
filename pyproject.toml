@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "A distributed DAG workflow engine with durable task ownership and recovery."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
-dependencies = []
+dependencies = ["pydantic>=2.10,<3", "pydantic-settings>=2.8,<3"]
 
 [project.scripts]
 engine = "workflow_engine.cli:main"
@@ -37,6 +37,7 @@ extend-exclude = [".uv-cache"]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.mypy]
+plugins = ["pydantic.mypy"]
 python_version = "3.13"
 files = ["src", "tests"]
 strict = true

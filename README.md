@@ -10,12 +10,13 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M0.2: Automated quality checks and CI configuration.**
+**M0.3: Application configuration and validation.**
 
 Available now:
 
 - An installable Python package using a `src/` layout.
-- A CLI exposing help and the installed package version.
+- A CLI exposing help, the installed package version, and configuration validation.
+- Immutable settings loaded from environment variables and explicit dotenv files.
 - A uv dependency lockfile and pytest entry-point smoke tests.
 - Ruff lint/format checks and strict mypy checks for source code and tests.
 - A GitHub Actions workflow targeting Python 3.13 on Linux and Windows.
@@ -88,6 +89,59 @@ The CLI does not start a server or execute a workflow at this stage.
 Development dependencies are included by default. Python support is deliberately
 limited to 3.13 until additional versions are tested.
 
+### Application configuration
+
+Settings use [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
+and the `DWE_` environment prefix.
+
+| Variable | Default | Accepted values |
+| --- | --- | --- |
+| `DWE_ENVIRONMENT` | `development` | `development`, `test`, `production` |
+| `DWE_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `DWE_API_HOST` | `127.0.0.1` | An IPv4 or IPv6 address literal |
+| `DWE_API_PORT` | `8000` | An integer from 1 through 65535 |
+
+Environment variable names are case-insensitive; enum values use the exact
+spelling shown above. Empty values are validated rather than silently ignored.
+The API address is validated syntactically; no port binding or network check
+takes place.
+
+Configuration precedence is **environment variables > explicitly selected
+dotenv file > defaults**. No dotenv file is loaded automatically, and no parent
+directories are searched. An explicitly selected file must exist and be a
+readable UTF-8 file. Relative paths are resolved against the current directory.
+
+To use a local file in PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+uv run --locked engine check-config --env-file .env
+```
+
+Or validate only environment variables and defaults:
+
+```console
+uv run --locked engine check-config
+```
+
+Success prints `Configuration is valid.` and exits with code 0. Invalid settings
+or an unreadable file exit with code 2. Validation errors report field names and
+error types, without echoing input values or printing the complete settings.
+Help and version commands do not load settings.
+
+Use a dedicated dotenv file: unknown keys in that file are errors, which catches
+typos. Unrecognized process environment variables are ignored, including unknown
+`DWE_` names; this is a limitation of the environment source. Never put real
+credentials in `.env.example`; local `.env` files remain ignored by Git.
+
+Application code will call `load_settings()` at startup and pass the resulting
+immutable `Settings` object to the components that need it. Each explicit call
+loads a fresh snapshot; imports do not load settings, and existing snapshots do
+not change when the environment changes. There is no hot reload or global cache.
+API and logging settings are validated now and will be consumed when those
+components are implemented; this command does not start either component.
+Database and worker settings will be introduced alongside their implementations.
+
 ### Quality checks
 
 Run the same checks as CI:
@@ -102,7 +156,7 @@ uv build
 ```
 
 Ruff checks Python errors, imports, modernization rules, and common bug patterns.
-It also owns formatting (88-column target). mypy uses strict mode for both
+It also owns formatting (88-column target). mypy uses strict mode with the Pydantic plugin for both
 `src/` and `tests/`. All configuration lives in `pyproject.toml`; tool versions
 are recorded in `uv.lock`.
 
@@ -147,8 +201,12 @@ src/workflow_engine/
     __init__.py
     __main__.py
     cli.py
+    config.py
 tests/
+    conftest.py
     test_cli.py
+    test_config.py
+.env.example
 .python-version
 .gitignore
 pyproject.toml
@@ -171,8 +229,8 @@ root to catch packaging and entry-point problems. No PYTHONPATH override is used
 | M5 | Failure propagation, aggregation, idempotency demonstration, end-to-end acceptance |
 
 Each milestone is divided into independently verifiable commit-sized subtasks.
-After M0.2 is committed, pushed, and its CI run passes, the next subtask is
-M0.3: environment-based application configuration and validation.
+After M0.3 is committed, pushed, and its CI run passes, the next subtask is
+M0.4: structured logging.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any
@@ -187,6 +245,7 @@ broker integration justified by benchmarks. UI remains low priority.
 5. Continue to the next major subtask only after the owner confirms commit/push.
 
 Never commit credentials or real environment files. Keep local settings in
-ignored `.env` files; future `.env.example` files must contain placeholders only.
+ignored `.env` files; `.env.example` must contain only non-sensitive defaults or
+placeholders.
 Review the staged diff before each commit. Git ignore rules are not a secret
 scanner.
