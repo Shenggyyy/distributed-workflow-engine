@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M0.5: Minimal HTTP API and liveness endpoint.**
+**M0.6: Container packaging and local PostgreSQL environment.**
 
 Available now:
 
@@ -22,8 +22,10 @@ Available now:
 - A uv dependency lockfile and pytest entry-point smoke tests.
 - Ruff lint/format checks and strict mypy checks for source code and tests.
 - A GitHub Actions workflow targeting Python 3.13 on Linux and Windows.
+- A non-root API image and Compose environment with persistent PostgreSQL storage.
+- Local secret initialization and a separate container integration CI job.
 
-Workflow submission, scheduling, workers, database storage, and Docker are
+Workflow submission, scheduling, workers, and application database integration are
 **not implemented yet**. The architecture below is the agreed target design.
 
 ## Planned architecture
@@ -90,6 +92,21 @@ engine 0.1.0
 The `api` command starts the HTTP server. Workflow execution is not implemented.
 Development dependencies are included by default. Python support is deliberately
 limited to 3.13 until additional versions are tested.
+
+### Run with Docker
+
+With Docker Desktop running Linux containers:
+
+```console
+python scripts/init_dev_secrets.py
+docker compose up --build --wait --wait-timeout 120
+```
+
+The API is available at `http://127.0.0.1:8000/health/live`; PostgreSQL is
+published at `127.0.0.1:5432`. Stop with `docker compose down` to retain data.
+The API does not connect to the database yet. See
+[container development instructions](docs/local-development.md) for credentials,
+port overrides, persistence semantics, and acceptance checks.
 
 ### Run the API
 
@@ -283,8 +300,8 @@ uv build
 
 Ruff checks Python errors, imports, modernization rules, and common bug patterns.
 It also owns formatting (88-column target). mypy uses strict mode with the
-Pydantic plugin for both `src/` and `tests/`. All configuration lives in
-`pyproject.toml`; tool versions are recorded in `uv.lock`.
+Pydantic plugin for `src/`, `tests/`, and development `scripts/`. All configuration
+lives in `pyproject.toml`; tool versions are recorded in `uv.lock`.
 
 To apply formatting locally:
 
@@ -301,13 +318,16 @@ CI only checks formatting; it does not edit or commit files.
 The workflow runs on pushes to `main`, pull requests, and manual dispatch.
 Each Linux/Windows job installs Python from `.python-version`, syncs locked
 dependencies, and runs lint, format, type, test, and package build checks.
-Jobs have a 10-minute timeout; newer runs cancel superseded runs for the same
+Python jobs have a 10-minute timeout; newer runs cancel superseded runs for the same
 ref. Actions are pinned to commit SHAs and repository permissions are read-only.
-No deployment or publishing is performed.
+After both Python jobs pass, a 15-minute Ubuntu container job builds and starts
+the Compose services, checks the API/runtime image, authenticates to PostgreSQL,
+and verifies that data survives database container replacement. Its credentials
+and volumes are disposable. No deployment or publishing is performed.
 
 Local checks do not establish a successful GitHub run. After pushing this
-subtask, inspect the Actions tab and confirm both platform jobs pass before
-starting the next subtask. Making CI mandatory for merges requires a separate
+subtask, inspect the Actions tab and confirm both platform jobs and the container
+integration job pass before starting the next subtask. Making CI mandatory for merges requires a separate
 GitHub branch protection/ruleset configuration; this workflow does not enable it.
 
 ### Build the package
@@ -323,6 +343,10 @@ The source distribution and wheel are written to `dist/`, which is ignored by Gi
 ```text
 .github/workflows/
     ci.yml
+docs/
+    local-development.md
+scripts/
+    init_dev_secrets.py
 src/workflow_engine/
     __init__.py
     __main__.py
@@ -338,7 +362,11 @@ tests/
     test_api.py
     test_cli.py
     test_config.py
+    test_dev_secrets.py
     test_logging.py
+Dockerfile
+compose.yaml
+.dockerignore
 .env.example
 .python-version
 .gitignore
@@ -368,8 +396,8 @@ not suppressed and does not occur during normal API startup.
 | M5 | Failure propagation, aggregation, idempotency demonstration, end-to-end acceptance |
 
 Each milestone is divided into independently verifiable commit-sized subtasks.
-After M0.5 is committed, pushed, and its CI run passes, the next subtask is
-M0.6: Docker and the local PostgreSQL development environment.
+After M0.6 is committed, pushed, and all three CI jobs pass, the next subtask is
+M0.7: database connectivity and Alembic migrations.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

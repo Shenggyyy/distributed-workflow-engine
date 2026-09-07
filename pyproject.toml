@@ -45,5 +45,5 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 python_version = "3.13"
-files = ["src", "tests"]
+files = ["src", "tests", "scripts"]
 strict = true

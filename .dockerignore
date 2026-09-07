@@ -1,0 +1,15 @@
+# Allow only inputs needed to build the application.
+**
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!src/**
+**/__pycache__/
+**/*.py[cod]
+**/.env
+**/.env.*
+**/secrets/
+**/*.pem
+**/*.key

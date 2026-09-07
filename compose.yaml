@@ -1,0 +1,41 @@
+services:
+  api:
+    image: distributed-workflow-engine:dev
+    build:
+      context: .
+      target: runtime
+    environment:
+      DWE_ENVIRONMENT: development
+      DWE_LOG_LEVEL: INFO
+      DWE_API_HOST: 0.0.0.0
+      DWE_API_PORT: "8000"
+    ports:
+      - "127.0.0.1:${DWE_API_PUBLISHED_PORT:-8000}:8000"
+    stop_grace_period: 15s
+
+  postgres:
+    image: postgres:18.6-bookworm
+    environment:
+      POSTGRES_USER: workflow_admin
+      POSTGRES_DB: workflow
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    ports:
+      - "127.0.0.1:${DWE_POSTGRES_PUBLISHED_PORT:-5432}:5432"
+    volumes:
+      # PostgreSQL 18 stores versioned PGDATA below this directory.
+      - postgres_data:/var/lib/postgresql
+    secrets:
+      - postgres_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 10
+
+volumes:
+  postgres_data:
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
