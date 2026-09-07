@@ -1,9 +1,9 @@
 # Container development environment
 
-This stage packages the existing API and provisions PostgreSQL. The API does not
-connect to PostgreSQL yet. M0.7a adds CLI/database-module connectivity and tests;
-see [database configuration](database.md). M0.7b adds
-[explicit migrations](migrations.md); API dependency readiness is later work. A healthy container pair does not execute workflows.
+Compose runs the API and PostgreSQL. M1.4 connects workflow HTTP routes to the
+database using its service name and a mounted password file. See
+[database configuration](database.md), [explicit migrations](migrations.md), and
+[HTTP API contracts](api.md). Liveness is not readiness or evidence of task execution.
 
 ## Start locally
 
@@ -13,6 +13,7 @@ credential helper; it has no third-party dependencies.
 
 ```console
 python scripts/init_dev_secrets.py
+# Linux: apply the secret permissions in the next section before starting.
 docker compose config --quiet
 docker compose up --build --wait --wait-timeout 120
 docker compose ps
@@ -24,6 +25,28 @@ nonempty secret; an empty file is an error. The value is never printed.
 POSIX creation permissions are 0600; on Windows access follows the directory's
 ACL. Keep this directory private. Compose secrets mount a local file; this is
 not an encrypted secret manager.
+
+### Linux secret permissions
+
+Before `docker compose up` on Linux, run:
+
+```sh
+chmod 700 secrets
+chmod 644 secrets/postgres_password.txt
+```
+
+The directory remains accessible only to its owner on the host. Docker mounts
+the file separately at `/run/secrets/postgres_password`, where API UID 10001
+must be able to read it. Keep the source directory at 0700 when using this file
+mode. The helper's default file mode remains 0600 for host-only use.
+
+Compose file-backed secrets use bind mounts and ignore secret `uid/gid/mode`
+remapping; setting those YAML fields would not solve host file permissions.
+See [Docker Compose secrets](https://docs.docker.com/reference/compose-file/services/#secrets).
+Windows Docker Desktop uses its file-sharing/ACL behavior; do not run these
+Linux chmod commands in PowerShell. CI applies them to its disposable credentials.
+
+### Addresses and migrations
 
 Both services publish ports only on the host loopback interface:
 
@@ -43,6 +66,9 @@ docker compose exec postgres psql -h 127.0.0.1 -U workflow_admin -d workflow -W 
 For the last command, enter the password from the local secret file at the
 interactive prompt; do not put it in a command line or commit it.
 API documentation is at [Swagger UI](http://127.0.0.1:8000/docs).
+Before publishing workflows, run `docker compose exec api alembic upgrade head`.
+This uses the container's database settings and secret, independently of host
+port overrides. No migration runs automatically at startup.
 
 To resolve occupied host ports, set shell variables before Compose commands:
 
@@ -53,7 +79,7 @@ docker compose up --build --wait --wait-timeout 120
 ```
 
 The API still listens on port 8000 inside its container. Compose explicitly sets
-the application's four settings; it does not pass an application dotenv file
+the application's API and database settings; it does not pass an application dotenv file
 into the container. The published-port variables belong to Compose, not the
 application's validated settings. Keep them in the shell, outside the
 application's dedicated dotenv file.
@@ -94,9 +120,11 @@ major-version upgrades; changing the image tag is not a migration procedure.
   See the [official PostgreSQL image documentation](https://hub.docker.com/_/postgres).
 - The database receives its password using `POSTGRES_PASSWORD_FILE` and a
   [Compose secret](https://docs.docker.com/compose/how-tos/use-secrets/).
-  `workflow_admin` is an initialization/admin role. Separate runtime privileges
-  will be addressed when the application gains database access.
-- There is no API `depends_on`: the API currently has no database dependency.
+  The API also reads this mounted file; no password is put in an environment
+  value or image layer. Both currently use the development admin role
+  `workflow_admin`; separate production runtime/migration roles are deferred.
+- There is no API `depends_on`: it starts with a lazy pool and can serve liveness
+  during database outages. Workflow operations need a reachable, migrated DB.
   Its healthcheck is liveness only. PostgreSQL's `pg_isready` checks acceptance
   of connections; it does not verify credentials or application schema.
 - A named volume survives container replacement, not host/disk loss. Backups,
@@ -111,12 +139,14 @@ The CI container job runs after both Python quality jobs. It:
 2. Builds the image and waits for both services to become healthy.
 3. Checks HTTP liveness/OpenAPI, the non-root runtime user, and absence of
    development tools in the runtime environment.
-4. Connects to PostgreSQL over TCP with the mounted password and writes a probe row.
-5. Recreates only the PostgreSQL container and verifies the row still exists.
+4. Runs PostgreSQL integration tests, applies/checks migrations, and tests real
+   HTTP publication, historical/latest lookup, and validation/not-found errors.
+5. Writes a persistence probe, recreates only the PostgreSQL container, and
+   verifies the row still exists.
 6. Removes the probe and, in this disposable CI environment only, removes volumes.
 
 These checks establish container packaging, authenticated connectivity, and
-persistence across replacement. They do not establish task recovery, storage
-availability after host loss, or application database integration.
+workflow API/database integration and persistence across replacement.
+They do not establish task recovery or storage availability after host loss.
 For failures, inspect the Actions job's service logs. Never include password
 files or full secret-bearing environment dumps in diagnostics.

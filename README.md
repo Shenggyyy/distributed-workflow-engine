@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M1.3: Transactional workflow publication and version retrieval.**
+**M1.4: Workflow publication and retrieval HTTP API.**
 
 Available now:
 
@@ -33,8 +33,12 @@ Available now:
 - A transaction-scoped repository with concurrent version allocation and validated reads.
 - PostgreSQL tests for concurrent first publication, rollback, and workflow lock isolation.
 
-Workflow publication/retrieval APIs, scheduling, workers, and run/task storage are
-**not implemented yet**. The architecture below is the agreed target design.
+- Workflow publication and version lookup HTTP endpoints with typed OpenAPI contracts.
+- Commit-before-success responses, sanitized validation/storage errors, and lazy API pooling.
+- Real HTTP container checks plus PostgreSQL tests for commit failure and concurrent requests.
+
+Scheduling, workers, and run/task storage are **not implemented yet**.
+The architecture below is the agreed target design.
 
 ## Validate a workflow
 
@@ -86,8 +90,35 @@ checks equality before reporting success. It also accepts an explicit
 
 The [repository contract](docs/workflow-storage.md#transactional-repository)
 explains locking, transaction ownership, typed lookups, and failure semantics.
-This is a Python persistence interface; HTTP publication routes and execution
-are later subtasks.
+HTTP publication and retrieval use this repository. Task execution remains a later subtask.
+
+## Publish through HTTP
+
+Start Compose, then apply the packaged migration explicitly:
+
+```powershell
+docker compose exec api alembic upgrade head
+$body = Get-Content examples/diamond.json -Raw
+$published = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/workflows -ContentType "application/json" -Body $body
+$published | ConvertTo-Json -Depth 10
+Invoke-RestMethod "http://127.0.0.1:8000/workflow-versions/$($published.id)"
+```
+
+The POST returns HTTP `201` only after commit, with version UUID, workflow UUID,
+version number, creation time, and the validated definition. Its `Location`
+header points to the immutable version. Repeating the request appends another
+version; `Idempotency-Key` is explicitly rejected until supported.
+
+Run the automated network check against a disposable local database:
+
+```console
+uv run --locked python scripts/check_workflow_api.py
+```
+
+Expected output: `HTTP workflow checks passed: publication, history, latest, 404 and 422.`
+This check creates two versions under a unique workflow name; it does not execute
+tasks. See [HTTP API contracts and failure semantics](docs/api.md) for all routes,
+responses, configuration, and limitations.
 
 ## Planned architecture
 
@@ -160,12 +191,15 @@ With Docker Desktop running Linux containers:
 
 ```console
 python scripts/init_dev_secrets.py
+# On Linux, first apply the secret permissions documented below.
 docker compose up --build --wait --wait-timeout 120
 ```
 
 The API is available at `http://127.0.0.1:8000/health/live`; PostgreSQL is
 published at `127.0.0.1:5432`. Stop with `docker compose down` to retain data.
-The API does not connect to the database yet. See
+The API connects to PostgreSQL by Compose service name and reads a mounted secret.
+On Linux, apply the [secret directory/file permissions](docs/local-development.md#linux-secret-permissions)
+before starting the non-root API. See
 [container development instructions](docs/local-development.md) for credentials,
 port overrides, persistence semantics, and acceptance checks.
 
@@ -244,7 +278,9 @@ uv run --locked alembic check
 
 Revision `0001` records the initial baseline; `0002` adds workflow identity and
 append-only version tables. Current revision should be `0002 (head)`.
-Migration commands are explicit and never run on API startup. See the
+Migration commands are explicit and never run on API startup. With Compose,
+`docker compose exec api alembic upgrade head` uses the container's existing
+settings and mounted secret. See the
 [workflow storage schema](docs/workflow-storage.md) for constraints, snapshot
 semantics, and the limits of database immutability. See
 [migration execution and failure semantics](docs/migrations.md) for transactions,
@@ -420,8 +456,8 @@ Python jobs have a 10-minute timeout; newer runs cancel superseded runs for the 
 ref. Actions are pinned to commit SHAs and repository permissions are read-only.
 After both Python jobs pass, a 15-minute Ubuntu container job builds and starts
 the Compose services, checks the API/runtime image, runs the application's
-PostgreSQL connectivity/transaction and migration tests, applies and checks the
-current revision, and verifies that data survives
+PostgreSQL and HTTP integration tests, applies and checks the current revision,
+executes a real HTTP publication/query smoke test, and verifies that data survives
 database container replacement. Its credentials
 and volumes are disposable. No deployment or publishing is performed.
 
@@ -444,6 +480,7 @@ The source distribution and wheel are written to `dist/`, which is ignored by Gi
 .github/workflows/
     ci.yml
 docs/
+    api.md
     database.md
     local-development.md
     migrations.md
@@ -455,6 +492,7 @@ examples/
     publish_workflow.py
 scripts/
     init_dev_secrets.py
+    check_workflow_api.py
 src/workflow_engine/
     __init__.py
     __main__.py
@@ -480,7 +518,10 @@ src/workflow_engine/
     api/
         __init__.py
         app.py
+        dependencies.py
+        errors.py
         health.py
+        workflows.py
 tests/
     __init__.py
     conftest.py
@@ -493,6 +534,7 @@ tests/
     test_logging.py
     test_migrations.py
     test_workflow.py
+    test_workflow_api.py
     integration/
         __init__.py
         conftest.py
@@ -501,6 +543,7 @@ tests/
         test_postgresql.py
         test_workflow_schema.py
         test_workflow_repository.py
+        test_workflow_http.py
 alembic.ini
 Dockerfile
 compose.yaml
@@ -536,9 +579,10 @@ not suppressed and does not occur during normal API startup.
 Each milestone is divided into independently verifiable commit-sized subtasks.
 M0 provides the infrastructure foundation. M1.1 adds DAG definitions and
 validation; M1.2 adds workflow/version storage schema and migrations; M1.3 adds
-transactional publication and retrieval with concurrency/failure tests.
-After M1.3 is committed, pushed, and all three CI jobs pass, continue to M1.4:
-workflow publication/retrieval HTTP endpoints and their request/error contracts.
+transactional publication and retrieval with concurrency/failure tests. M1.4
+exposes HTTP publication/retrieval with commit and error contracts.
+After M1.4 is committed, pushed, and all three CI jobs pass, continue to M1.5:
+runtime domain models and explicit legal state transitions for runs/tasks/attempts.
 Run storage and idempotent run creation follow as separate subtasks.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and

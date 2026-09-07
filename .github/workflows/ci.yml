@@ -71,7 +71,11 @@ jobs:
           persist-credentials: false
 
       - name: Initialize disposable credentials
-        run: python3 scripts/init_dev_secrets.py
+        run: |
+          python3 scripts/init_dev_secrets.py
+          # Private host directory; bind-mounted file is readable by API UID 10001.
+          chmod 700 secrets
+          chmod 644 secrets/postgres_password.txt
 
       - name: Validate Compose configuration
         run: docker compose config --quiet
@@ -117,6 +121,9 @@ jobs:
           uv run --locked alembic -x env_file=.env.database-test upgrade head
           uv run --locked alembic -x env_file=.env.database-test current
           uv run --locked alembic -x env_file=.env.database-test check
+
+      - name: Exercise workflow publication over real HTTP
+        run: uv run --locked python scripts/check_workflow_api.py
 
       - name: Verify authenticated SQL and write persistence probe
         run: |

@@ -2,8 +2,9 @@
 
 M1.2 adds revision `0002`, containing `workflows` and `workflow_versions`.
 It defines storage and database invariants. M1.3 adds transactional publication,
-version allocation, and retrieval through a Python repository. Request idempotency
-and HTTP endpoints remain separate subtasks; the schema revision stays at `0002`.
+version allocation, and retrieval through a Python repository. M1.4 exposes
+[HTTP endpoints](api.md); request idempotency remains future work. The schema
+revision stays at `0002`.
 
 ```mermaid
 erDiagram
@@ -172,8 +173,8 @@ the stored definition again, including DAG constraints and supported schema
 version. Invalid snapshots raise `StoredDefinitionError` with a fixed message
 without embedding the payload. Invalid publication input raises Pydantic
 `ValidationError` before any write, including instances created using validation
-bypasses such as `model_copy`. These are internal Python errors; HTTP mapping is
-not implemented yet.
+bypasses such as `model_copy`. These are internal Python errors; the [HTTP layer](api.md)
+maps request validation to 422 and corrupted storage to a fixed 500 response.
 
 ```python
 from workflow_engine.repositories.workflows import WorkflowRepository

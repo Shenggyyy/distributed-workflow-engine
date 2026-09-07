@@ -1,9 +1,10 @@
 # PostgreSQL connectivity and transaction boundaries
 
 M0.7a introduces SQLAlchemy 2 Core with psycopg 3 and an explicit engine lifetime.
-The connectivity module does not create tables or connect the HTTP API to
-PostgreSQL. [Explicit Alembic commands](migrations.md) use this engine; M1.2 adds
-[workflow/version tables](workflow-storage.md) in revision 0002. The API liveness endpoint remains independent of the database.
+The connectivity module does not create tables. [Explicit Alembic commands](migrations.md)
+use this engine; M1.2 adds [workflow/version tables](workflow-storage.md) in revision
+0002. M1.4 connects [HTTP workflow routes](api.md) through an app-owned lazy pool.
+The API liveness endpoint remains independent of the database.
 
 ## Configuration and CLI
 
@@ -49,8 +50,8 @@ uv run --locked engine check-db
 
 `DWE_POSTGRES_PUBLISHED_PORT` controls Docker's host port mapping;
 `DWE_DATABASE_PORT` controls where the application connects. They must match
-when the CLI runs on the Windows host. A future service inside Compose will
-connect to `postgres:5432`, independent of published host ports.
+when the CLI runs on the Windows host. The API inside Compose connects to
+`postgres:5432`, independent of published host ports.
 
 `check-db` also accepts `--env-file <path>`. Success prints
 `Database connection is valid.` and exits 0. Missing/invalid credentials or
@@ -89,9 +90,9 @@ transactions before leaving `database_engine()`, which disposes idle connections
 Disposal is not cancellation of already checked-out connections.
 
 Synchronous database calls suit the initial short transactions and synchronous
-scheduler loops. Future FastAPI database routes must use synchronous handlers or
-explicit thread-pool dispatch; calling this API directly from an async handler
-would block the event loop. Async infrastructure should be introduced if measured
+scheduler loops. M1.4's FastAPI database routes use synchronous handlers in the
+thread pool, with commit completed before returning HTTP success. Direct calls
+from an async handler would block the event loop. Async infrastructure should be introduced if measured
 I/O concurrency warrants it.
 
 ## Limits and failure semantics
@@ -100,8 +101,8 @@ I/O concurrency warrants it.
   string. Passwords containing characters such as `@`, `/`, and `%` do not
   need manual URL encoding.
 - Isolation is explicitly READ COMMITTED. A transaction alone does not prevent
-  concurrent scheduling races. Row locks, conditional state transitions, unique
-  constraints, leases, and fencing are later milestones.
+  concurrent scheduling races. Workflow publication now uses a row lock and
+  unique constraints. Task state transitions, leases, and fencing are later milestones.
 - Pool overflow is disabled. Each process opens at most its configured pool size;
   additional callers wait up to the pool timeout. Multiple processes multiply
   this connection budget. This does not yet implement task backpressure.

@@ -9,6 +9,11 @@ services:
       DWE_LOG_LEVEL: INFO
       DWE_API_HOST: 0.0.0.0
       DWE_API_PORT: "8000"
+      DWE_DATABASE_HOST: postgres
+      DWE_DATABASE_PORT: "5432"
+      DWE_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
     ports:
       - "127.0.0.1:${DWE_API_PUBLISHED_PORT:-8000}:8000"
     stop_grace_period: 15s

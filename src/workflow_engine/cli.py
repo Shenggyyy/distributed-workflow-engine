@@ -47,7 +47,8 @@ def main() -> None:
         prog="engine",
         description=(
             "Distributed Workflow Engine. "
-            "API liveness is available; workflow execution is not implemented yet."
+            "Workflow publication and API liveness are available; "
+            "workflow execution is not implemented yet."
         ),
     )
     parser.add_argument(
