@@ -13,3 +13,4 @@
 **/secrets/
 **/*.pem
 **/*.key
+!alembic.ini

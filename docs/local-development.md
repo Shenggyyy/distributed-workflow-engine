@@ -2,8 +2,8 @@
 
 This stage packages the existing API and provisions PostgreSQL. The API does not
 connect to PostgreSQL yet. M0.7a adds CLI/database-module connectivity and tests;
-see [database configuration](database.md). Migrations and API dependency
-readiness are subsequent work. A healthy container pair does not execute workflows.
+see [database configuration](database.md). M0.7b adds
+[explicit migrations](migrations.md); API dependency readiness is later work. A healthy container pair does not execute workflows.
 
 ## Start locally
 

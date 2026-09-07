@@ -9,6 +9,7 @@ description = "A distributed DAG workflow engine with durable task ownership and
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+    "alembic>=1.16,<2",
     "fastapi>=0.115,<1",
     "psycopg[binary]>=3.2,<4",
     "pydantic>=2.10,<3",

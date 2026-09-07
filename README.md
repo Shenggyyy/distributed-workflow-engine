@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M0.7a: PostgreSQL connectivity and explicit transaction boundaries.**
+**M0.7b: Alembic migration infrastructure. M0 foundation implemented.**
 
 Available now:
 
@@ -26,8 +26,9 @@ Available now:
 - Local secret initialization and a separate container integration CI job.
 - A bounded PostgreSQL connection pool using SQLAlchemy 2 and psycopg 3.
 - Real PostgreSQL integration tests for transactions, pool limits, and SQL timeouts.
+- Packaged Alembic revisions with explicit upgrades and a PostgreSQL migration lock.
 
-Workflow submission, scheduling, workers, business tables, migrations, and API database integration are
+Workflow submission, scheduling, workers, business tables, and API database integration are
 **not implemented yet**. The architecture below is the agreed target design.
 
 ## Planned architecture
@@ -172,6 +173,21 @@ Success prints `Database connection is valid.` This checks an authenticated
 SQL round trip; it does not check schema readiness. See
 [database configuration and transaction contracts](docs/database.md) for all
 settings, credentials, timeouts, and running PostgreSQL integration tests.
+
+### Apply database migrations
+
+After setting database credentials as described above:
+
+```console
+uv run --locked alembic upgrade head
+uv run --locked alembic current
+uv run --locked alembic check
+```
+
+The initial `0001` revision records an empty baseline; no workflow tables exist
+yet. Migration commands are explicit and never run on API startup. See
+[migration execution and failure semantics](docs/migrations.md) for transactions,
+concurrent migration protection, SQL review, and authoring new revisions.
 
 ### Application configuration
 
@@ -340,7 +356,8 @@ Python jobs have a 10-minute timeout; newer runs cancel superseded runs for the 
 ref. Actions are pinned to commit SHAs and repository permissions are read-only.
 After both Python jobs pass, a 15-minute Ubuntu container job builds and starts
 the Compose services, checks the API/runtime image, runs the application's
-PostgreSQL connectivity/transaction tests, and verifies that data survives
+PostgreSQL connectivity/transaction and migration tests, applies and checks the
+baseline revision, and verifies that data survives
 database container replacement. Its credentials
 and volumes are disposable. No deployment or publishing is performed.
 
@@ -365,6 +382,7 @@ The source distribution and wheel are written to `dist/`, which is ignored by Gi
 docs/
     database.md
     local-development.md
+    migrations.md
 scripts/
     init_dev_secrets.py
 src/workflow_engine/
@@ -374,11 +392,19 @@ src/workflow_engine/
     config.py
     database.py
     logging.py
+    schema.py
+    migrations/
+        __init__.py
+        env.py
+        script.py.mako
+        versions/
+            0001_baseline.py
     api/
         __init__.py
         app.py
         health.py
 tests/
+    __init__.py
     conftest.py
     test_api.py
     test_cli.py
@@ -386,8 +412,13 @@ tests/
     test_database.py
     test_dev_secrets.py
     test_logging.py
+    test_migrations.py
     integration/
+        __init__.py
+        conftest.py
+        test_migration_transactions.py
         test_postgresql.py
+alembic.ini
 Dockerfile
 compose.yaml
 .dockerignore
@@ -420,9 +451,9 @@ not suppressed and does not occur during normal API startup.
 | M5 | Failure propagation, aggregation, idempotency demonstration, end-to-end acceptance |
 
 Each milestone is divided into independently verifiable commit-sized subtasks.
-M0.7 is split into two commit-sized subtasks: M0.7a database connectivity and
-transaction boundaries, then M0.7b Alembic migration infrastructure. Continue to
-M0.7b only after M0.7a is committed, pushed, and all three CI jobs pass.
+M0.7a provides database connectivity and transaction boundaries; M0.7b adds
+Alembic migration infrastructure. After M0.7b is committed, pushed, and all three
+CI jobs pass, continue to M1.1: workflow/DAG domain models and validation.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

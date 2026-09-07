@@ -85,6 +85,11 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:8000/openapi.json | python3 -c 'import json, sys; assert "/health/live" in json.load(sys.stdin)["paths"]'
           docker compose exec -T api python -c 'import importlib.util, os, shutil; assert os.getuid() == 10001; assert importlib.util.find_spec("pytest") is None; assert shutil.which("uv") is None'
 
+      - name: Verify packaged migration resources in the runtime image
+        run: |
+          docker compose exec -T api alembic heads
+          docker compose exec -T api python -c 'from importlib.resources import files; from alembic.config import Config; from alembic.script import ScriptDirectory; assert ScriptDirectory.from_config(Config("alembic.ini")).get_heads() == ["0001"]; assert files("workflow_engine.migrations").joinpath("script.py.mako").is_file()'
+
       - name: Install uv for database integration tests
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
@@ -109,6 +114,9 @@ jobs:
           ENV
           uv run --locked engine check-db --env-file .env.database-test
           uv run --locked pytest tests/integration --database-env-file .env.database-test
+          uv run --locked alembic -x env_file=.env.database-test upgrade head
+          uv run --locked alembic -x env_file=.env.database-test current
+          uv run --locked alembic -x env_file=.env.database-test check
 
       - name: Verify authenticated SQL and write persistence probe
         run: |
