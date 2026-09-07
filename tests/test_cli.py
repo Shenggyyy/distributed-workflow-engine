@@ -95,14 +95,15 @@ def test_check_config_accepts_an_explicit_file(tmp_path: Path) -> None:
     assert "api_port" not in records[0]
 
 
-def test_check_config_error_does_not_echo_input(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("command", ["check-config", "api"])
+def test_invalid_settings_prevent_command_startup_without_echoing_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, command: str
 ) -> None:
     sensitive_value = "example-sensitive-value"
     monkeypatch.setenv("DWE_API_PORT", sensitive_value)
 
     result = subprocess.run(
-        [console_script(), "check-config"],
+        [console_script(), command],
         cwd=tmp_path,
         capture_output=True,
         text=True,
@@ -117,9 +118,10 @@ def test_check_config_error_does_not_echo_input(
     assert result.stdout == ""
 
 
-def test_check_config_missing_file_exits_cleanly(tmp_path: Path) -> None:
+@pytest.mark.parametrize("command", ["check-config", "api"])
+def test_missing_file_prevents_command_startup(tmp_path: Path, command: str) -> None:
     result = subprocess.run(
-        [console_script(), "check-config", "--env-file", "missing.env"],
+        [console_script(), command, "--env-file", "missing.env"],
         cwd=tmp_path,
         capture_output=True,
         text=True,
@@ -133,13 +135,14 @@ def test_check_config_missing_file_exits_cleanly(tmp_path: Path) -> None:
     assert result.stdout == ""
 
 
+@pytest.mark.parametrize("arguments", [["--help"], ["api", "--help"]])
 def test_help_does_not_load_invalid_settings(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, arguments: list[str]
 ) -> None:
     monkeypatch.setenv("DWE_API_PORT", "invalid")
 
     result = subprocess.run(
-        [console_script(), "--help"],
+        [console_script(), *arguments],
         cwd=tmp_path,
         capture_output=True,
         text=True,
@@ -147,7 +150,7 @@ def test_help_does_not_load_invalid_settings(
         timeout=10,
     )
 
-    assert "check-config" in result.stdout
+    assert "usage:" in result.stdout
 
 
 def test_check_config_log_level_does_not_hide_stdout(

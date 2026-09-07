@@ -8,13 +8,19 @@ version = "0.1.0"
 description = "A distributed DAG workflow engine with durable task ownership and recovery."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
-dependencies = ["pydantic>=2.10,<3", "pydantic-settings>=2.8,<3"]
+dependencies = [
+    "fastapi>=0.115,<1",
+    "pydantic>=2.10,<3",
+    "pydantic-settings>=2.8,<3",
+    "uvicorn>=0.34,<1",
+]
 
 [project.scripts]
 engine = "workflow_engine.cli:main"
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.12,<3",
     "mypy>=1.15,<3",
     "pytest>=8.3.5,<10",
     "ruff>=0.11,<1",

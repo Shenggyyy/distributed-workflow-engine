@@ -5,19 +5,37 @@ import logging
 from importlib.metadata import version
 from pathlib import Path
 
+import uvicorn
 from pydantic import ValidationError
 
-from workflow_engine.config import load_settings
+from workflow_engine.api.app import create_app
+from workflow_engine.config import Settings, load_settings
 from workflow_engine.logging import configure_logging
 
 
+def _load_cli_settings(
+    parser: argparse.ArgumentParser, env_file: Path | None
+) -> Settings:
+    """Keep startup errors consistent across commands without echoing input values."""
+    try:
+        return load_settings(env_file=env_file)
+    except ValidationError as exc:
+        errors = exc.errors(
+            include_input=False, include_context=False, include_url=False
+        )
+        details = sorted({f"{error['loc'][0]} ({error['type']})" for error in errors})
+        parser.error("Invalid configuration: " + "; ".join(details))
+    except (OSError, UnicodeError):
+        parser.error("Environment file could not be read as UTF-8.")
+
+
 def main() -> None:
-    """Parse CLI arguments and run the requested command."""
+    """Validate configuration before starting the selected process role."""
     parser = argparse.ArgumentParser(
         prog="engine",
         description=(
             "Distributed Workflow Engine. "
-            "Project bootstrap only; workflow execution is not implemented yet."
+            "API liveness is available; workflow execution is not implemented yet."
         ),
     )
     parser.add_argument(
@@ -26,29 +44,26 @@ def main() -> None:
         version=f"%(prog)s {version('distributed-workflow-engine')}",
     )
     commands = parser.add_subparsers(dest="command")
-    config_parser = commands.add_parser(
-        "check-config",
-        help="Validate application configuration without starting services.",
-    )
-    config_parser.add_argument(
-        "--env-file",
-        type=Path,
-        help="Explicit UTF-8 dotenv file; environment variables take precedence.",
-    )
+    command_parsers: dict[str, argparse.ArgumentParser] = {}
+    for name, help_text in (
+        ("check-config", "Validate configuration without starting services."),
+        ("api", "Start the HTTP API server."),
+    ):
+        command_parser = commands.add_parser(name, help=help_text)
+        command_parser.add_argument(
+            "--env-file",
+            type=Path,
+            help="Explicit UTF-8 dotenv file; environment variables take precedence.",
+        )
+        command_parsers[name] = command_parser
+
     args = parser.parse_args()
+    if args.command is None:
+        parser.print_help()
+        return
+
+    settings = _load_cli_settings(command_parsers[args.command], args.env_file)
     if args.command == "check-config":
-        try:
-            settings = load_settings(env_file=args.env_file)
-        except ValidationError as exc:
-            errors = exc.errors(
-                include_input=False, include_context=False, include_url=False
-            )
-            details = sorted(
-                {f"{error['loc'][0]} ({error['type']})" for error in errors}
-            )
-            config_parser.error("Invalid configuration: " + "; ".join(details))
-        except (OSError, UnicodeError):
-            config_parser.error("Environment file could not be read as UTF-8.")
         configure_logging(settings, component="cli")
         logging.getLogger(__name__).info(
             "Configuration validation completed.",
@@ -56,4 +71,15 @@ def main() -> None:
         )
         print("Configuration is valid.")
         return
-    parser.print_help()
+
+    uvicorn.run(
+        create_app(settings),
+        host=str(settings.api_host),
+        port=settings.api_port,
+        log_level=settings.log_level.lower(),
+        access_log=False,
+        proxy_headers=False,
+        workers=1,
+        lifespan="on",
+        timeout_graceful_shutdown=10,
+    )

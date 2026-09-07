@@ -10,12 +10,13 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M0.4: Structured application logging.**
+**M0.5: Minimal HTTP API and liveness endpoint.**
 
 Available now:
 
 - An installable Python package using a `src/` layout.
-- A CLI exposing help, the installed package version, and configuration validation.
+- A CLI exposing help, version, configuration validation, and API startup.
+- A FastAPI application with liveness, OpenAPI, and interactive API documentation.
 - Immutable settings loaded from environment variables and explicit dotenv files.
 - JSON application logs on stderr, with log-level control and correlation fields.
 - A uv dependency lockfile and pytest entry-point smoke tests.
@@ -86,9 +87,57 @@ Expected version output:
 engine 0.1.0
 ```
 
-The CLI does not start a server or execute a workflow at this stage.
+The `api` command starts the HTTP server. Workflow execution is not implemented.
 Development dependencies are included by default. Python support is deliberately
 limited to 3.13 until additional versions are tested.
+
+### Run the API
+
+Start the server in a terminal:
+
+```console
+uv run --locked engine api
+```
+
+Or explicitly load a local dotenv file:
+
+```console
+uv run --locked engine api --env-file .env
+```
+
+Defaults are `127.0.0.1:8000`. From another PowerShell terminal:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health/live
+```
+
+HTTP response:
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"status":"ok"}
+```
+
+Open [Swagger UI](http://127.0.0.1:8000/docs) or
+[OpenAPI JSON](http://127.0.0.1:8000/openapi.json) while the server is running.
+Swagger UI uses FastAPI's default CDN assets; OpenAPI JSON and the health
+endpoint do not require those assets. Press Ctrl+C in the server terminal to stop.
+
+The API uses an application factory, `create_app(settings)`, with explicit
+settings injection and FastAPI lifespan startup/shutdown hooks. Importing the
+API module does not read environment variables, bind a port, or start services.
+The CLI validates settings before starting Uvicorn. `DWE_API_HOST`,
+`DWE_API_PORT`, and `DWE_LOG_LEVEL` control the server. It runs one process,
+without reload or trusted proxy headers, with a 10-second graceful-shutdown
+timeout. Invalid configuration exits before server startup.
+
+`GET /health/live` is **liveness only**: a successful response means the API
+can serve this request. It does not prove that PostgreSQL, schedulers, workers,
+or workflow execution are healthy. It makes no dependency calls and exposes no
+configuration. A separate readiness endpoint will be introduced alongside
+persistent infrastructure. No readiness success is claimed in this milestone.
 
 ### Application configuration
 
@@ -127,8 +176,7 @@ uv run --locked engine check-config
 
 Success prints `Configuration is valid.` to stdout and exits with code 0. It also
 emits a `configuration_validated` INFO log to stderr when the log level permits.
-Invalid settings
-or an unreadable file exit with code 2. Validation errors report field names and
+Invalid settings or an unreadable file exit with code 2. Validation errors report field names and
 error types, without echoing input values or printing the complete settings.
 Help and version commands do not load settings.
 
@@ -142,7 +190,7 @@ immutable `Settings` object to the components that need it. Each explicit call
 loads a fresh snapshot; imports do not load settings, and existing snapshots do
 not change when the environment changes. There is no hot reload or global cache.
 Logging is initialized after successful configuration validation. API settings
-will be consumed when the API is implemented; this command does not start a server.
+are used by `engine api`; `check-config` does not start a server.
 Database and worker settings will be introduced alongside their implementations.
 
 ### Structured logging
@@ -209,9 +257,16 @@ duplicates; configure it before starting concurrent work, once in each process.
 Help/version and invalid-configuration errors retain their normal CLI output
 because logging starts only after settings validate.
 
+API lifespan events are `api_startup_complete` and `api_shutdown_complete`.
+The startup event means application initialization finished, not that the server
+has successfully bound its socket; use an HTTP request to verify reachability.
+Uvicorn retains its own text service/error logs on stderr, with access logging
+disabled. The API process stderr therefore contains both engine JSON records
+and Uvicorn text. Unifying server logs and adding request logging are later work.
+
 Logs are synchronous diagnostic output, not a durable event log. File rotation,
-central collection, third-party server logging, and queued logging are deferred
-until their operational need is established.
+central collection, and queued logging are deferred until their operational need
+is established.
 
 ### Quality checks
 
@@ -228,8 +283,8 @@ uv build
 
 Ruff checks Python errors, imports, modernization rules, and common bug patterns.
 It also owns formatting (88-column target). mypy uses strict mode with the
-Pydantic plugin for both `src/` and `tests/`. All configuration lives in `pyproject.toml`; tool versions
-are recorded in `uv.lock`.
+Pydantic plugin for both `src/` and `tests/`. All configuration lives in
+`pyproject.toml`; tool versions are recorded in `uv.lock`.
 
 To apply formatting locally:
 
@@ -274,8 +329,13 @@ src/workflow_engine/
     cli.py
     config.py
     logging.py
+    api/
+        __init__.py
+        app.py
+        health.py
 tests/
     conftest.py
+    test_api.py
     test_cli.py
     test_config.py
     test_logging.py
@@ -289,6 +349,12 @@ README.md
 
 Tests invoke the installed console script and module from outside the repository
 root to catch packaging and entry-point problems. No PYTHONPATH override is used.
+HTTP tests use FastAPI's TestClient as a context manager so application startup
+and shutdown run during each test. They cover the health response, OpenAPI,
+settings injection, and lifecycle logs. The test client uses HTTPX2.
+The locked Starlette 1.6.0 release currently emits a test-only deprecation warning
+for its use of AnyIO's BlockingPortal alias. Tests pass; this upstream warning is
+not suppressed and does not occur during normal API startup.
 
 ## Development milestones
 
@@ -302,8 +368,8 @@ root to catch packaging and entry-point problems. No PYTHONPATH override is used
 | M5 | Failure propagation, aggregation, idempotency demonstration, end-to-end acceptance |
 
 Each milestone is divided into independently verifiable commit-sized subtasks.
-After M0.4 is committed, pushed, and its CI run passes, the next subtask is
-M0.5: the minimal API and health endpoint.
+After M0.5 is committed, pushed, and its CI run passes, the next subtask is
+M0.6: Docker and the local PostgreSQL development environment.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

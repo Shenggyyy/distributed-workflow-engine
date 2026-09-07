@@ -2,7 +2,6 @@
 
 import json
 import logging
-from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from io import StringIO
@@ -12,25 +11,6 @@ import pytest
 
 from workflow_engine.config import Settings
 from workflow_engine.logging import configure_logging
-
-
-@pytest.fixture(autouse=True)
-def restore_application_logger() -> Iterator[None]:
-    logger = logging.getLogger("workflow_engine")
-    handlers = tuple(logger.handlers)
-    level, propagate = logger.level, logger.propagate
-    try:
-        yield
-    finally:
-        for handler in tuple(logger.handlers):
-            if handler not in handlers:
-                logger.removeHandler(handler)
-                handler.close()
-        for handler in handlers:
-            if handler not in logger.handlers:
-                logger.addHandler(handler)
-        logger.setLevel(level)
-        logger.propagate = propagate
 
 
 def test_json_line_preserves_unicode_newlines_and_supported_fields() -> None:
