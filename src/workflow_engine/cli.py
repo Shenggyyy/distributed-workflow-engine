@@ -2,14 +2,21 @@
 
 import argparse
 import logging
+import sys
 from importlib.metadata import version
 from pathlib import Path
 
 import uvicorn
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
 from workflow_engine.api.app import create_app
 from workflow_engine.config import Settings, load_settings
+from workflow_engine.database import (
+    DatabaseConfigurationError,
+    check_database,
+    database_engine,
+)
 from workflow_engine.logging import configure_logging
 
 
@@ -23,7 +30,12 @@ def _load_cli_settings(
         errors = exc.errors(
             include_input=False, include_context=False, include_url=False
         )
-        details = sorted({f"{error['loc'][0]} ({error['type']})" for error in errors})
+        details = sorted(
+            {
+                f"{error['loc'][0] if error['loc'] else 'settings'} ({error['type']})"
+                for error in errors
+            }
+        )
         parser.error("Invalid configuration: " + "; ".join(details))
     except (OSError, UnicodeError):
         parser.error("Environment file could not be read as UTF-8.")
@@ -48,6 +60,7 @@ def main() -> None:
     for name, help_text in (
         ("check-config", "Validate configuration without starting services."),
         ("api", "Start the HTTP API server."),
+        ("check-db", "Check authenticated database connectivity; no schema changes."),
     ):
         command_parser = commands.add_parser(name, help=help_text)
         command_parser.add_argument(
@@ -63,6 +76,23 @@ def main() -> None:
         return
 
     settings = _load_cli_settings(command_parsers[args.command], args.env_file)
+    if args.command == "check-db":
+        configure_logging(settings, component="cli")
+        try:
+            with database_engine(settings) as engine:
+                check_database(engine)
+        except DatabaseConfigurationError:
+            print("Database credentials are missing or invalid.", file=sys.stderr)
+            raise SystemExit(2) from None
+        except SQLAlchemyError:
+            logging.getLogger(__name__).error(
+                "Database connectivity check failed.",
+                extra={"event": "database_check_failed"},
+            )
+            raise SystemExit(1) from None
+        print("Database connection is valid.")
+        return
+
     if args.command == "check-config":
         configure_logging(settings, component="cli")
         logging.getLogger(__name__).info(

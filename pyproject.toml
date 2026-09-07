@@ -10,8 +10,10 @@ readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "fastapi>=0.115,<1",
+    "psycopg[binary]>=3.2,<4",
     "pydantic>=2.10,<3",
     "pydantic-settings>=2.8,<3",
+    "sqlalchemy>=2.0,<2.1",
     "uvicorn>=0.34,<1",
 ]
 
@@ -32,6 +34,7 @@ packages = ["src/workflow_engine"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--import-mode=importlib", "--strict-config", "--strict-markers"]
+markers = ["integration: requires an explicitly configured PostgreSQL test database"]
 
 [tool.ruff]
 target-version = "py313"

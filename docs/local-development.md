@@ -1,8 +1,9 @@
 # Container development environment
 
 This stage packages the existing API and provisions PostgreSQL. The API does not
-connect to PostgreSQL yet: migrations, database settings, and dependency readiness
-are M0.7 work. A healthy container pair does not execute workflows.
+connect to PostgreSQL yet. M0.7a adds CLI/database-module connectivity and tests;
+see [database configuration](database.md). Migrations and API dependency
+readiness are subsequent work. A healthy container pair does not execute workflows.
 
 ## Start locally
 

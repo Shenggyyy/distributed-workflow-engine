@@ -10,12 +10,12 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M0.6: Container packaging and local PostgreSQL environment.**
+**M0.7a: PostgreSQL connectivity and explicit transaction boundaries.**
 
 Available now:
 
 - An installable Python package using a `src/` layout.
-- A CLI exposing help, version, configuration validation, and API startup.
+- A CLI exposing help, version, configuration validation, API startup, and database checks.
 - A FastAPI application with liveness, OpenAPI, and interactive API documentation.
 - Immutable settings loaded from environment variables and explicit dotenv files.
 - JSON application logs on stderr, with log-level control and correlation fields.
@@ -24,8 +24,10 @@ Available now:
 - A GitHub Actions workflow targeting Python 3.13 on Linux and Windows.
 - A non-root API image and Compose environment with persistent PostgreSQL storage.
 - Local secret initialization and a separate container integration CI job.
+- A bounded PostgreSQL connection pool using SQLAlchemy 2 and psycopg 3.
+- Real PostgreSQL integration tests for transactions, pool limits, and SQL timeouts.
 
-Workflow submission, scheduling, workers, and application database integration are
+Workflow submission, scheduling, workers, business tables, migrations, and API database integration are
 **not implemented yet**. The architecture below is the agreed target design.
 
 ## Planned architecture
@@ -156,6 +158,21 @@ or workflow execution are healthy. It makes no dependency calls and exposes no
 configuration. A separate readiness endpoint will be introduced alongside
 persistent infrastructure. No readiness success is claimed in this milestone.
 
+### Check PostgreSQL connectivity
+
+With the local Compose database published on port 15432:
+
+```powershell
+$env:DWE_DATABASE_PORT = "15432"
+$env:DWE_DATABASE_PASSWORD_FILE = "secrets/postgres_password.txt"
+uv run --locked engine check-db
+```
+
+Success prints `Database connection is valid.` This checks an authenticated
+SQL round trip; it does not check schema readiness. See
+[database configuration and transaction contracts](docs/database.md) for all
+settings, credentials, timeouts, and running PostgreSQL integration tests.
+
 ### Application configuration
 
 Settings use [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
@@ -208,7 +225,8 @@ loads a fresh snapshot; imports do not load settings, and existing snapshots do
 not change when the environment changes. There is no hot reload or global cache.
 Logging is initialized after successful configuration validation. API settings
 are used by `engine api`; `check-config` does not start a server.
-Database and worker settings will be introduced alongside their implementations.
+Database settings are documented in [database.md](docs/database.md).
+Worker settings will be introduced alongside their implementation.
 
 ### Structured logging
 
@@ -321,8 +339,9 @@ dependencies, and runs lint, format, type, test, and package build checks.
 Python jobs have a 10-minute timeout; newer runs cancel superseded runs for the same
 ref. Actions are pinned to commit SHAs and repository permissions are read-only.
 After both Python jobs pass, a 15-minute Ubuntu container job builds and starts
-the Compose services, checks the API/runtime image, authenticates to PostgreSQL,
-and verifies that data survives database container replacement. Its credentials
+the Compose services, checks the API/runtime image, runs the application's
+PostgreSQL connectivity/transaction tests, and verifies that data survives
+database container replacement. Its credentials
 and volumes are disposable. No deployment or publishing is performed.
 
 Local checks do not establish a successful GitHub run. After pushing this
@@ -344,6 +363,7 @@ The source distribution and wheel are written to `dist/`, which is ignored by Gi
 .github/workflows/
     ci.yml
 docs/
+    database.md
     local-development.md
 scripts/
     init_dev_secrets.py
@@ -352,6 +372,7 @@ src/workflow_engine/
     __main__.py
     cli.py
     config.py
+    database.py
     logging.py
     api/
         __init__.py
@@ -362,8 +383,11 @@ tests/
     test_api.py
     test_cli.py
     test_config.py
+    test_database.py
     test_dev_secrets.py
     test_logging.py
+    integration/
+        test_postgresql.py
 Dockerfile
 compose.yaml
 .dockerignore
@@ -396,8 +420,9 @@ not suppressed and does not occur during normal API startup.
 | M5 | Failure propagation, aggregation, idempotency demonstration, end-to-end acceptance |
 
 Each milestone is divided into independently verifiable commit-sized subtasks.
-After M0.6 is committed, pushed, and all three CI jobs pass, the next subtask is
-M0.7: database connectivity and Alembic migrations.
+M0.7 is split into two commit-sized subtasks: M0.7a database connectivity and
+transaction boundaries, then M0.7b Alembic migration infrastructure. Continue to
+M0.7b only after M0.7a is committed, pushed, and all three CI jobs pass.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

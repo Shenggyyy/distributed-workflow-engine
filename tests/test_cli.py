@@ -95,7 +95,7 @@ def test_check_config_accepts_an_explicit_file(tmp_path: Path) -> None:
     assert "api_port" not in records[0]
 
 
-@pytest.mark.parametrize("command", ["check-config", "api"])
+@pytest.mark.parametrize("command", ["check-config", "api", "check-db"])
 def test_invalid_settings_prevent_command_startup_without_echoing_input(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, command: str
 ) -> None:
@@ -118,7 +118,7 @@ def test_invalid_settings_prevent_command_startup_without_echoing_input(
     assert result.stdout == ""
 
 
-@pytest.mark.parametrize("command", ["check-config", "api"])
+@pytest.mark.parametrize("command", ["check-config", "api", "check-db"])
 def test_missing_file_prevents_command_startup(tmp_path: Path, command: str) -> None:
     result = subprocess.run(
         [console_script(), command, "--env-file", "missing.env"],
@@ -135,7 +135,9 @@ def test_missing_file_prevents_command_startup(tmp_path: Path, command: str) -> 
     assert result.stdout == ""
 
 
-@pytest.mark.parametrize("arguments", [["--help"], ["api", "--help"]])
+@pytest.mark.parametrize(
+    "arguments", [["--help"], ["api", "--help"], ["check-db", "--help"]]
+)
 def test_help_does_not_load_invalid_settings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, arguments: list[str]
 ) -> None:
@@ -169,3 +171,55 @@ def test_check_config_log_level_does_not_hide_stdout(
 
     assert result.stdout.strip() == "Configuration is valid."
     assert result.stderr == ""
+
+
+@pytest.mark.parametrize("source", ["missing", "conflict", "unreadable"])
+def test_check_db_rejects_missing_or_conflicting_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str
+) -> None:
+    password = "example-sensitive-password"
+    if source != "missing":
+        monkeypatch.setenv("DWE_DATABASE_PASSWORD_FILE", str(tmp_path / "missing"))
+    if source == "conflict":
+        monkeypatch.setenv("DWE_DATABASE_PASSWORD", password)
+    result = subprocess.run(
+        [console_script(), "check-db"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert password not in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_check_db_connection_failure_has_safe_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import socket
+
+    password = "example-sensitive-password"
+    # Reserve a local port without listening, producing a connection refusal.
+    with socket.socket() as reserved:
+        reserved.bind(("127.0.0.1", 0))
+        monkeypatch.setenv("DWE_DATABASE_HOST", "127.0.0.1")
+        monkeypatch.setenv("DWE_DATABASE_PORT", str(reserved.getsockname()[1]))
+        monkeypatch.setenv("DWE_DATABASE_PASSWORD", password)
+        monkeypatch.setenv("DWE_DATABASE_CONNECT_TIMEOUT_SECONDS", "2")
+        result = subprocess.run(
+            [console_script(), "check-db"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert password not in result.stderr
+    assert "Traceback" not in result.stderr
+    record = json.loads(result.stderr)
+    assert record["event"] == "database_check_failed"

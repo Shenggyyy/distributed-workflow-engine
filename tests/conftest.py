@@ -3,8 +3,18 @@
 import logging
 import os
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--database-env-file",
+        type=Path,
+        default=None,
+        help="Explicit configuration for PostgreSQL integration tests.",
+    )
 
 
 @pytest.fixture(autouse=True)
