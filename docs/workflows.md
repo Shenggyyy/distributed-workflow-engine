@@ -173,8 +173,8 @@ to be revalidated, including nested tasks. Frozen objects are an application
 invariant, not protection against Python reflection or deliberate bypasses.
 
 This immutability protects in-memory definitions. The [storage layer](workflow-storage.md) now guards version rows against mutation;
-the repository coordinates publication concurrency. Durable run snapshots remain
-subsequent storage/transaction work.
+the repository coordinates publication concurrency. M1.7 creates durable,
+version-pinned runs through the [run-creation transaction](run-creation.md).
 
 ## Verification and next steps
 
@@ -189,5 +189,5 @@ edge must respect the resulting order.
 
 M1.2 adds the [workflow/version database schema](workflow-storage.md).
 M1.3/M1.4 implement transactional publication and its HTTP API; M1.5 adds
-[runtime identity/state models](runtime.md). Durable/idempotent run creation
-follows as separate commit-sized subtasks.
+[runtime identity/state models](runtime.md). M1.6/M1.7 implement runtime storage
+and transactional run creation. Request idempotency follows separately.

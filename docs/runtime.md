@@ -23,7 +23,7 @@ allocation protocol. The model checks only that it is a positive integer;
 it does not allocate or enforce uniqueness/sequential numbering. IDs are supplied
 by callers. M1.6 storage enforces foreign-key existence, unique node keys within
 a run and unique attempt numbers within a task. Complete DAG-node coverage and
-matching require the future run-creation transaction.
+matching are enforced by M1.7's [run-creation transaction](run-creation.md).
 
 These Python snapshots contain only identity and lifecycle information. M1.6 SQL
 tables additionally store created_at audit metadata. Retry policy, active-attempt
@@ -53,7 +53,7 @@ stateDiagram-v2
 
 SUCCEEDED and FAILED are terminal. START means run activation, not evidence that
 a worker is executing. There is no PENDING-to-terminal shortcut in this contract.
-The future run-creation/activation transaction will decide when roots become READY.
+M1.7's run-creation transaction activates the run and makes roots READY together.
 
 The selected aggregation policy will let independent branches finish after a
 failure. Once every task has settled, all SUCCEEDED means a successful run;
@@ -182,6 +182,6 @@ attempt outcome, rejection of all events on terminal entities, stage bypasses,
 duplicate transitions, strict fields, JSON round trips, frozen fields, invalid
 event types, and revalidation of bypassed models.
 
-M1.6 implements runtime table constraints and migrations. Transactional run
-creation, root readiness, request idempotency and scheduler integration follow
-as separate commit-sized subtasks after storage is verified.
+M1.6 implements runtime table constraints and migrations. M1.7 adds transactional
+run creation and root readiness. Request idempotency and scheduler integration
+follow as separate commit-sized subtasks.

@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M1.6: Runtime storage schema, lifecycle constraints and migrations.**
+**M1.7: Transactional run creation and DAG-node/root initialization.**
 
 Available now:
 
@@ -43,7 +43,10 @@ Available now:
 - Migrated run/task/attempt tables with foreign keys and lifecycle/history guards.
 - Scoped task/attempt uniqueness and at most one RUNNING attempt row per task.
 
-Run creation, scheduling and workers are **not implemented yet**.
+- Transactional creation of version-pinned runs and complete DAG task sets.
+- Root-only readiness with rollback, concurrent creation and visibility tests.
+
+Request-idempotent run creation, scheduling and workers are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -142,6 +145,20 @@ The [runtime model contract](docs/runtime.md) defines identities, event/state
 tables, terminal states, retry semantics, and the checks required from future
 database transactions. This example requires no Docker or database. A legal
 in-memory transition alone does not prove dependency readiness or task ownership.
+
+## Create a persisted workflow run
+
+After publishing a version and configuring PostgreSQL:
+
+```console
+uv run --locked python examples/create_run.py --version-id "<published Version ID>"
+```
+
+For the diamond definition, the committed run is RUNNING, task A is READY,
+and B/C/D are PENDING. There are no attempts and no execution yet. Each call
+creates a new run, including repeated calls for the same version. See the
+[run creation contract](docs/run-creation.md) for a complete example, transaction
+ownership, initialization guarantees and uncertain-commit behavior.
 
 ## Planned architecture
 
@@ -511,12 +528,14 @@ docs/
     migrations.md
     runtime.md
     runtime-storage.md
+    run-creation.md
     workflows.md
     workflow-storage.md
 examples/
     diamond.json
     validate_workflow.py
     publish_workflow.py
+    create_run.py
     runtime_lifecycle.py
 scripts/
     init_dev_secrets.py
@@ -537,6 +556,7 @@ src/workflow_engine/
     repositories/
         __init__.py
         workflows.py
+        runs.py
     migrations/
         __init__.py
         env.py
@@ -576,6 +596,7 @@ tests/
         test_workflow_repository.py
         test_workflow_http.py
         test_runtime_schema.py
+        test_run_repository.py
 alembic.ini
 Dockerfile
 compose.yaml
@@ -615,9 +636,10 @@ transactional publication and retrieval with concurrency/failure tests. M1.4
 exposes HTTP publication/retrieval with commit and error contracts.
 M1.5 defines runtime identities and explicit legal state transitions for
 runs/tasks/attempts. M1.6 adds runtime storage, database lifecycle constraints and
-migration verification. After M1.6 is committed, pushed, and all three CI jobs pass,
-continue to M1.7: transactional run creation and DAG-node/root initialization.
-Request idempotency follows separately before exposing run creation over HTTP.
+migration verification. M1.7 implements transactional run creation and DAG-node/root
+initialization. After M1.7 is committed, pushed, and all three CI jobs pass,
+continue to M1.8: durable run-creation request idempotency. Run HTTP endpoints
+follow after that contract is implemented and verified.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

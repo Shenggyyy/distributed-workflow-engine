@@ -2,7 +2,8 @@
 
 M1.6 adds Alembic revision `0003`. Revisions `0001` and `0002` are
 unchanged. This milestone persists runtime identities and constrains their
-lifecycle; run creation, scheduling and execution remain later subtasks.
+lifecycle. M1.7 adds [transactional run creation](run-creation.md);
+scheduling and execution remain later subtasks.
 
 ## Data model
 
@@ -80,8 +81,9 @@ This SQL no-op is different from replaying a domain event: the domain rejects an
 event that is no longer legal. Neither behavior implements request idempotency.
 
 INSERT accepts any whitelisted status, including a terminal snapshot. Defaults
-supply normal initial values, but do not prove lifecycle history. The future
-creation repository must enforce initial states and complete DAG initialization.
+supply normal initial values, but do not prove lifecycle history. M1.7's
+creation repository enforces initial states and complete DAG initialization
+for calls through its transaction protocol.
 The guards also do not validate relationships between current run, task and
 attempt statuses. Dependency readiness, retry budget/deadline, authorized
 completion and run aggregation remain transaction-level obligations.
@@ -132,6 +134,6 @@ immutable identities, terminal-state protection, DELETE/TRUNCATE guards,
 concurrent attempt insertion through separate connections, and a populated
 0002 upgrade/downgrade round trip that preserves definitions.
 
-After this subtask is committed, pushed and verified in CI, M1.7 will implement
-transactional run creation and DAG-node/root initialization. Durable request
-idempotency follows as a separate subtask before exposing run creation over HTTP.
+M1.7 implements [transactional run creation](run-creation.md) and DAG-node/root
+initialization using this schema. Durable request idempotency follows as a separate
+subtask before exposing run creation over HTTP.

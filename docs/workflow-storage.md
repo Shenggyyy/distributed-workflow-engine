@@ -219,8 +219,9 @@ rejects conflicting numbers. The PostgreSQL integer limit also bounds the versio
 number; exceeding it fails the transaction rather than wrapping.
 
 A latest-version lookup is relative to its statement's READ COMMITTED snapshot.
-A subsequent lookup can observe a newer commit. Future run creation must bind to
-the concrete returned version UUID, not keep resolving "latest" during execution.
+A subsequent lookup can observe a newer commit. M1.7 run creation binds to a
+concrete supplied version UUID; it does not resolve "latest" during initialization
+or change the pinned version.
 
 The supported application pattern publishes one workflow per short transaction.
 If a future batch touches multiple workflows, it needs a consistent lock order
