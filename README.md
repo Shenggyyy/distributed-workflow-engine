@@ -10,13 +10,14 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M0.3: Application configuration and validation.**
+**M0.4: Structured application logging.**
 
 Available now:
 
 - An installable Python package using a `src/` layout.
 - A CLI exposing help, the installed package version, and configuration validation.
 - Immutable settings loaded from environment variables and explicit dotenv files.
+- JSON application logs on stderr, with log-level control and correlation fields.
 - A uv dependency lockfile and pytest entry-point smoke tests.
 - Ruff lint/format checks and strict mypy checks for source code and tests.
 - A GitHub Actions workflow targeting Python 3.13 on Linux and Windows.
@@ -124,7 +125,9 @@ Or validate only environment variables and defaults:
 uv run --locked engine check-config
 ```
 
-Success prints `Configuration is valid.` and exits with code 0. Invalid settings
+Success prints `Configuration is valid.` to stdout and exits with code 0. It also
+emits a `configuration_validated` INFO log to stderr when the log level permits.
+Invalid settings
 or an unreadable file exit with code 2. Validation errors report field names and
 error types, without echoing input values or printing the complete settings.
 Help and version commands do not load settings.
@@ -138,9 +141,77 @@ Application code will call `load_settings()` at startup and pass the resulting
 immutable `Settings` object to the components that need it. Each explicit call
 loads a fresh snapshot; imports do not load settings, and existing snapshots do
 not change when the environment changes. There is no hot reload or global cache.
-API and logging settings are validated now and will be consumed when those
-components are implemented; this command does not start either component.
+Logging is initialized after successful configuration validation. API settings
+will be consumed when the API is implemented; this command does not start a server.
 Database and worker settings will be introduced alongside their implementations.
+
+### Structured logging
+
+Engine logs use the Python standard library and are written to stderr as one JSON
+object per physical line. Command results remain on stdout. Try:
+
+```console
+uv run --locked engine check-config --env-file .env.example
+```
+
+At the default INFO level, stderr contains a record with these fields
+(timestamp varies):
+
+```json
+{"timestamp":"2026-09-07T00:00:00.000Z","level":"INFO","logger":"workflow_engine.cli","component":"cli","environment":"development","event":"configuration_validated","message":"Configuration validation completed."}
+```
+
+Every record includes `timestamp` (UTC), `level`, `logger`, `component`,
+`environment`, `event`, and `message`. Newlines and Unicode are JSON-escaped so
+the stream remains parseable on Windows and Linux. `DWE_LOG_LEVEL` controls the
+handler as well as the application logger, so verbose child loggers cannot
+bypass the configured threshold.
+
+At startup, call `configure_logging(settings, component="worker")` once.
+Application modules use `logging.getLogger(__name__)` and pass context per event:
+
+```python
+logger.info(
+    "Task completed",
+    extra={
+        "event": "task_completed",
+        "run_id": run_id,
+        "task_id": task_id,
+        "attempt_id": attempt_id,
+        "worker_session_id": worker_session_id,
+        "duration_ms": duration_ms,
+    },
+)
+```
+
+This is the intended logging pattern for future task execution; workers are not
+implemented yet. Supported optional identifiers are `request_id`, `run_id`,
+`task_id`, `attempt_id`, and `worker_session_id` (strings or UUIDs).
+`duration_ms` accepts finite, non-negative numbers. Unsupported extra fields
+and incorrectly typed optional values are omitted. A missing event name becomes
+`log`. Core component/environment fields cannot be overwritten through extras.
+
+Context is passed explicitly, without shared mutable request/task state.
+This does not create traces or propagate IDs across HTTP/process boundaries;
+those protocols will supply the IDs when implemented.
+
+`logger.exception(...)` adds the current exception type and stack locations
+(filename, line, function). Exception messages, source lines, local variables,
+and chained exceptions are deliberately omitted. Caller-provided messages and
+accepted identifiers are still logged verbatim: keep credentials, URLs containing
+credentials, configuration dumps, and business payloads out of these fields.
+This formatter is not a general-purpose secret redactor.
+
+Only the `workflow_engine` logger hierarchy is configured. Root and third-party
+handlers are left alone, and engine records do not propagate to root handlers.
+Sequential initialization replaces the engine-owned handler, rather than adding
+duplicates; configure it before starting concurrent work, once in each process.
+Help/version and invalid-configuration errors retain their normal CLI output
+because logging starts only after settings validate.
+
+Logs are synchronous diagnostic output, not a durable event log. File rotation,
+central collection, third-party server logging, and queued logging are deferred
+until their operational need is established.
 
 ### Quality checks
 
@@ -156,8 +227,8 @@ uv build
 ```
 
 Ruff checks Python errors, imports, modernization rules, and common bug patterns.
-It also owns formatting (88-column target). mypy uses strict mode with the Pydantic plugin for both
-`src/` and `tests/`. All configuration lives in `pyproject.toml`; tool versions
+It also owns formatting (88-column target). mypy uses strict mode with the
+Pydantic plugin for both `src/` and `tests/`. All configuration lives in `pyproject.toml`; tool versions
 are recorded in `uv.lock`.
 
 To apply formatting locally:
@@ -202,10 +273,12 @@ src/workflow_engine/
     __main__.py
     cli.py
     config.py
+    logging.py
 tests/
     conftest.py
     test_cli.py
     test_config.py
+    test_logging.py
 .env.example
 .python-version
 .gitignore
@@ -229,8 +302,8 @@ root to catch packaging and entry-point problems. No PYTHONPATH override is used
 | M5 | Failure propagation, aggregation, idempotency demonstration, end-to-end acceptance |
 
 Each milestone is divided into independently verifiable commit-sized subtasks.
-After M0.3 is committed, pushed, and its CI run passes, the next subtask is
-M0.4: structured logging.
+After M0.4 is committed, pushed, and its CI run passes, the next subtask is
+M0.5: the minimal API and health endpoint.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

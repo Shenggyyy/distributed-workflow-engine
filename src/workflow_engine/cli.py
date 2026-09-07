@@ -1,12 +1,14 @@
 """Command-line entry point for the workflow engine."""
 
 import argparse
+import logging
 from importlib.metadata import version
 from pathlib import Path
 
 from pydantic import ValidationError
 
 from workflow_engine.config import load_settings
+from workflow_engine.logging import configure_logging
 
 
 def main() -> None:
@@ -36,7 +38,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "check-config":
         try:
-            load_settings(env_file=args.env_file)
+            settings = load_settings(env_file=args.env_file)
         except ValidationError as exc:
             errors = exc.errors(
                 include_input=False, include_context=False, include_url=False
@@ -47,6 +49,11 @@ def main() -> None:
             config_parser.error("Invalid configuration: " + "; ".join(details))
         except (OSError, UnicodeError):
             config_parser.error("Environment file could not be read as UTF-8.")
+        configure_logging(settings, component="cli")
+        logging.getLogger(__name__).info(
+            "Configuration validation completed.",
+            extra={"event": "configuration_validated"},
+        )
         print("Configuration is valid.")
         return
     parser.print_help()

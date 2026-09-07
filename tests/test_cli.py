@@ -1,5 +1,6 @@
 """Smoke tests for the installed package and its public entry points."""
 
+import json
 import os
 import subprocess
 import sys
@@ -86,7 +87,12 @@ def test_check_config_accepts_an_explicit_file(tmp_path: Path) -> None:
     )
 
     assert result.stdout.strip() == "Configuration is valid."
-    assert result.stderr == ""
+    records = [json.loads(line) for line in result.stderr.splitlines()]
+    assert len(records) == 1
+    assert records[0]["event"] == "configuration_validated"
+    assert records[0]["component"] == "cli"
+    assert records[0]["level"] == "INFO"
+    assert "api_port" not in records[0]
 
 
 def test_check_config_error_does_not_echo_input(
@@ -142,3 +148,21 @@ def test_help_does_not_load_invalid_settings(
     )
 
     assert "check-config" in result.stdout
+
+
+def test_check_config_log_level_does_not_hide_stdout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DWE_LOG_LEVEL", "WARNING")
+
+    result = subprocess.run(
+        [console_script(), "check-config"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=10,
+    )
+
+    assert result.stdout.strip() == "Configuration is valid."
+    assert result.stderr == ""
