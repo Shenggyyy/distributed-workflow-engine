@@ -1,8 +1,9 @@
 # Runtime identities and state transitions
 
 M1.5 introduces pure, immutable runtime snapshots in `domain/runtime.py`.
-These are Python domain objects, not database rows or a working scheduler.
-Revision `0002` and the workflow HTTP API remain unchanged.
+These are Python domain objects, not ORM entities or a working scheduler.
+M1.6 adds corresponding [runtime storage](runtime-storage.md) in revision `0003`.
+The workflow HTTP API remains unchanged.
 
 ## Identity model
 
@@ -20,13 +21,14 @@ even when it uses the same version and node keys.
 An attempt number is scoped to one task and starts at 1 under the intended
 allocation protocol. The model checks only that it is a positive integer;
 it does not allocate or enforce uniqueness/sequential numbering. IDs are supplied
-by callers. Foreign-key existence, one task per DAG node/run, and attempt-number
-uniqueness require the next storage design.
+by callers. M1.6 storage enforces foreign-key existence, unique node keys within
+a run and unique attempt numbers within a task. Complete DAG-node coverage and
+matching require the future run-creation transaction.
 
-No retry policy, timestamps, active-attempt pointer, lease token, worker session,
-outputs, or optimistic version counter is added speculatively. Those fields need
-their own atomic storage/ownership contracts. These snapshots contain only the
-identity and lifecycle information required for this milestone.
+These Python snapshots contain only identity and lifecycle information. M1.6 SQL
+tables additionally store created_at audit metadata. Retry policy, active-attempt
+pointers, lease tokens, worker sessions, outputs and optimistic version counters
+need their own atomic storage/ownership contracts.
 
 ## Explicit transitions
 
@@ -180,6 +182,6 @@ attempt outcome, rejection of all events on terminal entities, stage bypasses,
 duplicate transitions, strict fields, JSON round trips, frozen fields, invalid
 event types, and revalidation of bypassed models.
 
-M1.6 will design runtime table constraints and migrations. Transactional run
+M1.6 implements runtime table constraints and migrations. Transactional run
 creation, root readiness, request idempotency and scheduler integration follow
 as separate commit-sized subtasks after storage is verified.

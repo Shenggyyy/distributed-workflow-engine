@@ -163,21 +163,23 @@ def test_definition_cannot_be_sql_null(
 
 
 @pytest.mark.parametrize(
-    "statement",
+    ("statement", "sqlstate"),
     [
-        "UPDATE workflow_versions SET version_number = 2",
-        "DELETE FROM workflow_versions",
-        "TRUNCATE workflow_versions",
+        ("UPDATE workflow_versions SET version_number = 2", "55000"),
+        ("DELETE FROM workflow_versions", "55000"),
+        # Runtime foreign keys reject plain TRUNCATE before statement triggers.
+        ("TRUNCATE workflow_versions", "0A000"),
+        ("TRUNCATE workflow_versions CASCADE", "55000"),
     ],
 )
 def test_versions_are_append_only(
-    workflow_connection: Connection, workflow_id: UUID, statement: str
+    workflow_connection: Connection, workflow_id: UUID, statement: str, sqlstate: str
 ) -> None:
     version_id = insert_version(workflow_connection, workflow_id)
     with pytest.raises(DBAPIError) as error:
         with workflow_connection.begin_nested():
             workflow_connection.execute(text(statement))
-    assert getattr(error.value.orig, "sqlstate", None) == "55000"
+    assert getattr(error.value.orig, "sqlstate", None) == sqlstate
     row = workflow_connection.execute(select(workflow_versions)).one()
     assert row.id == version_id
     assert row.version_number == 1

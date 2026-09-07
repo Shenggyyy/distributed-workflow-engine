@@ -2,7 +2,8 @@
 
 M1.4 publishes and retrieves workflow definitions. It does not create runs or
 execute tasks. OpenAPI is at `/openapi.json`; interactive documentation is at
-`/docs`. No schema migration is added; use revision `0002`.
+`/docs`. These routes use the definition tables introduced in revision `0002`.
+The current head is `0003`, adding runtime storage without changing these routes.
 
 ## Endpoints
 

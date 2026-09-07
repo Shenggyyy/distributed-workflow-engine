@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M1.5: Runtime identity models and explicit lifecycle transitions.**
+**M1.6: Runtime storage schema, lifecycle constraints and migrations.**
 
 Available now:
 
@@ -40,7 +40,10 @@ Available now:
 - Immutable Run, TaskRun and TaskAttempt snapshots with explicit event-driven transitions.
 - Terminal-state protection and separate task-retry versus attempt-outcome semantics.
 
-Scheduling, workers, and run/task storage are **not implemented yet**.
+- Migrated run/task/attempt tables with foreign keys and lifecycle/history guards.
+- Scoped task/attempt uniqueness and at most one RUNNING attempt row per task.
+
+Run creation, scheduling and workers are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -297,7 +300,9 @@ uv run --locked alembic check
 ```
 
 Revision `0001` records the initial baseline; `0002` adds workflow identity and
-append-only version tables. Current revision should be `0002 (head)`.
+append-only version tables; `0003` adds run/task/attempt storage and lifecycle guards.
+Current revision should be `0003 (head)`. See the
+[runtime storage contract](docs/runtime-storage.md) for guarantees and boundaries.
 Migration commands are explicit and never run on API startup. With Compose,
 `docker compose exec api alembic upgrade head` uses the container's existing
 settings and mounted secret. See the
@@ -505,6 +510,7 @@ docs/
     local-development.md
     migrations.md
     runtime.md
+    runtime-storage.md
     workflows.md
     workflow-storage.md
 examples/
@@ -538,6 +544,7 @@ src/workflow_engine/
         versions/
             0001_baseline.py
             0002_workflow_versions.py
+            0003_runtime_storage.py
     api/
         __init__.py
         app.py
@@ -568,6 +575,7 @@ tests/
         test_workflow_schema.py
         test_workflow_repository.py
         test_workflow_http.py
+        test_runtime_schema.py
 alembic.ini
 Dockerfile
 compose.yaml
@@ -606,9 +614,10 @@ validation; M1.2 adds workflow/version storage schema and migrations; M1.3 adds
 transactional publication and retrieval with concurrency/failure tests. M1.4
 exposes HTTP publication/retrieval with commit and error contracts.
 M1.5 defines runtime identities and explicit legal state transitions for
-runs/tasks/attempts. After M1.5 is committed, pushed, and all three CI jobs pass,
-continue to M1.6: runtime storage schema, constraints and migrations.
-Transactional run creation and request idempotency follow as separate subtasks.
+runs/tasks/attempts. M1.6 adds runtime storage, database lifecycle constraints and
+migration verification. After M1.6 is committed, pushed, and all three CI jobs pass,
+continue to M1.7: transactional run creation and DAG-node/root initialization.
+Request idempotency follows separately before exposing run creation over HTTP.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

@@ -5,6 +5,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     MetaData,
     String,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -55,4 +57,93 @@ workflow_versions = Table(
     UniqueConstraint("workflow_id", "version_number"),
     CheckConstraint("version_number > 0", name="version_number_positive"),
     CheckConstraint("jsonb_typeof(definition) = 'object'", name="definition_object"),
+)
+
+
+workflow_runs = Table(
+    "workflow_runs",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column(
+        "workflow_version_id",
+        Uuid,
+        ForeignKey("workflow_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column(
+        "status",
+        String(16, collation="C"),
+        nullable=False,
+        server_default=text("'PENDING'"),
+    ),
+    Column(
+        "created_at", DateTime(timezone=True), nullable=False, server_default=func.now()
+    ),
+    CheckConstraint(
+        "status IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED')", name="status_values"
+    ),
+)
+
+task_runs = Table(
+    "task_runs",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column(
+        "run_id",
+        Uuid,
+        ForeignKey("workflow_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("task_key", String(64, collation="C"), nullable=False),
+    Column(
+        "status",
+        String(16, collation="C"),
+        nullable=False,
+        server_default=text("'PENDING'"),
+    ),
+    Column(
+        "created_at", DateTime(timezone=True), nullable=False, server_default=func.now()
+    ),
+    CheckConstraint(
+        "status IN ('PENDING', 'READY', 'RUNNING', 'RETRY_WAIT', "
+        "'SUCCEEDED', 'FAILED', 'SKIPPED')",
+        name="status_values",
+    ),
+    UniqueConstraint("run_id", "task_key"),
+    CheckConstraint(
+        "task_key ~ '^[A-Za-z][A-Za-z0-9_-]{0,63}$'", name="task_key_format"
+    ),
+)
+
+task_attempts = Table(
+    "task_attempts",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column(
+        "task_id", Uuid, ForeignKey("task_runs.id", ondelete="RESTRICT"), nullable=False
+    ),
+    Column("attempt_number", Integer, nullable=False),
+    Column(
+        "status",
+        String(16, collation="C"),
+        nullable=False,
+        server_default=text("'RUNNING'"),
+    ),
+    Column(
+        "created_at", DateTime(timezone=True), nullable=False, server_default=func.now()
+    ),
+    CheckConstraint(
+        "status IN ('RUNNING', 'SUCCEEDED', 'FAILED', 'TIMED_OUT', 'LOST')",
+        name="status_values",
+    ),
+    UniqueConstraint("task_id", "attempt_number"),
+    CheckConstraint("attempt_number > 0", name="attempt_number_positive"),
+)
+
+Index("ix_workflow_runs_workflow_version_id", workflow_runs.c.workflow_version_id)
+Index(
+    "uq_task_attempts_one_running_per_task",
+    task_attempts.c.task_id,
+    unique=True,
+    postgresql_where=text("status = 'RUNNING'"),
 )
