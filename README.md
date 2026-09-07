@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M1.2: Workflow identity and append-only version storage schema.**
+**M1.3: Transactional workflow publication and version retrieval.**
 
 Available now:
 
@@ -30,6 +30,8 @@ Available now:
 - Frozen workflow/task definitions with strict fields and complete DAG validation.
 - Deterministic topological ordering, root detection, and dependency indexes.
 - Migrated workflow/version tables with JSONB snapshots and database mutation guards.
+- A transaction-scoped repository with concurrent version allocation and validated reads.
+- PostgreSQL tests for concurrent first publication, rollback, and workflow lock isolation.
 
 Workflow publication/retrieval APIs, scheduling, workers, and run/task storage are
 **not implemented yet**. The architecture below is the agreed target design.
@@ -55,6 +57,37 @@ self-dependencies, and cycles. Multiple roots and independent branches are
 allowed. Topological order describes dependencies; it is not a serial execution
 plan. See the [workflow/DAG contract](docs/workflows.md) for field rules, limits,
 immutability, and errors.
+
+## Publish and retrieve a workflow
+
+After starting PostgreSQL on port 15432 and applying migrations:
+
+```powershell
+$env:DWE_DATABASE_PORT = "15432"
+$env:DWE_DATABASE_PASSWORD_FILE = "secrets/postgres_password.txt"
+uv run --locked alembic upgrade head
+uv run --locked python examples/publish_workflow.py
+```
+
+For a new `diamond` workflow this prints:
+
+```text
+Workflow: diamond
+Version: 1
+Version ID: <generated UUID>
+Published and retrieved; no tasks were executed.
+```
+
+Run the example again to append version 2. Each invocation creates a version,
+even with the same definition; publication is not yet request-idempotent.
+The example commits the publication, reads it back in another transaction, and
+checks equality before reporting success. It also accepts an explicit
+`--env-file .env.database-test`.
+
+The [repository contract](docs/workflow-storage.md#transactional-repository)
+explains locking, transaction ownership, typed lookups, and failure semantics.
+This is a Python persistence interface; HTTP publication routes and execution
+are later subtasks.
 
 ## Planned architecture
 
@@ -372,6 +405,9 @@ uv run --locked ruff format .
 ```
 
 CI only checks formatting; it does not edit or commit files.
+Pytest defaults to short tracebacks to avoid expanding third-party frame arguments
+that can contain database credentials. This is not a general secret redactor;
+do not enable verbose tracebacks or local-variable dumps in shared CI logs.
 
 ### Continuous integration
 
@@ -416,6 +452,7 @@ docs/
 examples/
     diamond.json
     validate_workflow.py
+    publish_workflow.py
 scripts/
     init_dev_secrets.py
 src/workflow_engine/
@@ -430,6 +467,9 @@ src/workflow_engine/
         __init__.py
         dag.py
         workflow.py
+    repositories/
+        __init__.py
+        workflows.py
     migrations/
         __init__.py
         env.py
@@ -460,6 +500,7 @@ tests/
         test_migration_transactions.py
         test_postgresql.py
         test_workflow_schema.py
+        test_workflow_repository.py
 alembic.ini
 Dockerfile
 compose.yaml
@@ -494,10 +535,11 @@ not suppressed and does not occur during normal API startup.
 
 Each milestone is divided into independently verifiable commit-sized subtasks.
 M0 provides the infrastructure foundation. M1.1 adds DAG definitions and
-validation; M1.2 adds workflow/version storage schema and migrations. After M1.2
-is committed, pushed, and all three CI jobs pass, continue to M1.3: transactional
-workflow/version repository operations. HTTP submission and idempotent run
-creation follow as separate subtasks.
+validation; M1.2 adds workflow/version storage schema and migrations; M1.3 adds
+transactional publication and retrieval with concurrency/failure tests.
+After M1.3 is committed, pushed, and all three CI jobs pass, continue to M1.4:
+workflow publication/retrieval HTTP endpoints and their request/error contracts.
+Run storage and idempotent run creation follow as separate subtasks.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any
