@@ -12,6 +12,10 @@ uv run python scripts/demo.py up
 This builds the image, creates an ignored password only if missing, starts the
 dedicated PostgreSQL database, applies additive migrations and starts API/Scheduler.
 The default address is `http://127.0.0.1:18080/demo/`.
+Existing installations use the same `up` command to rebuild the latest page, then
+refresh the browser. No database reset or new migration is needed for phase E.
+Keep Docker Desktop running while viewing/running scenarios. The six numbered
+sections are in Chinese with engine state names retained in English.
 If needed set `$env:DWE_DEMO_PORT = "18081"` before **all** demo commands; the
 printed address reflects it. The database port is not exposed to the host.
 
@@ -72,19 +76,22 @@ Pure timeline calculations can be tested with Node.js 22+:
 ## Three-minute walkthrough
 
 Before starting the timer, run `up` and open `http://127.0.0.1:18080/demo/`.
-First-time image downloads/builds are setup time. Keep **Follow newest Run** checked
-and scroll between the Run header, DAG/Workers and execution timeline.
+First-time image downloads/builds are setup time. Keep **跟随最新 Run / Follow newest
+Run** checked. Scroll down through the numbered sections or use the sticky links;
+use the loop links in step 05 to revisit 03/04. No network traffic animation is shown.
 
-| Time | Action and expected evidence |
+| Time | Action and what to explain |
 | --- | --- |
-| 0:00 | Run `uv run python -m scripts.demo_acceptance`. A new parallel Run appears automatically. A/B start while C/D remain READY and Join remains PENDING. |
-| 0:10 | Point to overlapping sampled A/B bars and peak overlap 2. One Worker ID has two slots. The bars grow only on actual Handler samples. |
-| 0:30 | Distribution starts automatically. Two Worker IDs and two colors now own tasks in one DAG. Their actual execution intervals overlap; four roots feed Join. |
-| 1:00 | Recovery starts. The script waits for actual execution samples, kills only that demo Worker, and starts B. Heartbeat/lease expiry is not instantaneous. |
-| 1:10 | A becomes RETRY_WAIT; Worker 1 is LOST. Its dashed bar stops at the last observed sample, with no claimed finish. Retry eligibility comes from the persisted backoff. |
-| 1:30 | Attempt 2 is executed by Worker 2. It has a new identity and a separate bar after the gap. Join runs only after A succeeds. |
-| 2:00 | Open the Attempt table: old LOST, no completion receipt, retry timestamps, new SUCCEEDED with an accepted completion. The final Run is SUCCEEDED. |
-| 2:30 | Explain at-least-once execution, business idempotency, and the single-machine boundary. Expand full identities or open the real JSON snapshot. |
+| 0:00 | Execute `uv run python -m scripts.demo_acceptance`. In 01, identify the Run, scenario and real published definition. Tasks are explicitly timed demo Handlers, not a sales report. |
+| 0:05 | In 02, follow downward DAG edges. A/B/C/D have no dependencies and may overlap; Join requires all four successes. In 03, point to actual READY rows and Join's named blockers. This is PostgreSQL state, not an extra queue. |
+| 0:10 | In 04, one Worker has two configured slots and two confirmed Attempts. Claim, Handler sample receipt and lease renewal are separate. In 06, overlapping sampled intervals prove concurrent Handler lifetimes; RUNNING alone does not. |
+| 0:30 | Distribution starts. In 04, compare two container/session IDs and the tasks actually claimed by each. Explain Worker pull and transactional allocation; task-to-Worker assignment is not prearranged. |
+| 0:45 | In 05, successful roots satisfy Join's dependencies. Scheduling makes subsequent work READY and Workers pull again. Follow the visible link back to 03/04. A satisfied dependency is not an invented READY event. |
+| 1:00 | Recovery starts. The terminal confirms the scoped SIGKILL and script-started replacement. In 04, the old heartbeat/renewal stops advancing and their deadlines pass. Registry loss and Attempt loss can occur in different snapshots. |
+| 1:10 | In 05, read old LOST, the saved retry time and RETRY_WAIT. Expiry alone did not end the Handler; the engine confirms loss transactionally. The old timeline has no FINISH. |
+| 1:25 | In 04/05, observe a new Attempt number and owner. It restarts the Handler from the beginning; the old Worker did not transfer it. Replacement startup is a script action, not automatic scaling. |
+| 2:00 | In 06, read Run SUCCEEDED, per-owner work and the gap before the replacement interval. In Attempt details, compare claim, execution evidence and completion admission. Old Attempt has no accepted completion. |
+| 2:30 | Explain at-least-once/business idempotency and the single-machine boundary. Normal Worker exit after success later expires its heartbeat; that alone is not a task failure. Open raw JSON or select a previous Run. |
 
 Timings are approximate, not a recovery SLA. Individual `run` and `fail` commands
 above give manual control. A pinned `?run=...` page stops following new Runs; use
@@ -100,21 +107,33 @@ freezes the last view and displays a stale-data warning.
 
 ## Actual captures
 
-These unmodified browser captures were taken on 2026-09-08, with Run IDs and measured
-results recorded in [demonstration review](demo-review.md). Your new Runs get new IDs.
+Unmodified browser screenshots from the current six-step page, captured on
+2026-09-09 (Australia/Sydney; database timestamps displayed in UTC). Run IDs and
+checks are recorded in [flow acceptance](demo-flow-review.md). Fresh runs get new
+identities; no screenshot state is replayed into the page.
 
-Parallel execution in two slots of one Worker:
+Dependencies and current PostgreSQL waiting conditions:
 
-![Actual parallel Handler samples](images/demo-parallel.png)
+![Vertical DAG and waiting reasons](images/flow-dependencies.png)
 
-Two independent Worker containers:
+One Worker with two confirmed Attempts, followed by actual overlap evidence:
 
-![Actual distributed Worker assignment](images/demo-distribution.png)
+![Two allocations in one Worker](images/flow-parallel.png)
 
-After the deliberate Worker crash, while the Task waits for its retry:
+![Measured concurrent Handler lifetimes](images/flow-overlap.png)
 
-![Actual RETRY_WAIT with expired original Worker](images/demo-retry.png)
+Two independent containers with ownership chosen by real claim transactions:
 
-The completed replacement retains the original abandoned execution:
+![Two Workers pulling from the same Run](images/flow-distribution.png)
 
-![Actual LOST Attempt and successful replacement](images/demo-recovery.png)
+Recovery in the same Run: real RETRY_WAIT, then a new allocation, then completion:
+
+![Persisted retry wait](images/flow-retry.png)
+
+![Old session lost and replacement executing Attempt 2](images/flow-recovery-workers.png)
+
+![Rescheduling loop and new confirmed allocation](images/flow-replacement.png)
+
+![Final recovery outcome and sampled intervals](images/flow-recovery-result.png)
+
+The original phase D screenshots/acceptance remain in [historical review](demo-review.md).

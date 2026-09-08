@@ -60,3 +60,10 @@ DAG edges alone do not pass data. That extra feature is outside this phase.
 Each commit is separately reviewed, committed, pushed and verified. Final acceptance
 requires a reader to explain readiness, ownership, measured overlap, loss detection,
 retry and replacement from the running page. Tests alone do not satisfy this gate.
+
+## Completion
+
+E0–E3 are complete. The read-only extension, eight evidence calculation tests,
+six-step page, real scenario/browser inspection, screenshots and refreshed guide
+are recorded in [flow acceptance](demo-flow-review.md). Full regression remains
+1551 passing Python tests. Existing core write paths and schema are unchanged.

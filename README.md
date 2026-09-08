@@ -17,6 +17,10 @@ execution across Workers, and stop a dedicated Worker to see durable recovery.
 The [demonstration acceptance record](docs/demo-review.md) covers actual browser
 screenshots and a full 1551-test regression, separately from core MVP acceptance.
 
+**Six-step demonstration flow complete.** The page now explains submission,
+dependencies, the PostgreSQL READY view, Worker pull, rescheduling/retry, and final
+evidence from top to bottom. See the [flow acceptance record](docs/demo-flow-review.md).
+
 See the [final validation and correctness review](docs/mvp-review.md): 1508 tests,
 real process crash recovery, business-effect deduplication and container acceptance.
 V2/V3 remain follow-up work; this is a trusted-deployment MVP, not a production SLA.
@@ -54,16 +58,23 @@ This runs three real scenarios: two parallel Handler processes, two independent
 Worker containers sharing a Workflow, and a scoped Worker crash followed by retry
 and replacement. [Startup, individual commands and three-minute walkthrough](docs/demo.md).
 
-Actual two-Worker execution, captured from the running engine:
+Read the page from **01 submission → 02 dependencies → 03 claimable tasks →
+04 Worker pull → 05 results/rescheduling → 06 outcome/evidence**. The visible loop
+links back to claimable work; the Scheduler does not push tasks to Workers.
+Reasons come from one database snapshot. Confirmed ownership is shown without
+invented request animations or slot identities. The trusted timed Handlers are
+explicitly labelled; DAG edges do not automatically transfer business data.
 
-![Two Workers executing overlapping tasks](docs/images/demo-distribution.png)
+Actual vertical DAG and dependency waiting view:
 
-The recovery timeline retains the abandoned execution, its unknown finish, and a
-new Attempt completed by another Worker:
+![Real dependency conditions and PostgreSQL READY view](docs/images/flow-dependencies.png)
 
-![Real abandoned Attempt and successful retry](docs/images/demo-recovery.png)
+Actual scoped recovery: persisted loss/backoff, then a new Attempt claimed by a
+replacement Worker started by the demo script (not autoscaling or checkpoint resume):
 
-These bars use samples taken inside trusted Handlers. Claim time and completion
+![Real retry and new Attempt allocation](docs/images/flow-replacement.png)
+
+The execution timeline uses samples taken inside trusted Handlers. Claim time and completion
 admission are shown separately; RUNNING and `created_at` are not execution proof.
 This verifies one machine with multiple Linux containers, not multi-machine
 deployment or CPU utilization. `uv run python scripts/demo.py down` stops the demo
