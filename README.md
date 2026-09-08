@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.4d: Runnable Worker CLI and container with real handler execution checks.**
+**M2.5a: Transactional DAG readiness with concurrent scan and rollback verification.**
 
 Available now:
 
@@ -118,8 +118,10 @@ Available now:
   fresh renewal, independent heartbeat and handler subprocess completion.
 - [Worker CLI and container startup](docs/running-workers.md), configuration,
   signal cleanup and real execution checks in CI.
+- [Transactional readiness scheduling](docs/scheduling.md) with all-parent success
+  checks and the existing per-Run lock coordination.
 
-Recovery scanners and dependency scheduling
+Scheduler process startup and recovery scanners
 are **not implemented yet**.
 The architecture below is the agreed target design.
 
@@ -1116,8 +1118,8 @@ milestone scopes above.
 
 M2.4a, M2.4b, M2.4c.1 (handler process lifecycle) and M2.4c.2 (execution/control
 loop), and M2.4d (Worker CLI/container integration) are implemented.
-Next is M2.5: dependency scheduling, split into M2.5a transactional readiness
-reconciliation and M2.5b scheduler process/CLI integration.
+M2.5a transactional readiness reconciliation is implemented.
+Next is M2.5b scheduler process/CLI integration.
 Run `uv run --locked pytest tests/test_worker_loop.py` to test control behavior
 without PostgreSQL; integration tests also execute real handler subprocesses.
 
