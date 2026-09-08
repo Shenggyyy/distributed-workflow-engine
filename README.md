@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.1b: Persisted Worker sessions with lifecycle and heartbeat-time constraints.**
+**M2.1c.1: Transactional Worker registration with replay and conflict handling.**
 
 Available now:
 
@@ -63,7 +63,10 @@ Available now:
 - Migrated Worker sessions with immutable identities, terminal-state and time guards.
 - PostgreSQL tests for concurrent identities, late renewal and preserved migration data.
 
-Worker registration/heartbeat operations, scheduling and execution are **not implemented yet**.
+- Transactional Worker registration through Python with same-session replay and conflicts.
+- Database-clock initialization after lock waits, rollback and concurrent registration tests.
+
+Worker HTTP registration, heartbeats, scheduling and execution are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -247,6 +250,23 @@ process cannot take over an old session's identity through its name. LOST and
 STOPPED are terminal. The [Worker contract](docs/workers.md) separates session
 heartbeat from attempt leases and marks which guarantees still require storage
 and coordinated transactions. This example needs no Docker or database.
+
+## Register a Worker session
+
+With PostgreSQL configured and migrated to 0005:
+
+```powershell
+$sessionId = [guid]::NewGuid().ToString()
+uv run --locked python examples/register_worker.py --session-id $sessionId
+uv run --locked python examples/register_worker.py --session-id $sessionId
+```
+
+Both commands return the same persisted session without extending its heartbeat
+deadline. Use the same UUID/name/capacity for retries, and a new UUID for a new
+process start. Different fields with an existing UUID raise a conflict. This
+example registers a record; it does not start a heartbeat loop or execute tasks.
+See [Worker registration](docs/worker-registration.md) for the transaction,
+advisory lock, clock and failure contracts.
 
 ## Planned architecture
 
@@ -625,6 +645,7 @@ docs/
     workflows.md
     workers.md
     worker-storage.md
+    worker-registration.md
     workflow-storage.md
 examples/
     diamond.json
@@ -635,6 +656,7 @@ examples/
     query_run.py
     runtime_lifecycle.py
     worker_lifecycle.py
+    register_worker.py
 scripts/
     init_dev_secrets.py
     check_workflow_api.py
@@ -658,6 +680,7 @@ src/workflow_engine/
         __init__.py
         workflows.py
         runs.py
+        workers.py
     migrations/
         __init__.py
         env.py
@@ -709,6 +732,7 @@ tests/
         test_run_queries.py
         test_run_http.py
         test_worker_schema.py
+        test_worker_registration.py
 alembic.ini
 Dockerfile
 compose.yaml
@@ -756,9 +780,10 @@ keyed Run creation and queries over HTTP with commit/error contracts and contain
 smoke checks. M2.1a adds pure Worker session identities, terminal lifecycle rules,
 and registration/heartbeat/lease design boundaries. M2.1b adds Worker session
 storage, database lifecycle/time constraints and migration/concurrency tests.
-After M2.1b is committed, pushed, and all three CI jobs pass, continue to M2.1c.1:
-transactional registration and duplicate/conflict handling. Heartbeat renewal and
-expiry form M2.1c.2, followed by HTTP work; see
+M2.1c.1 adds transactional registration, replay/conflict and database-clock
+initialization with concurrency/failure tests. After M2.1c.1 is committed, pushed,
+and all three CI jobs pass, continue to M2.1c.2: heartbeat renewal and expiry
+transactions, followed by HTTP work; see
 [the Worker subtask plan](docs/workers.md#commit-sized-follow-up-steps).
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and

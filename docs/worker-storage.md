@@ -2,7 +2,9 @@
 
 M2.1b adds revision `0005` and the `worker_sessions` table. It implements
 database invariants for the [M2.1a session model](workers.md), not the registration
-or heartbeat protocol. There is no Worker HTTP route or background expiry loop.
+or heartbeat protocol by itself. M2.1c.1 now provides
+[transactional registration](worker-registration.md). There is no Worker HTTP
+route or background expiry loop.
 
 ## Columns and constraints
 
@@ -20,7 +22,7 @@ Every column is NOT NULL. PostgreSQL INTEGER supplies the upper capacity bound
 2147483647. The Python model additionally rejects booleans and numeric coercions;
 SQL constraints do not replace validation of external requests.
 
-The clock fields have **no defaults**. The future registration transaction must
+The clock fields have **no defaults**. The registration transaction must
 sample database time after acquiring its required locks and explicitly supply
 created_at, last_heartbeat_at and the computed deadline. Independent defaults
 would obscure the observation used to derive that deadline. Registration should
@@ -69,8 +71,8 @@ an explicit retention and identity-reuse contract.
 
 INSERT may store any valid status and ordered finite timestamps, including a
 terminal historical snapshot. Like the other runtime tables, this supports
-rehydration and does not prove historical transitions. The future registration
-repository must explicitly choose ACTIVE. UPDATE cannot bypass terminal-state
+rehydration and does not prove historical transitions. The registration
+repository explicitly chooses ACTIVE. UPDATE cannot bypass terminal-state
 rules. A table owner/superuser able to alter triggers is outside these guards.
 
 Guard violations use SQLSTATE 55000 with fixed messages; NOT NULL, CHECK and
@@ -144,6 +146,5 @@ DDL rollback and revision locking. Alembic `check` alone does not compare all
 triggers and CHECK constraints; behavioral tests are required. Always use
 migrations rather than `metadata.create_all()`, which omits the trigger guards.
 
-After this subtask is committed, pushed and verified in CI, the next bounded step
-is M2.1c.1: transactional registration and duplicate/conflict handling. Heartbeat
-renewal/expiry will be M2.1c.2 before adding Worker HTTP endpoints.
+M2.1c.1 implements [transactional registration](worker-registration.md) using
+this table. Heartbeat renewal/expiry is M2.1c.2 before Worker HTTP endpoints.
