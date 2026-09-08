@@ -3,7 +3,9 @@
 M1.5 introduces pure, immutable runtime snapshots in `domain/runtime.py`.
 These are Python domain objects, not ORM entities or a working scheduler.
 M1.6 adds corresponding [runtime storage](runtime-storage.md) in revision `0003`.
-The workflow HTTP API remains unchanged.
+The workflow HTTP API remains unchanged. M2.3a adds the pure
+[completion result and replay contract](attempt-completion.md), which uses these
+Attempt transitions while keeping durable completion separate.
 
 ## Identity model
 

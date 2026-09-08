@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.2d.2b: Attempt lease renewal HTTP API with commit-before-success responses.**
+**M2.3a: Attempt completion results and replay domain contract.**
 
 Available now:
 
@@ -96,7 +96,10 @@ Available now:
 - Attempt lease renewal HTTP with server-owned policy and current ownership checks.
 - HTTP renewal races, expiry/rollback tests and a claim/renew/replay container CI check.
 
-Completion, background heartbeat/expiry loops, scheduling and handler execution
+- Pure completion results and immutable receipts with lease-gated first acceptance.
+- Original-result replay, ownership/result conflicts and an in-memory completion example.
+
+Durable completion/HTTP, background heartbeat/expiry loops, scheduling and handler execution
 are **not implemented yet**.
 The architecture below is the agreed target design.
 
@@ -371,6 +374,19 @@ verifies that claim replay reads the renewed deadline. It also checks conflict
 and validation responses. Tokens stay in memory. No handler executes and capacity
 remains reserved. See [the lease API contract](docs/lease-api.md) for retry,
 deadline, heartbeat and transaction semantics.
+
+## Explore Attempt completion
+
+```console
+uv run --locked python examples/attempt_completion.py
+uv run --locked pytest tests/test_completion.py
+```
+
+This in-memory example accepts success under a valid lease, rejects a new report
+after expiry, replays the original receipt and rejects a conflicting result.
+It needs no Docker or PostgreSQL. Receipt persistence, Task state changes and
+capacity release are not implemented yet. See [the completion contract and
+transaction plan](docs/attempt-completion.md).
 
 ## Explore Attempt leases
 
@@ -809,6 +825,7 @@ docs/
     worker-heartbeat.md
     worker-api.md
     attempt-leases.md
+    attempt-completion.md
     lease-storage.md
     task-claims.md
     lease-renewal.md
@@ -829,6 +846,7 @@ examples/
     register_worker.py
     worker_heartbeat.py
     attempt_lease.py
+    attempt_completion.py
     claim_task.py
     claim_and_renew.py
     claim_idempotent.py
@@ -849,6 +867,7 @@ src/workflow_engine/
     schema.py
     domain/
         __init__.py
+        completion.py
         idempotency.py
         lease.py
         dag.py
@@ -899,6 +918,7 @@ tests/
     test_logging.py
     test_idempotency.py
     test_lease.py
+    test_completion.py
     test_migrations.py
     test_runtime.py
     test_worker.py
@@ -996,9 +1016,11 @@ transactions and current-ownership replay, including uncertain outcomes and
 request-lock races. M2.2d.2a exposes keyed claims over HTTP with typed responses,
 server-owned lease duration, error mapping and real HTTP checks. M2.2d.2b adds
 renewal HTTP with current ownership checks, commit/error mapping and real HTTP
-claim/renew/replay verification. After M2.2d.2b is committed, pushed, and all three
-CI jobs pass, continue to M2.3a: Attempt completion result and replay domain
-contract. Completion persistence, HTTP and handler execution remain separate steps.
+claim/renew/replay verification. M2.3a adds pure Attempt completion results,
+receipts and first-acceptance/replay checks, with the [durable completion
+protocol](docs/attempt-completion.md). After M2.3a is committed, pushed, and all
+three CI jobs pass, continue to M2.3b: completion storage schema and migration
+tests. Completion transactions, HTTP and handler execution remain separate steps.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

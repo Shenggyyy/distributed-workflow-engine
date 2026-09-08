@@ -5,8 +5,9 @@ renewal, unit tests and an in-memory example. M2.2b adds
 [lease storage](lease-storage.md) in revision `0006`. M2.2c.1 implements the
 [single-run claim transaction](task-claims.md), and M2.2c.2 adds
 [persisted lease renewal](lease-renewal.md). M2.2d.2a adds [claim HTTP](claim-api.md).
-M2.2d.2b adds [renewal HTTP](lease-api.md). Completion and execution loops remain
-later work.
+M2.2d.2b adds [renewal HTTP](lease-api.md). M2.3a defines the pure
+[completion result/replay contract](attempt-completion.md). Durable completion
+and execution loops remain later work.
 The transaction protocol below is the design for subsequent commit-sized steps.
 
 ## Implemented model
@@ -173,7 +174,7 @@ business idempotency remain separate responsibilities.
 | M2.2d.1b | [Keyed claim/replay transactions](idempotent-claims.md) with uncertain-outcome tests, complete. |
 | M2.2d.2a | [Claim HTTP](claim-api.md), commit/error mapping and real HTTP checks, complete. |
 | M2.2d.2b | [Renewal HTTP](lease-api.md) contracts, error mapping and real HTTP checks, complete. |
-| M2.3a (next) | Attempt completion result and replay domain contract; persistence and HTTP follow separately. |
+| M2.3a (implemented) | [Attempt completion result and replay domain contract](attempt-completion.md); persistence and HTTP follow separately. |
 
 Only proceed after each subtask's tests, owner commit/push and CI confirmation.
 Completion, handler execution, recovery and task retry/timeout each need their own

@@ -132,6 +132,5 @@ replay, concurrent requests, post-lock expiry, responsive health during lock wai
 lock timeouts, invalid stored/response data, write/deferred-commit rollback and
 sanitized errors. CI also runs the smoke script through the built API container.
 
-After this commit/push and three passing CI jobs, M2.3a will define the Attempt
-completion result and replay contract. Persistence, completion HTTP and handler
-execution will follow as separate verified commits.
+M2.3a now defines the pure [Attempt completion result and replay contract](attempt-completion.md).
+Persistence, completion HTTP and handler execution follow as separate verified commits.
