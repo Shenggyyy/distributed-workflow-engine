@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.4c.2: Single-slot Worker control with supervised execution and stable reporting.**
+**M2.4d: Runnable Worker CLI and container with real handler execution checks.**
 
 Available now:
 
@@ -116,8 +116,10 @@ Available now:
   cleanup, tested with real spawned processes.
 - A [single-slot Worker loop](docs/worker-loop.md) connecting HTTP ownership,
   fresh renewal, independent heartbeat and handler subprocess completion.
+- [Worker CLI and container startup](docs/running-workers.md), configuration,
+  signal cleanup and real execution checks in CI.
 
-Worker CLI/container startup, recovery scanners and scheduling
+Recovery scanners and dependency scheduling
 are **not implemented yet**.
 The architecture below is the agreed target design.
 
@@ -404,6 +406,17 @@ uv run --locked python scripts/check_completion_api.py
 It submits simulated outcomes, replays receipts and checks capacity reuse. See
 [completion HTTP](docs/completion-api.md); this does not execute handlers.
 
+To execute real handlers using the Worker CLI or container:
+
+```console
+uv run --locked python scripts/check_worker_execution.py
+uv run --locked python scripts/check_worker_execution.py --container
+```
+
+Both create independent success/failure tasks and verify persisted results.
+See [running Workers](docs/running-workers.md) for an existing Run, configuration
+and shutdown semantics. Dependency scheduling and Run aggregation remain pending.
+
 ```console
 uv run --locked python examples/attempt_completion.py
 uv run --locked pytest tests/test_completion.py
@@ -529,7 +542,8 @@ Expected version output:
 engine 0.1.0
 ```
 
-The `api` command starts the HTTP server. Workflow execution is not implemented.
+The `api` command starts the HTTP server. The `worker` command executes READY tasks
+from an explicit Run; dependency scheduling is not implemented yet.
 Development dependencies are included by default. Python support is deliberately
 limited to 3.13 until additional versions are tested.
 
@@ -866,6 +880,11 @@ docs/
     completion-storage.md
     completion-transactions.md
     completion-api.md
+    handlers.md
+    worker-transport.md
+    worker-execution.md
+    worker-loop.md
+    running-workers.md
     lease-storage.md
     task-claims.md
     lease-renewal.md
@@ -899,6 +918,7 @@ scripts/
     check_claim_api.py
     check_lease_api.py
     check_completion_api.py
+    check_worker_execution.py
 src/workflow_engine/
     __init__.py
     __main__.py
@@ -951,6 +971,13 @@ src/workflow_engine/
         workflows.py
         runs.py
         workers.py
+    worker/
+        __init__.py
+        handlers.py
+        transport.py
+        execution.py
+        loop.py
+        entrypoint.py
 tests/
     __init__.py
     conftest.py
@@ -968,6 +995,11 @@ tests/
     test_migrations.py
     test_runtime.py
     test_worker.py
+    test_handlers.py
+    test_execution.py
+    test_worker_transport.py
+    test_worker_loop.py
+    test_worker_entrypoint.py
     test_workflow.py
     test_workflow_api.py
     test_run_api.py
@@ -995,6 +1027,8 @@ tests/
         test_completions.py
         test_completion_races.py
         test_completion_http.py
+        test_worker_transport.py
+        test_worker_loop.py
         test_claims.py
         test_lease_renewal.py
         test_claim_http.py
@@ -1081,7 +1115,9 @@ integration. Scheduling, multi-worker concurrency and failure recovery follow th
 milestone scopes above.
 
 M2.4a, M2.4b, M2.4c.1 (handler process lifecycle) and M2.4c.2 (execution/control
-loop) are implemented. Next is M2.4d: Worker CLI and container integration.
+loop), and M2.4d (Worker CLI/container integration) are implemented.
+Next is M2.5: dependency scheduling, split into M2.5a transactional readiness
+reconciliation and M2.5b scheduler process/CLI integration.
 Run `uv run --locked pytest tests/test_worker_loop.py` to test control behavior
 without PostgreSQL; integration tests also execute real handler subprocesses.
 

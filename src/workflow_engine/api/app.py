@@ -61,8 +61,8 @@ def create_app(settings: Settings, *, engine: Engine | None = None) -> FastAPI:
             "Publish workflows, create runs idempotently and query run/task snapshots. "
             "Register Worker sessions, accept heartbeats, claim tasks idempotently, "
             "renew Attempt leases and complete Attempts with retained receipts. "
-            "Liveness is independent of database access. Task scheduling and "
-            "execution are not implemented."
+            "Liveness is independent of database access. Handlers execute in the "
+            "separate Worker process; DAG scheduling is not implemented yet."
         ),
         lifespan=lifespan,
     )

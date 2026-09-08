@@ -54,12 +54,10 @@ def test_help_describes_current_capabilities(tmp_path: Path) -> None:
     )
 
     assert "--version" in result.stdout
-    assert "workflow execution is not implemented yet" in " ".join(
-        result.stdout.split()
-    )
+    assert "run single-slot workers" in " ".join(result.stdout.split())
 
 
-def test_unimplemented_command_fails_explicitly(tmp_path: Path) -> None:
+def test_worker_requires_an_explicit_run(tmp_path: Path) -> None:
     result = subprocess.run(
         [console_script(), "worker"],
         cwd=tmp_path,
@@ -70,7 +68,7 @@ def test_unimplemented_command_fails_explicitly(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 2
-    assert "invalid choice: 'worker'" in result.stderr
+    assert "--run-id" in result.stderr
 
 
 def test_check_config_accepts_an_explicit_file(tmp_path: Path) -> None:
