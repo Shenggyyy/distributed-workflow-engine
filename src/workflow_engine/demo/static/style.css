@@ -396,3 +396,234 @@ footer {
     font-size: 27px
   }
 }
+
+/* Six steps use a document flow; arrows describe rules, never invented traffic. */
+.flow-nav {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  background: #eef2f6;
+  margin-bottom: 16px
+}
+
+.flow-nav a {
+  padding: 7px 12px;
+  border-radius: 20px;
+  background: white;
+  color: #214d67;
+  text-decoration: none;
+  border: 1px solid #dce4ec;
+  font-size: 12px
+}
+
+.step {
+  scroll-margin-top: 100px;
+  position: relative;
+  border-top: 3px solid #168a80;
+  padding: 22px
+}
+
+.step-label {
+  color: #168078;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 1.3px;
+  margin-bottom: 5px
+}
+
+h3 {
+  font-size: 15px;
+  margin: 9px 0
+}
+
+.explanation {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #304d64;
+  margin: 9px 0 13px
+}
+
+.run-heading {
+  margin: 12px 0;
+  gap: 12px;
+  flex-wrap: wrap
+}
+
+.run-heading h3 {
+  font-size: 20px
+}
+
+.dag-wrap {
+  overflow-x: auto
+}
+
+#dag {
+  min-width: 620px;
+  display: block;
+  max-height: 420px
+}
+
+.queue-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px
+}
+
+.task-card {
+  background: #f4f7fa;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 8px 0
+}
+
+.task-card b,
+.allocation b {
+  margin-right: 12px
+}
+
+.task-card p,
+.allocation p {
+  font-size: 12px;
+  margin: 7px 0
+}
+
+#workers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px
+}
+
+.worker {
+  padding: 14px;
+  min-width: 0
+}
+
+.worker small {
+  overflow-wrap: anywhere
+}
+
+.capacity {
+  font-size: 14px;
+  font-weight: 600
+}
+
+.allocation {
+  background: #fff;
+  border: 1px solid #dae4ed;
+  border-radius: 6px;
+  padding: 10px;
+  margin: 10px 0
+}
+
+.allocation small {
+  font-size: 10px;
+  color: #63738a
+}
+
+.lease {
+  color: #6a578b
+}
+
+.loop {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  background: #edf5f3;
+  padding: 15px;
+  border-left: 3px solid #168a80;
+  font-size: 13px
+}
+
+.loop a {
+  color: #166b66;
+  font-weight: 600
+}
+
+.success-line {
+  color: #246a51;
+  background: #f3faf6;
+  padding: 8px 12px;
+  font-size: 13px
+}
+
+.recovery-card {
+  background: #fff8ed;
+  border: 1px solid #ebd3a9;
+  border-radius: 6px;
+  padding: 14px;
+  margin: 14px 0
+}
+
+.recovery-stages {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px
+}
+
+.recovery-stages p {
+  white-space: pre-line;
+  font-size: 12px;
+  border-left: 2px solid #c99a48;
+  padding-left: 10px;
+  line-height: 1.9
+}
+
+.owner-line {
+  border-left: 4px solid var(--worker);
+  padding: 5px 12px;
+  font-size: 12px
+}
+
+#completion details {
+  margin-top: 20px
+}
+
+#completion summary {
+  margin-bottom: 10px
+}
+
+@media(max-width:700px) {
+
+  .queue-columns,
+  .recovery-stages {
+    grid-template-columns: 1fr
+  }
+
+  .loop {
+    grid-template-columns: 1fr
+  }
+
+  main {
+    padding: 12px
+  }
+
+  .step {
+    padding: 15px
+  }
+
+  .flow-nav {
+    gap: 4px
+  }
+
+  .flow-nav a {
+    padding: 5px 8px
+  }
+
+  .scope {
+    display: inline-block
+  }
+
+  .controls>label,
+  select {
+    width: 100%;
+    min-width: 0
+  }
+
+  #workers {
+    grid-template-columns: 1fr
+  }
+}
