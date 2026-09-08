@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.4a: Trusted handler contract and immutable registry with stable Task identity.**
+**M2.4b: Worker HTTP transport with stable identities across uncertain delivery.**
 
 Available now:
 
@@ -110,6 +110,8 @@ Available now:
 - Completion HTTP validation/rollback tests and real container checks in CI.
 - A [handler contract and registry](docs/handlers.md) with pure execution tests,
   bounded outcomes and explicit business idempotency identity.
+- [Worker transport](docs/worker-transport.md) with strict response admission and
+  PostgreSQL tests for response loss after commit.
 
 Background heartbeat/expiry loops, scheduling and handler execution
 are **not implemented yet**.
@@ -1074,7 +1076,7 @@ retry identities, M2.4c execution/control lifecycle, and M2.4d CLI/container
 integration. Scheduling, multi-worker concurrency and failure recovery follow the
 milestone scopes above.
 
-M2.4a is implemented. Next is M2.4b; handler execution is not yet connected to
+M2.4a and M2.4b are implemented. Next is M2.4c; handler execution is not yet connected to
 HTTP ownership or a Worker process. Run `uv run --locked pytest tests/test_handlers.py`
 to exercise the contract without PostgreSQL.
 
