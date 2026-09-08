@@ -10,10 +10,10 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M3.2b: Bounded parallel Worker slots sharing one session heartbeat.**
+**M3.3: Multiple Worker/Scheduler processes and concurrent execution acceptance.**
 
-See the [M2 validation and correctness review](docs/m2-review.md), including
-the remaining M3–M5 boundaries.
+See the [M3 validation and correctness review](docs/m3-review.md), including
+the remaining M4–M5 boundaries.
 
 Available now:
 
@@ -117,7 +117,7 @@ Available now:
   PostgreSQL tests for response loss after commit.
 - [Handler subprocess execution](docs/worker-execution.md), result polling and
   cleanup, tested with real spawned processes.
-- A [single-slot Worker loop](docs/worker-loop.md) connecting HTTP ownership,
+- A [bounded Worker loop](docs/worker-loop.md) connecting HTTP ownership,
   fresh renewal, independent heartbeat and handler subprocess completion.
 - [Worker CLI and container startup](docs/running-workers.md), configuration,
   signal cleanup and real execution checks in CI.
@@ -126,7 +126,9 @@ Available now:
 - [Scheduler CLI/container](docs/running-scheduler.md) and complete diamond DAG
   execution with independent Scheduler and Worker processes.
 - [Active Run discovery](docs/run-discovery.md) with bounded UUID pagination and
-  an advisory READY filter for future automatic polling.
+  an advisory READY filter for automatic polling.
+- [Parallel Worker slots](docs/running-workers.md) with bounded reservations and
+  shared heartbeats, verified across multiple Worker and Scheduler processes.
 
 Recovery scanners, failed-dependency propagation and Run aggregation
 are **not implemented yet**.
@@ -232,7 +234,7 @@ and B/C/D are PENDING; no task executes yet. Keep the key and version for retrie
 uv run --locked python scripts/check_run_api.py
 ```
 
-Expected output: `HTTP run checks passed: creation, replay, queries, 409, 404 and 422.`
+Expected output: `HTTP run checks passed: creation, replay, discovery, queries and errors.`
 This smoke check creates two versions and one run under a unique workflow name;
 use a disposable database. See [Run HTTP contracts](docs/run-api.md) for all
 responses, transaction semantics, query consistency and testing.
@@ -559,7 +561,8 @@ engine 0.1.0
 ```
 
 The `api` command starts the HTTP server. The `worker` command executes READY tasks
-from an explicit Run; `scheduler` advances its satisfied dependencies.
+from a selected Run or discovers active Runs; `scheduler` scans and advances
+satisfied dependencies in independent short transactions.
 Development dependencies are included by default. Python support is deliberately
 limited to 3.13 until additional versions are tested.
 
@@ -1150,8 +1153,8 @@ M3 follows with M3.1 bounded Run discovery and scan coordination, M3.2 parallel
 Worker execution slots, and M3.3 multi-process concurrency acceptance.
 M3.1a implements discovery queries/API and indexes; M3.1b adds Scheduler scan
 coordination; M3.1c adds Worker automatic discovery. M3.2a extracts slot control;
-M3.2b enables bounded parallel slots with a shared heartbeat. Next is M3.3
-multi-process concurrency acceptance and the M3 correctness review.
+M3.2b enables bounded parallel slots with a shared heartbeat. M3.3 verifies
+multi-process execution; next is M4 retry, timeout and recovery.
 Run `uv run --locked pytest tests/test_worker_loop.py` to test control behavior
 without PostgreSQL; integration tests also execute real handler subprocesses.
 

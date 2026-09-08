@@ -15,11 +15,13 @@ The parent polls without blocking for handler completion. It validates received
 results and detects EOF/abrupt exit as `ExecutionLost`, never fabricating a FAILED
 business receipt. Repeated polls retain the same result. Cleanup terminates and
 joins the child, escalates to kill if needed, and closes process/pipe handles.
+M3.2b adds nonblocking `request_stop`/`poll_closed` so cleanup in one slot does not
+delay supervision of other slots. Blocking `close` remains for final cleanup.
 Cleanup is idempotent; failure to stop a child is explicit. This controls the direct
 child, not arbitrary subprocess trees that a handler might create.
 
 This layer has no lease admission, hard task timeout or automatic re-execution.
-The next subtask, M2.4c.2, owns claim/renew/heartbeat control and invokes cleanup on
+The Worker loop owns claim/renew/heartbeat control and invokes cleanup on
 loss of ownership or shutdown. M4 adds server-enforced timeout and recovery.
 Terminating a process cannot undo an external effect; business idempotency remains
 required. Never run a handler while holding a database transaction.

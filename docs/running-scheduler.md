@@ -76,8 +76,24 @@ Use `--base-url` for a non-default host API port. The first command starts the
 Scheduler on the host; the second starts it inside Compose while the Worker runs
 on the host. Both run in CI, alongside the existing container Worker check.
 
-M2 executes a complete successful DAG with one Worker slot. Automatic Scheduler
-discovery is available; Worker discovery and parallel capacity follow in M3. M4 adds
+M3 provides automatic Scheduler/Worker discovery and parallel capacity. M4 adds
 retry/timeout/crash recovery; M5 adds failed-dependency propagation and Run status
 aggregation. Currently failed dependencies leave descendants PENDING, and even
 all-successful Task sets leave their Run RUNNING. This is not final MVP acceptance.
+
+## Multiple processes
+
+The following checks create a six-task DAG and execute it using two Workers (two
+slots each) and two automatically scanning Schedulers. They stop only their own
+processes/containers; use an explicitly configured disposable database.
+
+```console
+uv run --locked python scripts/check_distributed_execution.py --database-env-file .env.database-test
+uv run --locked python scripts/check_distributed_execution.py --container
+```
+
+Use `--base-url` to match a different published API port. The host Scheduler's
+database configuration must point at the same database as that API. The PostgreSQL
+integration suite additionally uses a four-party handler barrier to prove actual
+overlap across two Worker processes, then verifies unique Attempts, receipts and
+owner distribution. See the [M3 review](m3-review.md).

@@ -44,5 +44,5 @@ uv run --locked python scripts/check_run_api.py
 
 Tests cover bounded pagination, terminal filtering, readiness changes, invalid
 queries, empty results, cursor boundaries, nonblocking row-lock reads and populated
-upgrade/downgrade/reupgrade. Next: M3.1b adds bounded Scheduler scan coordination;
+upgrade/downgrade/reupgrade. M3.1b implements bounded Scheduler scan coordination;
 M3.1c connects Worker automatic Run discovery.
