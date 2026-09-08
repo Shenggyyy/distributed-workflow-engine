@@ -4,6 +4,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from uuid import UUID
 
 from workflow_engine.config import Settings
 from workflow_engine.database import database_engine
@@ -17,10 +18,23 @@ from workflow_engine.worker.handlers import (
 
 
 def clock_domain() -> str:
-    """Linux boot + time namespace; unsupported hosts cannot claim comparability."""
-    boot = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
-    namespace = os.readlink("/proc/self/ns/time")
-    return f"linux:{boot}:{namespace}"
+    """Same kernel and frozen MONOTONIC offset imply comparable raw readings."""
+    boot = UUID(Path("/proc/sys/kernel/random/boot_id").read_text().strip())
+    if os.readlink("/proc/self/ns/time") != os.readlink(
+        "/proc/self/ns/time_for_children"
+    ):
+        raise ValueError("Unsupported pending time namespace transition.")
+    rows = [
+        line.split()
+        for line in Path("/proc/self/timens_offsets").read_text().splitlines()
+    ]
+    offsets = [row for row in rows if row and row[0] == "monotonic"]
+    if len(offsets) != 1 or len(offsets[0]) != 3:
+        raise ValueError("No unambiguous Linux monotonic offset.")
+    seconds, nanos = int(offsets[0][1]), int(offsets[0][2])
+    if not 0 <= nanos < 1_000_000_000:
+        raise ValueError("Invalid Linux monotonic offset.")
+    return f"linux:{boot}:monotonic-offset:{seconds}:{nanos}"
 
 
 @dataclass(frozen=True)

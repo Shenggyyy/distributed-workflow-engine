@@ -24,8 +24,11 @@ and validates their Compose project/service/Run labels before fault injection.
 - `acquired_at`: authoritative database time when the Attempt was allocated.
 - Handler START/PULSE/FINISH: samples taken inside the actual trusted callable.
   `monotonic_ns` comes from Linux CLOCK_MONOTONIC. A clock domain identifies the
-  kernel boot ID and time namespace; compare overlaps only in the same domain.
-  Standard Docker containers share this domain, which the acceptance checks verify.
+  kernel boot ID and frozen MONOTONIC offset; compare only identical domains.
+  Docker Desktop can give containers different time namespace IDs with identical
+  offsets. Read `/proc/self/timens_offsets`; fail closed if unavailable or if the
+  current and child namespaces differ. Raw sample values are never rewritten.
+  See [Linux time namespaces](https://man7.org/linux/man-pages/man7/time_namespaces.7.html).
 - `recorded_at`: database time receiving each Handler observation, distinct from
   its original sample. It is not the precise Handler start or COMMIT instant.
 - Completion `accepted_at`: database post-lock admission timestamp, not Handler
@@ -121,3 +124,8 @@ D3b verified: local scenario/fault CLI checks local Docker context and exact Wor
 identity. Real distribution used two sessions; recovery retained LOST Attempt 1
 without FINISH, waited its persisted backoff and succeeded on replacement Attempt
 2. Commands and retained-data shutdown are documented in demo.md.
+
+Browser inspection found separate Docker time namespaces. The clock comparison fix
+uses equal boot IDs and monotonic offsets (frozen after namespace entry), rather
+than namespace inode equality. Old evidence retains its original domains and is
+not retroactively combined. New scenarios verify the revised contract.
