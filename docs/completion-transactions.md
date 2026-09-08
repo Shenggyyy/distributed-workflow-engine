@@ -143,7 +143,19 @@ ownership boundaries, terminal history, expired heartbeat/LOST owner, historical
 confirmation, competing same/different reports, write/deferred-COMMIT failure,
 explicit abort, unexpected trigger results, corrupt receipts and transaction modes.
 
-M2.3c.2 will add controlled interleavings with renewal and recovery-like transactions,
-post-lock clock checks at each lock position, lock timeouts and predecessor rollback
-scenarios. Recovery-like SQL in tests will not mean a recovery scanner exists.
-Complete that independently verified commit before M2.3d completion HTTP.
+M2.3c.2 adds `tests/integration/test_completion_races.py` with 19 controlled cases:
+
+- Block each of the five ownership locks, assert the clock is not sampled while
+  waiting, then release the lock and reject completion at the exact deadline.
+- Time out at each lock, roll back, and successfully retry the same report.
+- Let renewal commit or roll back before a waiting completion: only the committed
+  deadline extension authorizes completion at the original expiry boundary.
+- Let completion commit or roll back before renewal or a conflicting report.
+- Simulate recovery at expiry: a committed LOST outcome fences the old report;
+  rollback leaves the original lease expired and still rejects the report.
+- Let completion commit before recovery's state check; the latter cannot overwrite
+  the terminal Attempt or remove its replayable receipt.
+
+Tests coordinate with held locks and events, not timing sleeps. Recovery-like SQL
+is test-only and does not implement a recovery scanner. No production behavior
+needed changing. The next step is M2.3d completion HTTP.

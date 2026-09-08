@@ -130,5 +130,5 @@ rollback and metadata comparison remain part of the existing test suite. CI chec
 the packaged `0008` head inside the runtime image.
 
 M2.3c.1 implements the [atomic completion/replay repository](completion-transactions.md).
-M2.3c.2 will verify extended cross-operation races and lock timeouts before
-completion HTTP and handler execution.
+M2.3c.2 verifies extended cross-operation races and lock timeouts. Completion HTTP
+and handler execution remain subsequent steps.

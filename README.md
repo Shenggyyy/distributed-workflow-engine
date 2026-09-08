@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.3c.1: Atomic Attempt/Task completion and historical receipt replay.**
+**M2.3c.2: Completion lock races, post-lock clocks and timeout recovery verified.**
 
 Available now:
 
@@ -104,6 +104,7 @@ Available now:
 
 - Python completion transactions that settle Attempt/Task and retain a receipt atomically.
 - Historical replay, capacity reuse, conflicting report and rollback tests.
+- Controlled completion/renewal/recovery interleavings and all five lock positions tested.
 
 Completion HTTP, background heartbeat/expiry loops, scheduling and handler execution
 are **not implemented yet**.
@@ -968,6 +969,7 @@ tests/
         test_lease_schema.py
         test_completion_schema.py
         test_completions.py
+        test_completion_races.py
         test_claims.py
         test_lease_renewal.py
         test_claim_http.py
@@ -1044,9 +1046,10 @@ receipts and first-acceptance/replay checks, with the [durable completion
 protocol](docs/attempt-completion.md). M2.3b adds immutable completion storage,
 exact-owner and deferred terminal-outcome references, and migration/race tests.
 M2.3c.1 implements atomic Attempt/Task completion, retained receipt replay and
-basic concurrency/failure tests. After this commit is pushed and all three CI jobs
-pass, continue to M2.3c.2: controlled completion/renewal/recovery races and lock
-timeouts. HTTP and handler execution remain separate steps.
+basic concurrency/failure tests. M2.3c.2 verifies controlled completion/renewal/
+recovery races, all five post-lock clock positions, lock timeouts and predecessor
+rollback. The next subtask is M2.3d: completion HTTP, commit/error mapping and real
+HTTP checks. Handler execution remains a subsequent step.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any
