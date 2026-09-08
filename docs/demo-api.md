@@ -24,7 +24,7 @@ Snapshot fields:
 - `run`: Run identity, pinned definition, status and scenario. Its `created_at` is
   creation metadata only. `tasks`: real Task UUID/key/state rows.
 - `attempts`: Attempt identity/number/state, owning session, `acquired_at`, latest
-  lease expiry, optional completion `accepted_at`, and optional retry `scheduled_at`
+  lease `last_renewed_at` and expiry, optional completion `accepted_at`, and optional retry `scheduled_at`
   / `available_at`. Engine-generated loss has no fabricated completion receipt.
 - `workers`: registered demo session identities, names, slots, registry status,
   last heartbeat and expiry. Freshness is evaluated against the snapshot's DB time.

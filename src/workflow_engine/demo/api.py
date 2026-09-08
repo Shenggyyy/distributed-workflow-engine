@@ -140,6 +140,7 @@ def snapshot(run_id: UUID, engine: Database) -> dict[str, Any]:
                         task_attempts.c.status,
                         attempt_leases.c.worker_session_id,
                         attempt_leases.c.acquired_at,
+                        attempt_leases.c.last_renewed_at,
                         attempt_leases.c.lease_expires_at,
                         attempt_completions.c.accepted_at,
                         task_retry_schedules.c.scheduled_at,
