@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.4c.1: Isolated handler subprocess execution and bounded child cleanup.**
+**M2.4c.2: Single-slot Worker control with supervised execution and stable reporting.**
 
 Available now:
 
@@ -114,8 +114,10 @@ Available now:
   PostgreSQL tests for response loss after commit.
 - [Handler subprocess execution](docs/worker-execution.md), result polling and
   cleanup, tested with real spawned processes.
+- A [single-slot Worker loop](docs/worker-loop.md) connecting HTTP ownership,
+  fresh renewal, independent heartbeat and handler subprocess completion.
 
-Background heartbeat/expiry loops, scheduling and Worker execution control
+Worker CLI/container startup, recovery scanners and scheduling
 are **not implemented yet**.
 The architecture below is the agreed target design.
 
@@ -1078,10 +1080,10 @@ retry identities, M2.4c execution/control lifecycle, and M2.4d CLI/container
 integration. Scheduling, multi-worker concurrency and failure recovery follow the
 milestone scopes above.
 
-M2.4a, M2.4b and M2.4c.1 (handler process lifecycle) are implemented. Next is
-M2.4c.2 (execution/control loop); handler execution is not yet connected to
-HTTP ownership or a Worker process. Run `uv run --locked pytest tests/test_handlers.py`
-to exercise the contract without PostgreSQL.
+M2.4a, M2.4b, M2.4c.1 (handler process lifecycle) and M2.4c.2 (execution/control
+loop) are implemented. Next is M2.4d: Worker CLI and container integration.
+Run `uv run --locked pytest tests/test_worker_loop.py` to test control behavior
+without PostgreSQL; integration tests also execute real handler subprocesses.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any
