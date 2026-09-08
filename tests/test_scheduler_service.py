@@ -84,3 +84,41 @@ def test_stop_and_once(monkeypatch: pytest.MonkeyPatch) -> None:
         assert service.run(uuid4(), stop) == 0
     finally:
         engine.dispose()
+
+
+def test_global_scan_wraps_and_retries_the_same_cursor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite://")
+    service = SchedulerService(engine, poll_seconds=0.001)
+    boundary = uuid4()
+    seen: list[object] = []
+    stop = Event()
+
+    def scan(after: object, signal: Event) -> tuple[int, object]:
+        seen.append(after)
+        if len(seen) == 1:
+            return 1, boundary
+        if len(seen) == 2:
+            raise DBAPIError("private", {}, DriverError("08006"))
+        if len(seen) == 3:
+            return 2, None
+        signal.set()
+        return 0, None
+
+    monkeypatch.setattr(service, "scan_page", scan)
+    try:
+        assert service.run(None, stop) == 3
+        assert seen == [None, boundary, boundary, None]
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("size", [0, 101, True])
+def test_invalid_page_size(size: int) -> None:
+    engine = create_engine("sqlite://")
+    try:
+        with pytest.raises(ValueError):
+            SchedulerService(engine, page_size=size)
+    finally:
+        engine.dispose()

@@ -150,7 +150,7 @@ jobs:
         run: uv run --locked python scripts/check_dag_execution.py --database-env-file .env.database-test
 
       - name: Execute a diamond DAG with a Scheduler container
-        run: uv run --locked python scripts/check_dag_execution.py --scheduler-container
+        run: uv run --locked python scripts/check_dag_execution.py --scheduler-container --automatic-scheduler
 
       - name: Verify authenticated SQL and write persistence probe
         run: |

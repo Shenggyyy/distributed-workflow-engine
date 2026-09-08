@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M3.1a: Bounded active Run discovery and additive query indexes.**
+**M3.1b: Automatic Scheduler discovery and cooperative scan coordination.**
 
 See the [M2 validation and correctness review](docs/m2-review.md), including
 the remaining M3–M5 boundaries.
@@ -1148,8 +1148,8 @@ M2.5a transactional readiness reconciliation is implemented.
 M2.5b integrates the Scheduler process/CLI/container and complete DAG execution.
 M3 follows with M3.1 bounded Run discovery and scan coordination, M3.2 parallel
 Worker execution slots, and M3.3 multi-process concurrency acceptance.
-M3.1a implements discovery queries/API and indexes. Next is M3.1b Scheduler scan
-coordination, followed by M3.1c Worker automatic discovery.
+M3.1a implements discovery queries/API and indexes; M3.1b adds Scheduler scan
+coordination. Next is M3.1c Worker automatic discovery.
 Run `uv run --locked pytest tests/test_worker_loop.py` to test control behavior
 without PostgreSQL; integration tests also execute real handler subprocesses.
 

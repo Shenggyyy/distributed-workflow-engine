@@ -65,7 +65,7 @@ def main() -> None:
         ("check-config", "Validate configuration without starting services."),
         ("api", "Start the HTTP API server."),
         ("worker", "Execute ready tasks from one Run with a single local slot."),
-        ("scheduler", "Reconcile dependencies for one Run in short transactions."),
+        ("scheduler", "Discover active Runs and reconcile in short transactions."),
         ("check-db", "Check authenticated database connectivity; no schema changes."),
     ):
         command_parser = commands.add_parser(name, help=help_text)
@@ -82,7 +82,9 @@ def main() -> None:
         type=int,
         help="Exit after this many confirmed completions (including failures).",
     )
-    command_parsers["scheduler"].add_argument("--run-id", type=UUID, required=True)
+    command_parsers["scheduler"].add_argument(
+        "--run-id", type=UUID, help="Limit scheduling to one Run; default scans all."
+    )
     command_parsers["scheduler"].add_argument("--once", action="store_true")
 
     args = parser.parse_args()

@@ -45,6 +45,7 @@ services:
       DWE_DATABASE_PORT: "5432"
       DWE_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
       DWE_SCHEDULER_POLL_SECONDS: "${DWE_SCHEDULER_POLL_SECONDS:-0.5}"
+      DWE_SCHEDULER_PAGE_SIZE: "${DWE_SCHEDULER_PAGE_SIZE:-50}"
     secrets:
       - postgres_password
     healthcheck:

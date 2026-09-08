@@ -11,7 +11,9 @@ from workflow_engine.logging import configure_logging
 from workflow_engine.scheduler.service import SchedulerService
 
 
-def run_scheduler(settings: Settings, run_id: UUID, *, once: bool = False) -> int:
+def run_scheduler(
+    settings: Settings, run_id: UUID | None, *, once: bool = False
+) -> int:
     configure_logging(settings, component="scheduler")
     logger = logging.getLogger(__name__)
     stop = Event()
@@ -27,7 +29,9 @@ def run_scheduler(settings: Settings, run_id: UUID, *, once: bool = False) -> in
             signal.signal(signum, request_stop)
         with database_engine(settings) as engine:
             count = SchedulerService(
-                engine, poll_seconds=settings.scheduler_poll_seconds
+                engine,
+                poll_seconds=settings.scheduler_poll_seconds,
+                page_size=settings.scheduler_page_size,
             ).run(run_id, stop, once=once)
     except Exception:
         logger.error(

@@ -32,7 +32,9 @@ class SchedulingRepository:
         self._workflows = WorkflowRepository(connection)
         self._transaction = connection.get_transaction()
 
-    def reconcile(self, run_id: UUID) -> tuple[TaskRun, ...]:
+    def reconcile(
+        self, run_id: UUID, *, skip_locked: bool = False
+    ) -> tuple[TaskRun, ...]:
         if (
             self._transaction is None
             or not self._transaction.is_active
@@ -43,16 +45,21 @@ class SchedulingRepository:
             )
         if not isinstance(run_id, UUID):
             raise TypeError("run_id must be a UUID.")
+        if type(skip_locked) is not bool:
+            raise TypeError("skip_locked must be a boolean.")
         row = (
             self._connection.execute(
                 select(workflow_runs)
                 .where(workflow_runs.c.id == run_id)
-                .with_for_update()
+                .with_for_update(skip_locked=skip_locked)
             )
             .mappings()
             .one_or_none()
         )
         if row is None:
+            if skip_locked:
+                # Advisory scans treat missing and busy Runs as no work this pass.
+                return ()
             raise SchedulingRunNotFoundError("Run was not found.")
         try:
             run = WorkflowRun(

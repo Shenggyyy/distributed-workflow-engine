@@ -33,6 +33,7 @@ def main() -> None:
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--database-env-file", help="Required for a host Scheduler.")
     parser.add_argument("--scheduler-container", action="store_true")
+    parser.add_argument("--automatic-scheduler", action="store_true")
     args = parser.parse_args()
     if not args.scheduler_container and not args.database_env_file:
         parser.error("Provide --database-env-file or --scheduler-container.")
@@ -54,6 +55,7 @@ def main() -> None:
         base, "/runs", {"workflow_version_id": version["id"]}, key=uuid4().hex
     )
     run_id = str(run["run_id"])
+    run_arguments = [] if args.automatic_scheduler else ["--run-id", run_id]
     container_name = "dwe-scheduler-check-" + uuid4().hex
     scheduler: subprocess.Popen[bytes] | None = None
     container_started = False
@@ -72,8 +74,7 @@ def main() -> None:
                     container_name,
                     "scheduler",
                     "scheduler",
-                    "--run-id",
-                    run_id,
+                    *run_arguments,
                 ],
                 capture_output=True,
                 timeout=30,
@@ -91,8 +92,7 @@ def main() -> None:
                     "-m",
                     "workflow_engine",
                     "scheduler",
-                    "--run-id",
-                    run_id,
+                    *run_arguments,
                     "--env-file",
                     str(args.database_env_file),
                 ],
