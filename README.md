@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.4b: Worker HTTP transport with stable identities across uncertain delivery.**
+**M2.4c.1: Isolated handler subprocess execution and bounded child cleanup.**
 
 Available now:
 
@@ -112,8 +112,10 @@ Available now:
   bounded outcomes and explicit business idempotency identity.
 - [Worker transport](docs/worker-transport.md) with strict response admission and
   PostgreSQL tests for response loss after commit.
+- [Handler subprocess execution](docs/worker-execution.md), result polling and
+  cleanup, tested with real spawned processes.
 
-Background heartbeat/expiry loops, scheduling and handler execution
+Background heartbeat/expiry loops, scheduling and Worker execution control
 are **not implemented yet**.
 The architecture below is the agreed target design.
 
@@ -1076,7 +1078,8 @@ retry identities, M2.4c execution/control lifecycle, and M2.4d CLI/container
 integration. Scheduling, multi-worker concurrency and failure recovery follow the
 milestone scopes above.
 
-M2.4a and M2.4b are implemented. Next is M2.4c; handler execution is not yet connected to
+M2.4a, M2.4b and M2.4c.1 (handler process lifecycle) are implemented. Next is
+M2.4c.2 (execution/control loop); handler execution is not yet connected to
 HTTP ownership or a Worker process. Run `uv run --locked pytest tests/test_handlers.py`
 to exercise the contract without PostgreSQL.
 

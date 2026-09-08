@@ -66,6 +66,13 @@ class HandlerRegistry:
     def task_types(self) -> tuple[str, ...]:
         return tuple(sorted(self._handlers))
 
+    @property
+    def registrations(self) -> tuple[HandlerRegistration, ...]:
+        """Serializable registration snapshot for a spawned execution process."""
+        return tuple(
+            HandlerRegistration(key, self._handlers[key]) for key in self.task_types
+        )
+
     def execute(self, task_type: str, context: HandlerContext) -> CompletionResult:
         """Execute once per call; the control loop owns admission and deduplication.
 
