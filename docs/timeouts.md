@@ -88,3 +88,11 @@ Multiple Schedulers can observe the same candidates, but only the first valid
 settlement changes state. Recovery logs are emitted after COMMIT. No leader or
 distributed in-memory timer is required. Discovery scans bound memory, while
 per-Run coordination limits throughput for very wide hot DAGs.
+
+## Crash acceptance (M4.4c)
+
+`tests/integration/test_crash_recovery.py` starts a real Worker process, commits
+its HTTP claim and exits the process before completion. Independent replacement
+execution succeeds after lease loss or hard timeout, and stale completion fails.
+Run `uv run --locked python scripts/check_dag_execution.py --scheduler-container
+--abandon-claim` for the container recovery smoke. See [the M4 review](m4-review.md).

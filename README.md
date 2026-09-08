@@ -10,10 +10,10 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M4.4b: Scheduler crash detection and automatic expiry recovery coordination.**
+**M4 complete: durable retries, fixed timeouts and automatic crash recovery.**
 
-See the [M3 validation and correctness review](docs/m3-review.md), including
-the remaining M4–M5 boundaries.
+See the [M4 validation and correctness review](docs/m4-review.md).
+M5 follows with failure propagation, final Run aggregation and business idempotency.
 
 Available now:
 

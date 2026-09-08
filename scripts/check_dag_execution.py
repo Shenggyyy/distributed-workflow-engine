@@ -5,12 +5,18 @@ import json
 import os
 import subprocess
 import sys
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
 
 def request(
-    base: str, path: str, body: object = None, *, key: str | None = None
+    base: str,
+    path: str,
+    body: object = None,
+    *,
+    key: str | None = None,
+    method: str | None = None,
 ) -> dict[str, object]:
     headers = {"Content-Type": "application/json"}
     if key:
@@ -20,6 +26,7 @@ def request(
             base + path,
             data=None if body is None else json.dumps(body).encode(),
             headers=headers,
+            method=method,
         ),
         timeout=10,
     ) as response:
@@ -39,7 +46,14 @@ def main() -> None:
         action="store_true",
         help="Execute one failing Task until its three-Attempt budget ends.",
     )
+    parser.add_argument(
+        "--abandon-claim",
+        action="store_true",
+        help="Abandon one allocation and verify automatic recovery.",
+    )
     args = parser.parse_args()
+    if args.retry_failure and args.abandon_claim:
+        parser.error("Choose only one failure scenario.")
     if not args.scheduler_container and not args.database_env_file:
         parser.error("Provide --database-env-file or --scheduler-container.")
     base = str(args.base_url).rstrip("/")
@@ -54,14 +68,27 @@ def main() -> None:
             },
         }
     ]
+    if args.abandon_claim:
+        retry_tasks = [
+            {
+                "task_id": "A",
+                "task_type": "demo.echo",
+                "execution": {
+                    "max_attempts": 2,
+                    "timeout_seconds": 2,
+                    "initial_backoff_ms": 200,
+                    "max_backoff_ms": 1000,
+                },
+            }
+        ]
     version = request(
         base,
         "/workflows",
         {
             "name": "dag_smoke_" + uuid4().hex,
-            "schema_version": 2 if args.retry_failure else 1,
+            "schema_version": 2 if args.retry_failure or args.abandon_claim else 1,
             "tasks": retry_tasks
-            if args.retry_failure
+            if args.retry_failure or args.abandon_claim
             else [
                 {"task_id": "A", "task_type": "demo.echo"},
                 {"task_id": "B", "task_type": "demo.echo", "depends_on": ["A"]},
@@ -74,6 +101,22 @@ def main() -> None:
         base, "/runs", {"workflow_version_id": version["id"]}, key=uuid4().hex
     )
     run_id = str(run["run_id"])
+    abandoned: dict[str, object] | None = None
+    ghost = str(uuid4())
+    if args.abandon_claim:
+        request(
+            base,
+            f"/worker-sessions/{ghost}",
+            {"worker_name": "abandoned", "max_concurrency": 1},
+            method="PUT",
+        )
+        value = request(
+            base,
+            f"/worker-sessions/{ghost}/claims",
+            {"run_id": run_id, "request_id": str(uuid4())},
+        )["claim"]
+        assert isinstance(value, dict)
+        abandoned = value
     run_arguments = [] if args.automatic_scheduler else ["--run-id", run_id]
     container_name = "dwe-scheduler-check-" + uuid4().hex
     scheduler: subprocess.Popen[bytes] | None = None
@@ -128,7 +171,7 @@ def main() -> None:
                 "--run-id",
                 run_id,
                 "--max-tasks",
-                "3" if args.retry_failure else "4",
+                "1" if args.abandon_claim else "3" if args.retry_failure else "4",
             ],
             env={**os.environ, "DWE_WORKER_API_URL": base},
             capture_output=True,
@@ -143,13 +186,34 @@ def main() -> None:
         expected = (
             {"A": "FAILED"}
             if args.retry_failure
+            else {"A": "SUCCEEDED"}
+            if args.abandon_claim
             else {key: "SUCCEEDED" for key in ("A", "B", "C", "D")}
         )
         assert {task["task_key"]: task["status"] for task in tasks} == expected
+        if abandoned is not None:
+            lease = abandoned["lease"]
+            assert isinstance(lease, dict)
+            try:
+                request(
+                    base,
+                    f"/worker-sessions/{ghost}/attempts/{lease['attempt_id']}/complete",
+                    {
+                        "lease_token": lease["lease_token"],
+                        "result": {"outcome": "SUCCEEDED"},
+                    },
+                )
+            except HTTPError as error:
+                assert error.code == 409
+                assert json.load(error)["error"]["code"] == "completion_inactive"
+            else:
+                raise RuntimeError("Stale completion was accepted.")
         if scheduler is not None and scheduler.poll() is not None:
             raise RuntimeError("Scheduler exited unexpectedly.")
         print(
-            "Retry execution passed: three failed Attempts exhausted the budget."
+            "Recovery passed: abandoned Attempt replaced; stale result rejected."
+            if args.abandon_claim
+            else "Retry execution passed: three failed Attempts exhausted the budget."
             if args.retry_failure
             else "DAG execution passed: independent Scheduler/Worker processes "
             "completed A -> B/C -> D."
