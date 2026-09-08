@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.1c.2: Worker heartbeat renewal and expiry with serialized deadline checks.**
+**M2.1d: Worker registration and heartbeat HTTP API with commit/error contracts.**
 
 Available now:
 
@@ -69,8 +69,10 @@ Available now:
 - Transactional Worker heartbeat renewal and per-session expiry with post-lock clock checks.
 - PostgreSQL tests for exact deadlines, concurrent renewal/expiry and commit rollback.
 
-Worker HTTP endpoints, background heartbeat/expiry loops, scheduling and execution
-are **not implemented yet**.
+- Worker registration/replay and heartbeat HTTP endpoints with server-owned timeout policy.
+- Strict request validation, typed error mapping and real Worker HTTP checks in CI.
+
+Background heartbeat/expiry loops, scheduling and execution are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -272,6 +274,21 @@ example registers a record; it does not start a heartbeat loop or execute tasks.
 See [Worker registration](docs/worker-registration.md) for the transaction,
 advisory lock, clock and failure contracts.
 
+## Register and heartbeat over HTTP
+
+With the API rebuilt and the database migrated, run:
+
+```console
+uv run --locked python scripts/check_worker_api.py
+```
+
+This checks `PUT /worker-sessions/{session_id}` and
+`POST /worker-sessions/{session_id}/heartbeat` against the running container.
+Registration/replay and accepted heartbeats return 200 after commit. Registration
+replay never renews a session; heartbeats require an empty JSON object and an
+unexpired ACTIVE session. Each script run retains one session record.
+See [Worker HTTP API](docs/worker-api.md) for requests, errors, policy and tests.
+
 ## Renew or expire a Worker session
 
 Using a freshly registered session, before its displayed heartbeat deadline:
@@ -469,6 +486,7 @@ and the `DWE_` environment prefix.
 | `DWE_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `DWE_API_HOST` | `127.0.0.1` | An IPv4 or IPv6 address literal |
 | `DWE_API_PORT` | `8000` | An integer from 1 through 65535 |
+| `DWE_WORKER_HEARTBEAT_TIMEOUT_SECONDS` | `30` | API session heartbeat window, integer 1–86400 seconds |
 
 Environment variable names are case-insensitive; enum values use the exact
 spelling shown above. Empty values are validated rather than silently ignored.
@@ -511,7 +529,10 @@ not change when the environment changes. There is no hot reload or global cache.
 Logging is initialized after successful configuration validation. API settings
 are used by `engine api`; `check-config` does not start a server.
 Database settings are documented in [database.md](docs/database.md).
-Worker settings will be introduced alongside their implementation.
+`DWE_WORKER_HEARTBEAT_TIMEOUT_SECONDS` controls the API's session heartbeat
+window (default 30 seconds, range 1–86400), loaded once at startup. Compose forwards
+it into the API container. It is separate from task leases and heartbeat send
+intervals; see [Worker API configuration](docs/worker-api.md#server-configuration).
 
 ### Structured logging
 
@@ -667,6 +688,7 @@ docs/
     worker-storage.md
     worker-registration.md
     worker-heartbeat.md
+    worker-api.md
     workflow-storage.md
 examples/
     diamond.json
@@ -683,6 +705,7 @@ scripts/
     init_dev_secrets.py
     check_workflow_api.py
     check_run_api.py
+    check_worker_api.py
 src/workflow_engine/
     __init__.py
     __main__.py
@@ -721,6 +744,7 @@ src/workflow_engine/
         health.py
         workflows.py
         runs.py
+        workers.py
 tests/
     __init__.py
     conftest.py
@@ -738,6 +762,7 @@ tests/
     test_workflow.py
     test_workflow_api.py
     test_run_api.py
+    test_worker_api.py
     integration/
         __init__.py
         conftest.py
@@ -756,6 +781,7 @@ tests/
         test_worker_schema.py
         test_worker_registration.py
         test_worker_heartbeat.py
+        test_worker_http.py
 alembic.ini
 Dockerfile
 compose.yaml
@@ -805,10 +831,12 @@ and registration/heartbeat/lease design boundaries. M2.1b adds Worker session
 storage, database lifecycle/time constraints and migration/concurrency tests.
 M2.1c.1 adds transactional registration, replay/conflict and database-clock
 initialization with concurrency/failure tests. M2.1c.2 adds heartbeat renewal and
-per-session expiry with deadline, clock and race tests. After M2.1c.2 is committed,
-pushed, and all three CI jobs pass, continue to M2.1d: Worker registration and
-heartbeat HTTP contracts; see
+per-session expiry with deadline, clock and race tests. M2.1d adds Worker
+registration/heartbeat HTTP contracts, server policy and real HTTP checks; see
 [the Worker subtask plan](docs/workers.md#commit-sized-follow-up-steps).
+After M2.1d is committed, pushed, and all three CI jobs pass, move to M2.2:
+task claim and attempt lease ownership foundations. Specify the ownership model,
+lock ordering and schema changes before implementing the next bounded subtask.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

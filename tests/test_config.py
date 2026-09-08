@@ -15,6 +15,7 @@ def test_defaults_do_not_require_an_environment_file() -> None:
     assert settings.log_level == "INFO"
     assert str(settings.api_host) == "127.0.0.1"
     assert settings.api_port == 8000
+    assert settings.worker_heartbeat_timeout_seconds == 30
 
 
 def test_dotenv_is_not_implicitly_loaded(
@@ -55,6 +56,21 @@ def test_environment_overrides_dotenv_and_defaults(
         ("DWE_ENVIRONMENT", "staging", "environment"),
         ("DWE_LOG_LEVEL", "debug", "log_level"),
         ("DWE_API_HOST", "https://localhost", "api_host"),
+        (
+            "DWE_WORKER_HEARTBEAT_TIMEOUT_SECONDS",
+            "0",
+            "worker_heartbeat_timeout_seconds",
+        ),
+        (
+            "DWE_WORKER_HEARTBEAT_TIMEOUT_SECONDS",
+            "86401",
+            "worker_heartbeat_timeout_seconds",
+        ),
+        (
+            "DWE_WORKER_HEARTBEAT_TIMEOUT_SECONDS",
+            "1.5",
+            "worker_heartbeat_timeout_seconds",
+        ),
     ],
 )
 def test_invalid_environment_values_fail(
@@ -114,3 +130,14 @@ def test_repository_example_is_valid() -> None:
     example = Path(__file__).resolve().parents[1] / ".env.example"
 
     assert load_settings(env_file=example).environment == "development"
+
+
+@pytest.mark.parametrize("seconds", [1, 86400])
+def test_heartbeat_policy_precedence_and_boundaries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, seconds: int
+) -> None:
+    env_file = tmp_path / "worker.env"
+    env_file.write_text("DWE_WORKER_HEARTBEAT_TIMEOUT_SECONDS=7\n", encoding="utf-8")
+    assert load_settings(env_file=env_file).worker_heartbeat_timeout_seconds == 7
+    monkeypatch.setenv("DWE_WORKER_HEARTBEAT_TIMEOUT_SECONDS", str(seconds))
+    assert load_settings(env_file=env_file).worker_heartbeat_timeout_seconds == seconds

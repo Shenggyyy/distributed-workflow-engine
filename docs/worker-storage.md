@@ -3,8 +3,9 @@
 M2.1b adds revision `0005` and the `worker_sessions` table. It implements
 database invariants for the [M2.1a session model](workers.md), not the registration
 or heartbeat protocol by itself. M2.1c.1 now provides
-[transactional registration](worker-registration.md). There is no Worker HTTP
-route or background expiry loop.
+[transactional registration](worker-registration.md), M2.1c.2 adds
+[heartbeat/expiry transactions](worker-heartbeat.md), and M2.1d exposes
+[registration/heartbeat HTTP routes](worker-api.md). Background expiry is later work.
 
 ## Columns and constraints
 
@@ -148,4 +149,4 @@ migrations rather than `metadata.create_all()`, which omits the trigger guards.
 
 M2.1c.1 implements [transactional registration](worker-registration.md) using
 this table. M2.1c.2 adds [heartbeat renewal/expiry](worker-heartbeat.md).
-Worker HTTP endpoints remain the next milestone.
+M2.1d adds [Worker registration and heartbeat HTTP endpoints](worker-api.md).

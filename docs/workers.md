@@ -4,7 +4,8 @@ M2.1a implements the pure `WorkerSession` domain model, lifecycle tests and an
 in-memory example. M2.1b adds [session storage](worker-storage.md) in revision
 `0005`. M2.1c.1 adds [transactional registration](worker-registration.md).
 M2.1c.2 adds [heartbeat renewal and per-session expiry](worker-heartbeat.md).
-HTTP endpoints, background loops and task execution remain later work.
+M2.1d adds [registration and heartbeat HTTP endpoints](worker-api.md).
+Background loops and task execution remain later work.
 
 ## Identity: one UUID per process incarnation
 
@@ -171,8 +172,8 @@ JSON round trips, frozen fields and revalidation of bypassed models.
 | M2.1a (implemented) | Session identity, pure lifecycle, tests, example and protocol boundaries. |
 | M2.1b (implemented) | Session schema/migration, database constraints and PostgreSQL tests. |
 | M2.1c.1 (implemented) | Transactional registration and duplicate/conflict handling with race tests. |
-| M2.1c.2 (current) | Heartbeat renewal and expiry transactions with deadline/race tests. |
-| M2.1d | Registration/heartbeat HTTP contracts, validation and real HTTP checks. |
+| M2.1c.2 (implemented) | Heartbeat renewal and expiry transactions with deadline/race tests. |
+| M2.1d (current) | Registration/heartbeat HTTP contracts, validation and real HTTP checks. |
 
 Each requires its own verified commit and owner push before starting the next.
 Task claiming, attempt leases and actual worker execution follow these foundations.

@@ -4,6 +4,13 @@ from fastapi import Request
 from sqlalchemy import Engine
 
 from workflow_engine.api.errors import APIError
+from workflow_engine.config import Settings
+
+
+async def get_settings(request: Request) -> Settings:
+    """Return factory-supplied immutable settings without environment reads."""
+    settings: Settings = request.app.state.settings
+    return settings
 
 
 async def get_engine(request: Request) -> Engine:

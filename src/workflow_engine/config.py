@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     api_host: IPv4Address | IPv6Address = IPv4Address("127.0.0.1")
     api_port: int = Field(default=8000, ge=1, le=65535)
+    worker_heartbeat_timeout_seconds: int = Field(default=30, ge=1, le=86400)
 
     database_host: str = Field(default="127.0.0.1", min_length=1)
     database_port: int = Field(default=5432, ge=1, le=65535)

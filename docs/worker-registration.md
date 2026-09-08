@@ -39,8 +39,8 @@ claim eligibility. The [heartbeat repository](worker-heartbeat.md) checks deadli
 future claims must do so separately too.
 
 Corrupt stored domain fields or time ordering raise StoredWorkerError without
-echoing stored values. Driver/schema failures propagate separately. No new HTTP
-error mapping is introduced before the Worker HTTP milestone.
+echoing stored values. Driver/schema failures propagate separately. M2.1d adds
+[HTTP error mapping](worker-api.md#error-envelope) around these transactions.
 
 ## Atomic registration and clock ordering
 
@@ -179,4 +179,4 @@ transaction lifetime/isolation, injected insert/commit failures and corrupt stat
 General CI discovers these tests without a new workflow step.
 
 M2.1c.2 implements [heartbeat renewal and expiry transactions](worker-heartbeat.md).
-Worker HTTP endpoints remain M2.1d.
+M2.1d exposes [Worker registration and heartbeat through HTTP](worker-api.md).

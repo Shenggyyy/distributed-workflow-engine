@@ -19,7 +19,8 @@ introduced. Each call targets one known UUID.
 
 Both methods require a Python UUID and the repository's original active
 transaction. Malformed IDs fail before SQL. StoredWorkerError reports corrupt
-persisted state with a fixed message. No public HTTP error contract is added yet.
+persisted state with a fixed message. M2.1d maps these errors through the
+[Worker HTTP API](worker-api.md).
 
 Returned StoredWorkerSession values use the same immutable snapshot type as
 registration. They are provisional until the caller commits and can become stale
@@ -148,5 +149,6 @@ both lock winners and commit/rollback outcomes without depending on a sleep to
 create the interleaving. Separate tests use the real PostgreSQL clock for four
 concurrent heartbeats and check the final persisted timestamps.
 
-M2.1d will expose Worker registration and heartbeat through HTTP. Automatic expiry
+M2.1d exposes Worker registration and heartbeat through the [HTTP API](worker-api.md).
+Automatic expiry
 candidate scanning belongs to the later scheduler/recovery process.
