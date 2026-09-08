@@ -8,7 +8,8 @@ M1.8 is split into two independently verifiable changes:
 
 RunRepository.create_idempotent() now creates or replays a durable receipt.
 RunRepository.create() and examples/create_run.py remain unkeyed and create a new
-run per call. No Run HTTP endpoint is implemented yet. No new migration is needed.
+run per call. M1.9b exposes [keyed Run creation over HTTP](run-api.md).
+The current schema head remains 0004.
 
 ## Request identity and result
 
@@ -247,4 +248,4 @@ The committed-replay test simulates discarding an acknowledged creation result;
 it does not claim to inject a real network disconnect during COMMIT.
 
 M1.9a adds [Run query storage operations](run-queries.md) for current persisted
-state. M1.9b will expose keyed creation and queries over HTTP.
+state. M1.9b exposes [keyed creation and queries over HTTP](run-api.md).

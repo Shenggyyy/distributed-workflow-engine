@@ -1,7 +1,7 @@
 # Run queries and statement snapshots
 
-M1.9a adds read operations to RunRepository. No migration or Run HTTP endpoint
-is introduced; the current database head remains 0004.
+M1.9a adds read operations to RunRepository. M1.9b exposes them through the
+[Run HTTP API](run-api.md). Neither adds a migration; the database head remains 0004.
 
 ## Read contracts
 
@@ -129,7 +129,7 @@ Read-only statement snapshot; no tasks executed or statuses changed.
 ```
 
 An absent Run ID exits with code 1 and prints "Run was not found." on stderr.
-The script performs no writes. There are no new HTTP routes in this milestone.
+The script performs no writes. HTTP equivalents are documented in [run-api.md](run-api.md).
 
 ## Verification
 
@@ -148,5 +148,5 @@ executes but before result decoding. It verifies one SELECT returns a coherent
 old snapshot, while the next SELECT observes the committed new state. This is
 deterministic transaction interleaving, not a timing-only stress test.
 
-After M1.9a is committed, pushed and verified in CI, M1.9b will expose keyed
-Run creation and Run queries through HTTP with explicit response/error contracts.
+M1.9b exposes keyed Run creation and these queries through HTTP with explicit
+[response/error contracts](run-api.md).

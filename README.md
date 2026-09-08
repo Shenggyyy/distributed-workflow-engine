@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M1.9a: Run queries with consistent run/task statement snapshots.**
+**M1.9b: Idempotent Run creation and consistent queries through HTTP.**
 
 Available now:
 
@@ -54,7 +54,10 @@ Available now:
 - Typed Run metadata and Run/Task queries with one-statement snapshot consistency.
 - Read-only transaction support, bounded results and explicit invalid-data errors.
 
-Run HTTP endpoints, scheduling and workers are **not implemented yet**.
+- Run creation HTTP API with required idempotency keys, stable receipts and conflicts.
+- Run metadata/task HTTP queries, typed contracts and real HTTP checks in CI.
+
+Scheduling and workers are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -136,6 +139,31 @@ Expected output: `HTTP workflow checks passed: publication, history, latest, 404
 This check creates two versions under a unique workflow name; it does not execute
 tasks. See [HTTP API contracts and failure semantics](docs/api.md) for all routes,
 responses, configuration, and limitations.
+
+## Create and query a run through HTTP
+
+Using the version published above:
+
+```powershell
+$runBody = @{ workflow_version_id = $published.id } | ConvertTo-Json
+$runHeaders = @{ "Idempotency-Key" = [guid]::NewGuid().ToString() }
+$run = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/runs -Headers $runHeaders -ContentType "application/json" -Body $runBody
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/runs -Headers $runHeaders -ContentType "application/json" -Body $runBody
+Invoke-RestMethod "http://127.0.0.1:8000/runs/$($run.run_id)/tasks" | ConvertTo-Json -Depth 10
+```
+
+Both POSTs return 201 with the same Run ID and version ID. A different version
+with that key returns 409. For the diamond, the queried run is RUNNING, A is READY
+and B/C/D are PENDING; no task executes yet. Keep the key and version for retries.
+
+```console
+uv run --locked python scripts/check_run_api.py
+```
+
+Expected output: `HTTP run checks passed: creation, replay, queries, 409, 404 and 422.`
+This smoke check creates two versions and one run under a unique workflow name;
+use a disposable database. See [Run HTTP contracts](docs/run-api.md) for all
+responses, transaction semantics, query consistency and testing.
 
 ## Explore runtime state transitions
 
@@ -566,6 +594,7 @@ docs/
     run-creation.md
     run-idempotency.md
     run-queries.md
+    run-api.md
     workflows.md
     workflow-storage.md
 examples/
@@ -579,6 +608,7 @@ examples/
 scripts/
     init_dev_secrets.py
     check_workflow_api.py
+    check_run_api.py
 src/workflow_engine/
     __init__.py
     __main__.py
@@ -613,6 +643,7 @@ src/workflow_engine/
         errors.py
         health.py
         workflows.py
+        runs.py
 tests/
     __init__.py
     conftest.py
@@ -628,6 +659,7 @@ tests/
     test_runtime.py
     test_workflow.py
     test_workflow_api.py
+    test_run_api.py
     integration/
         __init__.py
         conftest.py
@@ -642,6 +674,7 @@ tests/
         test_run_request_schema.py
         test_run_idempotency.py
         test_run_queries.py
+        test_run_http.py
 alembic.ini
 Dockerfile
 compose.yaml
@@ -684,9 +717,11 @@ runs/tasks/attempts. M1.6 adds runtime storage, database lifecycle constraints a
 migration verification. M1.7 implements transactional run creation and DAG-node/root
 initialization. M1.8a adds durable request-binding storage and migration tests.
 M1.8b adds atomic keyed creation, receipt replay and conflict handling. M1.9a adds
-Run query storage operations with consistent statement snapshots. After M1.9a is
-committed, pushed, and all three CI jobs pass, continue to M1.9b: keyed Run creation
-and queries over HTTP.
+Run query storage operations with consistent statement snapshots. M1.9b exposes
+keyed Run creation and queries over HTTP with commit/error contracts and container
+smoke checks. After M1.9b is committed, pushed, and all three CI jobs pass, continue
+to M2.1: Worker identity and registration foundations, divided into bounded
+model/storage and API subtasks before task claiming.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

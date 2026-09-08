@@ -1,10 +1,12 @@
 # Workflow HTTP API
 
-M1.4 publishes and retrieves workflow definitions. It does not create runs or
-execute tasks. OpenAPI is at `/openapi.json`; interactive documentation is at
+M1.4 publishes and retrieves workflow definitions. M1.9b adds a separate
+[Run HTTP API](run-api.md) for keyed creation and queries. Neither executes tasks.
+OpenAPI is at `/openapi.json`; interactive documentation is at
 `/docs`. These routes use the definition tables introduced in revision `0002`.
 The current head is `0004`, adding runtime and request-binding storage without
-changing these routes. Request deduplication is not exposed by this API.
+changing these workflow routes. Workflow publication remains unkeyed; Run
+creation requires an idempotency key.
 
 ## Endpoints
 
@@ -183,7 +185,7 @@ limit, request admission control, or rate limit is implemented yet. The existing
 thread pool and database pool are not a complete backpressure design. Production
 deployment needs those controls and separate runtime/migration database roles.
 
-No readiness endpoint, Run HTTP submission, task scheduling, cancellation or
-event log is exposed. M1.8 implements [keyed Run creation](run-idempotency.md)
-through the Python repository, and M1.9a adds [Run queries](run-queries.md).
-Workflow publication through this API remains unkeyed; Run HTTP routes are next.
+No readiness endpoint, task scheduling, cancellation or event log is exposed.
+M1.9b exposes [Run HTTP creation and queries](run-api.md), using the M1.8
+[keyed creation protocol](run-idempotency.md) and M1.9a [queries](run-queries.md).
+Workflow publication through this API remains unkeyed.

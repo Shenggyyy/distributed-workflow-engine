@@ -11,6 +11,7 @@ from starlette.concurrency import run_in_threadpool
 
 from workflow_engine.api.errors import install_error_handlers
 from workflow_engine.api.health import router as health_router
+from workflow_engine.api.runs import router as run_router
 from workflow_engine.api.workflows import router as workflow_router
 from workflow_engine.config import Settings
 from workflow_engine.database import create_database_engine
@@ -53,13 +54,14 @@ def create_app(settings: Settings, *, engine: Engine | None = None) -> FastAPI:
         title="Distributed Workflow Engine",
         version=version("distributed-workflow-engine"),
         description=(
-            "Publish and retrieve immutable workflow definitions. "
-            "Liveness is independent of database access. Workflow execution and "
-            "dependency readiness are not implemented."
+            "Publish workflows, create runs idempotently and query run/task snapshots. "
+            "Liveness is independent of database access. Task scheduling and "
+            "execution are not implemented."
         ),
         lifespan=lifespan,
     )
     install_error_handlers(app)
     app.include_router(health_router)
     app.include_router(workflow_router)
+    app.include_router(run_router)
     return app
