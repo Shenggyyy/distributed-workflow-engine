@@ -101,3 +101,9 @@ the callable. Eight PostgreSQL tests cover scope, identity, monotonic ordering,
 interruption and separation from Attempt completion. Sampling failure fails the
 handler; it never invents evidence. Linux boot/time namespace is required. Only
 the invocation evidence row is locked when appending; core ownership is untouched.
+
+D2 verified: opt-in POST /demo/runs accepts only three fixed scenarios (each POST
+creates a fresh Run); GET /demo/runs lists the latest 50 demo Runs; GET
+/demo/runs/{id} returns the coherent read-only snapshot. Six HTTP/database tests
+verify real DAG initialization, scope, no tokens, lossless nanoseconds and exclusion
+of a concurrent observation committed after the snapshot began.
