@@ -7,7 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import Connection, RowMapping, func, select, text
 
-from workflow_engine.domain.worker import WorkerSession, WorkerStatus
+from workflow_engine.domain.worker import WorkerEvent, WorkerSession, WorkerStatus
 from workflow_engine.repositories.workflows import RepositoryTransactionError
 from workflow_engine.schema import worker_sessions
 
@@ -28,6 +28,22 @@ class WorkerRegistrationConflictError(ValueError):
 
 class StoredWorkerError(ValueError):
     """Persisted worker data does not satisfy the supported snapshot contract."""
+
+
+class WorkerSessionNotFoundError(LookupError):
+    """The requested session is not visible to this transaction."""
+
+
+class WorkerSessionInactiveError(ValueError):
+    """A terminal session cannot accept a heartbeat."""
+
+
+class WorkerSessionExpiredError(ValueError):
+    """An ACTIVE session has already reached its heartbeat deadline."""
+
+
+class WorkerClockRegressionError(ValueError):
+    """Database time precedes the last accepted heartbeat observation."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,7 +81,7 @@ def _read_session(row: RowMapping) -> StoredWorkerSession:
 
 
 class WorkerRepository:
-    """Register one process incarnation; never commit, retry or send heartbeats.
+    """Register, renew or expire sessions; never commit, retry or run a loop.
 
     Reuse only within the original transaction, and never across threads.
     heartbeat_timeout_seconds is server policy, not part of request identity.
@@ -93,6 +109,82 @@ class WorkerRepository:
                 "WorkerRepository requires PostgreSQL READ COMMITTED."
             )
         self._heartbeat_timeout = timedelta(seconds=heartbeat_timeout_seconds)
+
+    def _database_now(self) -> datetime:
+        observed_at: datetime = self._connection.execute(
+            select(func.clock_timestamp())
+        ).scalar_one()
+        return observed_at
+
+    def _lock_session(self, session_id: UUID) -> StoredWorkerSession:
+        self._require_transaction()
+        if not isinstance(session_id, UUID):
+            raise TypeError("session_id must be a UUID.")
+        row = (
+            self._connection.execute(
+                select(worker_sessions)
+                .where(worker_sessions.c.id == session_id)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is None:
+            raise WorkerSessionNotFoundError("Worker session was not found.")
+        return _read_session(row)
+
+    def _observe_active(self, current: StoredWorkerSession) -> datetime:
+        observed_at = self._database_now()
+        if observed_at < current.last_heartbeat_at:
+            raise WorkerClockRegressionError(
+                "Database heartbeat clock moved backwards."
+            )
+        return observed_at
+
+    def heartbeat(self, session_id: UUID) -> StoredWorkerSession:
+        """Renew a live ACTIVE session; rejected heartbeats never mutate state."""
+        current = self._lock_session(session_id)
+        if current.session.is_terminal:
+            raise WorkerSessionInactiveError("Worker session is not active.")
+        observed_at = self._observe_active(current)
+        if observed_at >= current.heartbeat_expires_at:
+            raise WorkerSessionExpiredError("Worker heartbeat deadline has elapsed.")
+        # A smaller server timeout must not shorten an already accepted deadline.
+        expires_at = max(
+            current.heartbeat_expires_at, observed_at + self._heartbeat_timeout
+        )
+        row = (
+            self._connection.execute(
+                worker_sessions.update()
+                .where(worker_sessions.c.id == session_id)
+                .values(last_heartbeat_at=observed_at, heartbeat_expires_at=expires_at)
+                .returning(worker_sessions)
+            )
+            .mappings()
+            .one()
+        )
+        return _read_session(row)
+
+    def expire(self, session_id: UUID) -> StoredWorkerSession:
+        """Mark a due ACTIVE session LOST; otherwise return its locked snapshot."""
+        current = self._lock_session(session_id)
+        if current.session.is_terminal:
+            return current
+        observed_at = self._observe_active(current)
+        if observed_at < current.heartbeat_expires_at:
+            return current
+        expired = current.session.transition(WorkerEvent.HEARTBEAT_EXPIRED)
+        row = (
+            self._connection.execute(
+                worker_sessions.update()
+                .where(worker_sessions.c.id == session_id)
+                .values(status=expired.status.value)
+                .returning(worker_sessions)
+            )
+            .mappings()
+            .one()
+        )
+        return _read_session(row)
 
     def _require_transaction(self) -> None:
         if (
@@ -145,9 +237,7 @@ class WorkerRepository:
 
         # Sample after registration/row locks, not transaction start. A waiting
         # contender whose owner rolled back gets a fresh full initial deadline.
-        observed_at: datetime = self._connection.execute(
-            select(func.clock_timestamp())
-        ).scalar_one()
+        observed_at = self._database_now()
         row = (
             self._connection.execute(
                 worker_sessions.insert()

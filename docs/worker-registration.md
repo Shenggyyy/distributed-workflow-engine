@@ -35,7 +35,8 @@ A replay is **not an immutable original response receipt**: it can observe a
 later persisted status or heartbeat time. Registration itself never causes that
 change. In particular, LOST/STOPPED stays terminal and an expired ACTIVE row stays
 expired. Replaying registration is not a successful liveness renewal or proof of
-claim eligibility. Future heartbeat/claim code must separately check deadlines.
+claim eligibility. The [heartbeat repository](worker-heartbeat.md) checks deadlines;
+future claims must do so separately too.
 
 Corrupt stored domain fields or time ordering raise StoredWorkerError without
 echoing stored values. Driver/schema failures propagate separately. No new HTTP
@@ -103,12 +104,12 @@ after waiting for a competing insert that rolls back.
 
 This costs one extra SQL lock round trip and holds an advisory lock even on
 replay. Existing-row FOR UPDATE additionally coordinates snapshot reads with
-future heartbeat writes. It is accepted at the expected MVP registration rate.
+heartbeat writes. It is accepted at the expected MVP registration rate.
 The primary key remains the database uniqueness backstop.
 
 All cooperating registrants must use this protocol and acquire locks in this
-order: registration advisory lock, then session row lock. Future heartbeat code
-that only locks an existing row must not subsequently request its registration
+order: registration advisory lock, then session row lock. Heartbeat/expiry code
+only locks an existing row and must not subsequently request its registration
 advisory lock. Prefer one registration per transaction. A future batch operation
 must define global lock ordering; none is implemented here.
 
@@ -148,7 +149,8 @@ uv run --locked python examples/register_worker.py --session-id $sessionId
 ```
 
 Both calls show the same UUID, creation time and deadline unless another writer
-has advanced the session heartbeat in between. No heartbeat writer exists yet.
+has advanced the session heartbeat in between. Explicit heartbeat calls can now
+change these times; no background heartbeat loop runs yet.
 Changing --name or --max-concurrency while retaining the UUID raises a conflict.
 Use a new UUID for a new process start. The example persists a session and prints
 only after commit; it does not launch a long-running worker or delete history.
@@ -176,5 +178,5 @@ independent UUIDs, expired/terminal replay, changed server policy, validation,
 transaction lifetime/isolation, injected insert/commit failures and corrupt state.
 General CI discovers these tests without a new workflow step.
 
-After this commit/push/CI gate, M2.1c.2 implements heartbeat renewal and expiry
-transactions. Worker HTTP endpoints remain M2.1d.
+M2.1c.2 implements [heartbeat renewal and expiry transactions](worker-heartbeat.md).
+Worker HTTP endpoints remain M2.1d.

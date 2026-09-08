@@ -96,11 +96,11 @@ specific recovery predicate; no speculative worker-name or capability indexes
 are added.
 
 Monotonic stored heartbeat times reject regressions caused by a stale writer or
-backwards wall-clock adjustment. Future heartbeat code must define its response
-to a backwards database clock; these constraints do not solve clock skew.
-It must also recheck the previous deadline after locking. Advancing the deadline
-of an already expired ACTIVE row is structurally possible through direct SQL;
-the future protocol must reject that action.
+backwards wall-clock adjustment. M2.1c.2 [heartbeat/expiry transactions](worker-heartbeat.md)
+reject a database observation earlier than the last heartbeat and check the
+previous deadline after locking. The constraints alone do not solve clock skew.
+Advancing an already expired ACTIVE row through direct SQL is structurally
+possible; the heartbeat repository rejects that action.
 
 Graceful shutdown needs a coordinated no-active-attempts check; LOST needs an
 authoritative expiry check. Neither is a trigger precondition yet. The table
@@ -147,4 +147,5 @@ triggers and CHECK constraints; behavioral tests are required. Always use
 migrations rather than `metadata.create_all()`, which omits the trigger guards.
 
 M2.1c.1 implements [transactional registration](worker-registration.md) using
-this table. Heartbeat renewal/expiry is M2.1c.2 before Worker HTTP endpoints.
+this table. M2.1c.2 adds [heartbeat renewal/expiry](worker-heartbeat.md).
+Worker HTTP endpoints remain the next milestone.
