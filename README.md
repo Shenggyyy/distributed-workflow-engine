@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M1.9b: Idempotent Run creation and consistent queries through HTTP.**
+**M2.1a: Worker session identities and explicit lifecycle contracts.**
 
 Available now:
 
@@ -57,7 +57,10 @@ Available now:
 - Run creation HTTP API with required idempotency keys, stable receipts and conflicts.
 - Run metadata/task HTTP queries, typed contracts and real HTTP checks in CI.
 
-Scheduling and workers are **not implemented yet**.
+- Immutable WorkerSession models with per-process identity and terminal lifecycle rules.
+- Worker identity/heartbeat/lease design boundaries and an in-memory lifecycle example.
+
+Worker registration, heartbeats, scheduling and execution are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -221,6 +224,26 @@ With PostgreSQL configured, this reads the run and its tasks from one statement
 snapshot. Tasks are sorted by key; querying does not aggregate statuses or execute
 work. A missing run exits with code 1. See the [Run query contract](docs/run-queries.md)
 for consistency, ordering, limits and diagnostic behavior.
+
+## Explore worker session identities
+
+```console
+uv run --locked python examples/worker_lifecycle.py
+```
+
+```text
+First session: ACTIVE -> LOST
+Restart uses a new session ID: True
+Restarted session: ACTIVE -> STOPPED
+Old LOST session rejects further transitions.
+In-memory lifecycle only; no registration, heartbeat or task execution.
+```
+
+Each process start will use a new session UUID. Worker names may repeat; a restarted
+process cannot take over an old session's identity through its name. LOST and
+STOPPED are terminal. The [Worker contract](docs/workers.md) separates session
+heartbeat from attempt leases and marks which guarantees still require storage
+and coordinated transactions. This example needs no Docker or database.
 
 ## Planned architecture
 
@@ -596,6 +619,7 @@ docs/
     run-queries.md
     run-api.md
     workflows.md
+    workers.md
     workflow-storage.md
 examples/
     diamond.json
@@ -605,6 +629,7 @@ examples/
     create_idempotent_run.py
     query_run.py
     runtime_lifecycle.py
+    worker_lifecycle.py
 scripts/
     init_dev_secrets.py
     check_workflow_api.py
@@ -623,6 +648,7 @@ src/workflow_engine/
         dag.py
         runtime.py
         workflow.py
+        worker.py
     repositories/
         __init__.py
         workflows.py
@@ -657,6 +683,7 @@ tests/
     test_idempotency.py
     test_migrations.py
     test_runtime.py
+    test_worker.py
     test_workflow.py
     test_workflow_api.py
     test_run_api.py
@@ -719,9 +746,11 @@ initialization. M1.8a adds durable request-binding storage and migration tests.
 M1.8b adds atomic keyed creation, receipt replay and conflict handling. M1.9a adds
 Run query storage operations with consistent statement snapshots. M1.9b exposes
 keyed Run creation and queries over HTTP with commit/error contracts and container
-smoke checks. After M1.9b is committed, pushed, and all three CI jobs pass, continue
-to M2.1: Worker identity and registration foundations, divided into bounded
-model/storage and API subtasks before task claiming.
+smoke checks. M2.1a adds pure Worker session identities, terminal lifecycle rules,
+and registration/heartbeat/lease design boundaries. After M2.1a is committed,
+pushed, and all three CI jobs pass, continue to M2.1b: Worker session storage and
+migration constraints. Registration/heartbeat repository and HTTP work follow as
+separate subtasks; see [the Worker subtask plan](docs/workers.md#commit-sized-follow-up-steps).
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

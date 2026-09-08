@@ -27,8 +27,10 @@ matching are enforced by M1.7's [run-creation transaction](run-creation.md).
 
 These Python snapshots contain only identity and lifecycle information. M1.6 SQL
 tables additionally store created_at audit metadata. Retry policy, active-attempt
-pointers, lease tokens, worker sessions, outputs and optimistic version counters
-need their own atomic storage/ownership contracts.
+pointers, lease tokens, outputs and optimistic version counters need their own
+atomic storage/ownership contracts. M2.1a introduces the pure [Worker session
+model](workers.md); its persistence and attempt ownership integration remain
+separate follow-up work.
 
 ## Explicit transitions
 
