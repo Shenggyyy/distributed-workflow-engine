@@ -3,7 +3,7 @@
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -67,6 +67,39 @@ def test_lost_claim_response_preserves_identity(session: WorkerSession) -> None:
         transport.claim(poll)
     assert transport.claim(poll).claim is None
     assert calls[0] == calls[1]
+
+
+@pytest.mark.parametrize(
+    "invalid", ["behind", "wrong_cursor", "too_many", "empty_cursor"]
+)
+def test_discovery_rejects_invalid_page(session: WorkerSession, invalid: str) -> None:
+    after, value = UUID(int=10), UUID(int=20)
+    payload: dict[str, object] = {"run_ids": [str(value)], "next_after": str(value)}
+    if invalid == "behind":
+        payload = {"run_ids": [str(after)], "next_after": None}
+    elif invalid == "wrong_cursor":
+        payload["next_after"] = str(after)
+    elif invalid == "too_many":
+        payload["run_ids"] = [str(value), str(uuid4())]
+    else:
+        payload["run_ids"] = []
+    transport = WorkerTransport(
+        session, lambda *args: (200, json.dumps(payload).encode())
+    )
+    with pytest.raises(ProtocolError):
+        transport.discover(after)
+
+
+def test_discovery_uses_root_endpoint_without_body(session: WorkerSession) -> None:
+    after, value = UUID(int=10), UUID(int=20)
+    calls = []
+
+    def send(method: str, path: str, body: bytes) -> tuple[int, bytes]:
+        calls.append((method, path, body))
+        return 200, json.dumps({"run_ids": [str(value)], "next_after": None}).encode()
+
+    assert WorkerTransport(session, send).discover(after).run_ids == (value,)
+    assert calls == [("GET", f"/runs?limit=1&ready_only=true&after={after}", b"")]
 
 
 @pytest.mark.parametrize("status", [408, 429, 502, 503, 504])

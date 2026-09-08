@@ -18,6 +18,7 @@ from workflow_engine.worker.transport import (
     ClaimObservation,
     ClaimPoll,
     CompletionObservation,
+    DiscoveryPage,
     TransportUnavailable,
     WorkerAPIError,
     WorkerObservation,
@@ -65,7 +66,7 @@ def _retryable(error: BaseException) -> bool:
 
 
 class WorkerLoop:
-    """Execute one explicit Run with a single local slot and fresh process session.
+    """Execute a selected Run or discover Runs, using one slot and a fresh session.
 
     At most one heartbeat and one work request are in flight. Delayed requests
     may still commit after local shutdown; no response can restart a stopped loop.
@@ -75,7 +76,7 @@ class WorkerLoop:
         self,
         transport: WorkerTransport,
         registry: HandlerRegistry,
-        run_id: UUID,
+        run_id: UUID | None = None,
         *,
         poll_seconds: float = 0.5,
         retry_seconds: float = 0.5,
@@ -104,6 +105,7 @@ class WorkerLoop:
         if max_tasks is not None and (type(max_tasks) is not int or max_tasks < 1):
             raise ValueError("max_tasks must be a positive integer.")
         self._started = True
+        selection_phase = "discover" if self.run_id is None else "claim"
         completed = 0
         phase = "register"
         work: (
@@ -112,6 +114,7 @@ class WorkerLoop:
                 | ClaimObservation
                 | AttemptLease
                 | CompletionObservation
+                | DiscoveryPage
             ]
             | None
         ) = None
@@ -120,7 +123,12 @@ class WorkerLoop:
         next_work = next_heartbeat = 0.0
         heartbeat_deadline: float | None = None
         lease_deadline = renew_at = 0.0
-        poll = ClaimPoll(run_id=self.run_id, request_id=uuid4())
+        poll = (
+            ClaimPoll(run_id=self.run_id, request_id=uuid4())
+            if self.run_id is not None
+            else None
+        )
+        cursor: UUID | None = None
         claim: ClaimedTask | None = None
         lease: AttemptLease | None = None
         execution: ProcessExecution | None = None
@@ -148,7 +156,7 @@ class WorkerLoop:
                         heartbeat_deadline = heartbeat_started + duration * 0.9
                         next_heartbeat = heartbeat_started + duration / 3
                         if phase == "heartbeat":
-                            phase = "claim"
+                            phase = selection_phase
                     heartbeat = None
 
                 if work is not None and work.done.is_set():
@@ -161,8 +169,12 @@ class WorkerLoop:
                                 and phase == "claim"
                                 and error.code == "run_inactive"
                             ):
-                                return completed
-                            raise
+                                if self.run_id is not None:
+                                    return completed
+                                phase = "discover"
+                                poll = None
+                            else:
+                                raise
                         next_work = now + self.retry_seconds
                     else:
                         if phase == "register":
@@ -173,10 +185,25 @@ class WorkerLoop:
                                 )
                             # Registration replay is not a fresh heartbeat.
                             phase = "heartbeat"
+                        elif phase == "discover":
+                            assert isinstance(value, DiscoveryPage)
+                            cursor = value.next_after
+                            if value.run_ids:
+                                poll = ClaimPoll(
+                                    run_id=value.run_ids[0], request_id=uuid4()
+                                )
+                                phase = "claim"
+                            else:
+                                next_work = now + self.poll_seconds
                         elif phase == "claim":
                             assert isinstance(value, ClaimObservation)
                             if value.claim is None:
-                                poll = ClaimPoll(run_id=self.run_id, request_id=uuid4())
+                                poll = (
+                                    ClaimPoll(run_id=self.run_id, request_id=uuid4())
+                                    if self.run_id is not None
+                                    else None
+                                )
+                                phase = selection_phase
                                 next_work = now + self.poll_seconds
                             else:
                                 claim, lease = value.claim, value.claim.lease
@@ -237,8 +264,12 @@ class WorkerLoop:
                             if max_tasks is not None and completed >= max_tasks:
                                 return completed
                             claim = lease = report = None
-                            poll = ClaimPoll(run_id=self.run_id, request_id=uuid4())
-                            phase = "claim"
+                            poll = (
+                                ClaimPoll(run_id=self.run_id, request_id=uuid4())
+                                if self.run_id is not None
+                                else None
+                            )
+                            phase = selection_phase
                     work = None
 
                 now = time.monotonic()
@@ -277,7 +308,10 @@ class WorkerLoop:
                     work_started = now
                     if phase == "register":
                         work = _Call(self.transport.register)
+                    elif phase == "discover":
+                        work = _Call(partial(self.transport.discover, cursor))
                     elif phase == "claim":
+                        assert poll is not None
                         work = _Call(partial(self.transport.claim, poll))
                     elif phase == "renew":
                         assert lease is not None

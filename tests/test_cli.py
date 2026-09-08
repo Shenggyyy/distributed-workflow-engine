@@ -57,9 +57,9 @@ def test_help_describes_current_capabilities(tmp_path: Path) -> None:
     assert "run single-slot workers" in " ".join(result.stdout.split())
 
 
-def test_worker_requires_an_explicit_run(tmp_path: Path) -> None:
+def test_worker_run_id_is_optional(tmp_path: Path) -> None:
     result = subprocess.run(
-        [console_script(), "worker"],
+        [console_script(), "worker", "--help"],
         cwd=tmp_path,
         capture_output=True,
         text=True,
@@ -67,8 +67,8 @@ def test_worker_requires_an_explicit_run(tmp_path: Path) -> None:
         timeout=10,
     )
 
-    assert result.returncode == 2
-    assert "--run-id" in result.stderr
+    assert result.returncode == 0
+    assert "[--run-id RUN_ID]" in result.stdout
 
 
 def test_check_config_accepts_an_explicit_file(tmp_path: Path) -> None:

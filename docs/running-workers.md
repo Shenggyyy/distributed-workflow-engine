@@ -3,6 +3,7 @@
 M2.4d provides `engine worker`. Start PostgreSQL and the API, apply migrations to
 head, publish a Workflow and create a Run using the [API](run-api.md). The Worker
 talks only to the API; it needs no PostgreSQL password or database connection.
+M3.1c makes `--run-id` optional: omit it to discover work across active Runs.
 
 ## Host process
 
@@ -12,6 +13,7 @@ PowerShell, with an existing Run UUID:
 $env:DWE_WORKER_API_URL = "http://127.0.0.1:8000"
 $env:DWE_WORKER_NAME = "worker_one"
 uv run --locked engine worker --run-id <RUN_UUID>
+uv run --locked engine worker
 ```
 
 Replace `<RUN_UUID>` with the created Run ID; angle brackets are placeholders.
@@ -19,6 +21,19 @@ Use `--env-file .env` to load configuration explicitly. A `.env` file is not
 automatically read by the Python command. Use `--max-tasks 2` to stop after two
 confirmed outcomes, including failures. Without a bound the Worker polls until
 the Run is terminal or the process is stopped. No READY tasks does not mean done.
+In automatic mode the Worker continues until stopped or its completion limit is
+reached. A terminal Run only ends explicit Run mode.
+
+Automatic selection requests one READY-eligible Run per page. It advances the UUID
+cursor after discovery and wraps after the last page. After a confirmed empty claim,
+terminal Run race or completion, selection resumes at the next cursor. Empty pages
+wait before polling again. This bounds memory and rotates between Runs, at the cost
+of one extra HTTP request per claim. UUID order is not FIFO, and newly eligible Runs
+behind the cursor appear on the next traversal. Discovery remains advisory.
+
+Once a claim starts, its Run ID and request UUID stay fixed across uncertain network
+responses; the Worker never discovers replacement work while that claim is unresolved.
+Completion retries likewise retain the exact report without re-executing the handler.
 
 | Environment variable | Default | Meaning |
 | --- | --- | --- |
@@ -49,12 +64,13 @@ API healthcheck, because it serves no HTTP endpoint.
 
 ```console
 docker compose run --rm --no-deps worker worker --run-id <RUN_UUID> --max-tasks 2
+docker compose --profile workers up -d worker
 ```
 
 The first `worker` names the Compose service; the second is the `engine` command.
 Its API origin is `http://api:8000` inside the Compose network, independently of
-the host-published port. This profile is intended for `compose run` with a Run ID,
-not bare `--profile workers up`. Rebuild the API image after code changes before
+the host-published port. Starting the profile without a Run ID enables automatic
+discovery. Rebuild the API image after code changes before
 running this service. Docker Desktop must be running for container execution.
 
 ## Self-contained checks
@@ -72,3 +88,8 @@ verify persisted outcomes. CI runs both host and container variants. They print
 no ownership tokens. This check uses independent roots; Run aggregation remains
 M5 work. For dependent Tasks, run the separate [Scheduler](running-scheduler.md).
 Retry and crash recovery follow in M4.
+
+For a disposable database with no other READY work or concurrent submitters, add
+`--automatic` to either smoke command. This checks real process/container discovery;
+the script refuses an already populated READY queue. Automatic Workers execute
+eligible work throughout their configured API, so run this check only on test data.

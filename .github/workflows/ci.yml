@@ -125,6 +125,11 @@ jobs:
       - name: Exercise workflow publication over real HTTP
         run: uv run --locked python scripts/check_workflow_api.py
 
+      - name: Automatically discover work in a disposable queue
+        run: |
+          uv run --locked python scripts/check_worker_execution.py --automatic
+          uv run --locked python scripts/check_worker_execution.py --container --automatic
+
       - name: Exercise run creation and queries over real HTTP
         run: uv run --locked python scripts/check_run_api.py
 

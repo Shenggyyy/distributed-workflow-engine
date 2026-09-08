@@ -14,7 +14,7 @@ from workflow_engine.worker.transport import HTTPSender, WorkerTransport
 
 
 def run_worker(
-    settings: Settings, run_id: UUID, *, max_tasks: int | None = None
+    settings: Settings, run_id: UUID | None, *, max_tasks: int | None = None
 ) -> int:
     configure_logging(settings, component="worker")
     logger = logging.getLogger(__name__)

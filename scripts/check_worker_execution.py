@@ -28,12 +28,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument(
+        "--automatic",
+        action="store_true",
+        help="Requires an otherwise idle disposable queue.",
+    )
+    parser.add_argument(
         "--container",
         action="store_true",
         help="Run the Worker using docker compose run.",
     )
     args = parser.parse_args()
     base = str(args.base_url).rstrip("/")
+    if args.automatic and request(base, "/runs?limit=1&ready_only=true")["run_ids"]:
+        raise RuntimeError(
+            "Automatic smoke requires an empty READY queue in a disposable database."
+        )
     version = request(
         base,
         "/workflows",
@@ -48,7 +57,8 @@ def main() -> None:
     run = request(
         base, "/runs", {"workflow_version_id": version["id"]}, key=uuid4().hex
     )
-    arguments = ["worker", "--run-id", str(run["run_id"]), "--max-tasks", "2"]
+    selection = [] if args.automatic else ["--run-id", str(run["run_id"])]
+    arguments = ["worker", *selection, "--max-tasks", "2"]
     if args.container:
         command = [
             "docker",

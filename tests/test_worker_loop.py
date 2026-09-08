@@ -3,7 +3,7 @@
 import time
 from datetime import UTC, datetime, timedelta
 from threading import Event, Timer
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -30,6 +30,7 @@ from workflow_engine.worker.transport import (
     ClaimObservation,
     ClaimPoll,
     CompletionObservation,
+    DiscoveryPage,
     TransportUnavailable,
     WorkerAPIError,
     WorkerObservation,
@@ -298,3 +299,67 @@ def test_execution_loss_never_fabricates_report(
     with pytest.raises(ExecutionLost):
         loop(gateway).run(Event())
     assert children[0].closed and gateway.reports == []
+
+
+@pytest.mark.parametrize("race", ["empty", "inactive", "lost"])
+def test_discovery_retries_preserve_claim_and_rotate_after_definite_result(
+    children: list[FakeExecution], monkeypatch: pytest.MonkeyPatch, race: str
+) -> None:
+    gateway = Gateway()
+    gateway.no_work = race == "empty"
+    gateway.lose_claim = race == "lost"
+    cursors: list[UUID | None] = []
+
+    def discover(after: UUID | None = None) -> DiscoveryPage:
+        cursors.append(after)
+        return DiscoveryPage(run_ids=(gateway.run_id,), next_after=gateway.run_id)
+
+    original = gateway.claim
+
+    def claim(poll: ClaimPoll) -> ClaimObservation:
+        if race == "inactive" and not gateway.polls:
+            gateway.polls.append(poll)
+            raise WorkerAPIError(409, "run_inactive")
+        return original(poll)
+
+    monkeypatch.setattr(gateway, "discover", discover)
+    monkeypatch.setattr(gateway, "claim", claim)
+    worker = WorkerLoop(
+        gateway,
+        builtin_registry(),
+        poll_seconds=0.01,
+        retry_seconds=0.01,
+        tick_seconds=0.005,
+    )
+    assert worker.run(Event(), max_tasks=1) == 1
+    assert len(children) == 1
+    if race == "lost":
+        assert cursors == [None]
+        assert gateway.polls[0] == gateway.polls[1]
+    else:
+        assert cursors == [None, gateway.run_id]
+        assert gateway.polls[0].request_id != gateway.polls[1].request_id
+
+
+def test_empty_discovery_wraps_until_new_work(
+    children: list[FakeExecution], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gateway = Gateway()
+    calls = 0
+
+    def discover(after: UUID | None = None) -> DiscoveryPage:
+        nonlocal calls
+        calls += 1
+        assert after is None
+        return DiscoveryPage(
+            run_ids=() if calls == 1 else (gateway.run_id,), next_after=None
+        )
+
+    monkeypatch.setattr(gateway, "discover", discover)
+    assert (
+        WorkerLoop(
+            gateway, builtin_registry(), poll_seconds=0.01, tick_seconds=0.005
+        ).run(Event(), max_tasks=1)
+        == 1
+    )
+    assert calls == 2 and len(children) == 1

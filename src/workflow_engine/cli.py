@@ -64,7 +64,7 @@ def main() -> None:
     for name, help_text in (
         ("check-config", "Validate configuration without starting services."),
         ("api", "Start the HTTP API server."),
-        ("worker", "Execute ready tasks from one Run with a single local slot."),
+        ("worker", "Discover ready tasks and execute with a single local slot."),
         ("scheduler", "Discover active Runs and reconcile in short transactions."),
         ("check-db", "Check authenticated database connectivity; no schema changes."),
     ):
@@ -76,7 +76,11 @@ def main() -> None:
         )
         command_parsers[name] = command_parser
 
-    command_parsers["worker"].add_argument("--run-id", type=UUID, required=True)
+    command_parsers["worker"].add_argument(
+        "--run-id",
+        type=UUID,
+        help="Limit execution to one Run; default discovers Runs.",
+    )
     command_parsers["worker"].add_argument(
         "--max-tasks",
         type=int,

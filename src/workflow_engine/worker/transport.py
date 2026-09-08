@@ -154,6 +154,17 @@ class CompletionObservation(WireModel):
     accepted_at: AwareDatetime
 
 
+class DiscoveryPage(WireModel):
+    run_ids: tuple[UUID, ...] = Field(max_length=1)
+    next_after: UUID | None
+
+    @model_validator(mode="after")
+    def cursor(self) -> Self:
+        if self.next_after is not None and self.run_ids != (self.next_after,):
+            raise ValueError("Invalid discovery continuation.")
+        return self
+
+
 class WorkerTransport:
     """No implicit retries, sleeps, execution or session rotation inside transport."""
 
@@ -166,12 +177,17 @@ class WorkerTransport:
         return self._session
 
     def _request[M: BaseModel](
-        self, method: str, suffix: str, body: object, model: type[M]
+        self,
+        method: str,
+        suffix: str,
+        body: object,
+        model: type[M],
+        *,
+        root: bool = False,
     ) -> M:
         encoded = json.dumps(body, separators=(",", ":")).encode()
-        status, raw = self._sender(
-            method, f"/worker-sessions/{self.session.id}" + suffix, encoded
-        )
+        path = suffix if root else f"/worker-sessions/{self.session.id}" + suffix
+        status, raw = self._sender(method, path, b"" if method == "GET" else encoded)
         if status != 200:
             try:
                 value = json.loads(raw)
@@ -210,6 +226,17 @@ class WorkerTransport:
 
     def heartbeat(self) -> WorkerObservation:
         return self._worker("POST", "/heartbeat", {})
+
+    def discover(self, after: UUID | None = None) -> DiscoveryPage:
+        if after is not None and not isinstance(after, UUID):
+            raise TypeError("Discovery cursor must be a UUID.")
+        path = "/runs?limit=1&ready_only=true"
+        if after is not None:
+            path += f"&after={after}"
+        page = self._request("GET", path, None, DiscoveryPage, root=True)
+        if after is not None and page.run_ids and page.run_ids[0] <= after:
+            raise ProtocolError("Discovery did not advance past its cursor.")
+        return page
 
     def claim(self, poll: ClaimPoll) -> ClaimObservation:
         poll = ClaimPoll.model_validate(poll)
