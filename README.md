@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.5b: Scheduler CLI/container and end-to-end execution of a successful DAG.**
+**M3.1a: Bounded active Run discovery and additive query indexes.**
 
 See the [M2 validation and correctness review](docs/m2-review.md), including
 the remaining M3–M5 boundaries.
@@ -125,6 +125,8 @@ Available now:
   checks and the existing per-Run lock coordination.
 - [Scheduler CLI/container](docs/running-scheduler.md) and complete diamond DAG
   execution with independent Scheduler and Worker processes.
+- [Active Run discovery](docs/run-discovery.md) with bounded UUID pagination and
+  an advisory READY filter for future automatic polling.
 
 Parallel Worker capacity, recovery scanners, failed-dependency propagation and Run aggregation
 are **not implemented yet**.
@@ -659,7 +661,8 @@ Revision `0004` adds immutable run-creation request bindings; `0005` adds
 Revision `0006` adds [Attempt lease storage](docs/lease-storage.md).
 Revision `0007` adds [claim request bindings](docs/claim-requests.md).
 Revision `0008` adds [completion receipts](docs/completion-storage.md).
-Current revision should be `0008 (head)`. See the
+Revision `0009` adds [Run discovery indexes](docs/run-discovery.md).
+Current revision should be `0009 (head)`. See the
 [runtime storage contract](docs/runtime-storage.md) for guarantees and boundaries.
 Migration commands are explicit and never run on API startup. With Compose,
 `docker compose exec api alembic upgrade head` uses the container's existing
@@ -1145,6 +1148,8 @@ M2.5a transactional readiness reconciliation is implemented.
 M2.5b integrates the Scheduler process/CLI/container and complete DAG execution.
 M3 follows with M3.1 bounded Run discovery and scan coordination, M3.2 parallel
 Worker execution slots, and M3.3 multi-process concurrency acceptance.
+M3.1a implements discovery queries/API and indexes. Next is M3.1b Scheduler scan
+coordination, followed by M3.1c Worker automatic discovery.
 Run `uv run --locked pytest tests/test_worker_loop.py` to test control behavior
 without PostgreSQL; integration tests also execute real handler subprocesses.
 

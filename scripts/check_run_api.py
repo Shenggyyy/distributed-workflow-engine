@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 
 def request(
@@ -58,6 +58,9 @@ def main() -> None:
     receipt, location = request(base_url, "/runs", body=body, key=key, expected=201)
     assert set(receipt) == {"run_id", "workflow_version_id"}
     assert receipt["workflow_version_id"] == version["id"]
+    predecessor = UUID(int=UUID(str(receipt["run_id"])).int - 1)
+    page, _ = request(base_url, f"/runs?after={predecessor}&limit=1&ready_only=true")
+    assert page["run_ids"] == [receipt["run_id"]]
     assert location == f"/runs/{receipt['run_id']}"
     replay = request(base_url, "/runs", body=body, key=key, expected=201)
     assert replay == (receipt, location)
@@ -106,7 +109,7 @@ def main() -> None:
     )
     assert_error(request(base_url, "/runs", body=body, expected=422), "invalid_request")
     assert request(base_url, "/runs", body=body, key=key, expected=201) == replay
-    print("HTTP run checks passed: creation, replay, queries, 409, 404 and 422.")
+    print("HTTP run checks passed: creation, replay, discovery, queries and errors.")
 
 
 if __name__ == "__main__":

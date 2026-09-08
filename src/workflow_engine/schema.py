@@ -145,6 +145,16 @@ task_attempts = Table(
 
 Index("ix_workflow_runs_workflow_version_id", workflow_runs.c.workflow_version_id)
 Index(
+    "ix_workflow_runs_active_id",
+    workflow_runs.c.id,
+    postgresql_where=text("status = 'RUNNING'"),
+)
+Index(
+    "ix_task_runs_ready_run_id",
+    task_runs.c.run_id,
+    postgresql_where=text("status = 'READY'"),
+)
+Index(
     "uq_task_attempts_one_running_per_task",
     task_attempts.c.task_id,
     unique=True,

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Request, Response
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 from sqlalchemy import Engine
 
@@ -14,6 +14,7 @@ from workflow_engine.domain.dag import MAX_TASKS
 from workflow_engine.domain.idempotency import validate_idempotency_key
 from workflow_engine.domain.runtime import RunStatus, TaskStatus
 from workflow_engine.domain.workflow import Identifier
+from workflow_engine.repositories.discovery import RunDiscoveryRepository
 from workflow_engine.repositories.runs import (
     IdempotencyConflictError,
     RunRepository,
@@ -92,6 +93,36 @@ class RunTasksResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, frozen=True, extra="forbid")
     run: RunResponse
     tasks: tuple[TaskRunResponse, ...] = Field(max_length=MAX_TASKS)
+
+
+class ActiveRunsResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True, frozen=True, extra="forbid")
+    run_ids: tuple[UUID, ...] = Field(max_length=100)
+    next_after: UUID | None
+
+
+@router.get(
+    "/runs",
+    response_model=ActiveRunsResponse,
+    summary="Discover active Runs using an advisory cursor",
+)
+def discover_runs(
+    response: Response,
+    engine: Database,
+    after: UUID | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    ready_only: bool = False,
+) -> ActiveRunsResponse:
+    with engine.begin() as connection:
+        result = ActiveRunsResponse.model_validate(
+            RunDiscoveryRepository(connection).active(
+                after=after,
+                limit=limit,
+                ready_only=ready_only,
+            )
+        )
+    response.headers["Cache-Control"] = "no-store"
+    return result
 
 
 @router.post(
