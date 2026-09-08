@@ -6,6 +6,7 @@ M1.4 publishes and retrieves workflow definitions. M1.9b adds a separate
 [claim HTTP](claim-api.md) for idempotent allocation and current ownership replay.
 M2.2d.2b adds [lease renewal HTTP](lease-api.md) for current Attempt ownership.
 These APIs do not execute tasks.
+M2.3d adds [completion HTTP](completion-api.md) for committed result reporting and replay.
 OpenAPI is at `/openapi.json`; interactive documentation is at
 `/docs`. These routes use the definition tables introduced in revision `0002`.
 Later migrations add runtime, request-binding, Worker and lease storage without

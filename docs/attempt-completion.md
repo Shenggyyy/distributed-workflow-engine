@@ -187,7 +187,7 @@ validation bypasses. Real races, rollback and migration tests belong to storage 
 | M2.3b (implemented) | [Completion storage schema](completion-storage.md) and guarded migration with PostgreSQL tests. |
 | M2.3c.1 (implemented) | [Atomic completion/replay repository](completion-transactions.md), basic concurrency and failure tests. |
 | M2.3c.2 (implemented) | Controlled completion/renewal/recovery interleavings and lock timeout verification. |
-| M2.3d (next) | Completion HTTP contract, sanitized errors and real HTTP verification. |
+| M2.3d (implemented) | [Completion HTTP](completion-api.md), sanitized errors and real HTTP verification. |
 
 Proceed only after each subtask's owner commit/push and CI confirmation. Handler
 execution follows when claim, renewal and completion are connected end to end.

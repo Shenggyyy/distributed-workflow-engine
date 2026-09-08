@@ -158,4 +158,5 @@ M2.3c.2 adds `tests/integration/test_completion_races.py` with 19 controlled cas
 
 Tests coordinate with held locks and events, not timing sleeps. Recovery-like SQL
 is test-only and does not implement a recovery scanner. No production behavior
-needed changing. The next step is M2.3d completion HTTP.
+needed changing. M2.3d now exposes [completion HTTP](completion-api.md), including
+commit-before-success responses and token-free historical receipts.

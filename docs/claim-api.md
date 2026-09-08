@@ -43,8 +43,8 @@ present its ownership on renewal/completion. It is not printed by the smoke scri
 or included in the response model's repr.
 
 Successful responses set `Cache-Control: no-store` and no Location header. There
-is no claim query endpoint or completion endpoint. Renewal has a separate
-[HTTP endpoint](lease-api.md).
+is no claim query endpoint. Renewal and completion have separate
+[renewal](lease-api.md) and [completion](completion-api.md) HTTP endpoints.
 Errors use the existing error envelope and never include a claim/token.
 
 ## Transaction, replay and delivery semantics

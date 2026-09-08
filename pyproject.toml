@@ -29,6 +29,9 @@ dev = [
     "ruff>=0.11,<1",
 ]
 
+[tool.hatch.build]
+exclude = ["AGENTS.md"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/workflow_engine"]
 

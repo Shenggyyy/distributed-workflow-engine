@@ -10,6 +10,7 @@ from sqlalchemy import Engine
 from starlette.concurrency import run_in_threadpool
 
 from workflow_engine.api.claims import router as claim_router
+from workflow_engine.api.completions import router as completion_router
 from workflow_engine.api.errors import install_error_handlers
 from workflow_engine.api.health import router as health_router
 from workflow_engine.api.leases import router as lease_router
@@ -58,8 +59,8 @@ def create_app(settings: Settings, *, engine: Engine | None = None) -> FastAPI:
         version=version("distributed-workflow-engine"),
         description=(
             "Publish workflows, create runs idempotently and query run/task snapshots. "
-            "Register Worker sessions, accept heartbeats, claim tasks idempotently "
-            "and renew Attempt leases. "
+            "Register Worker sessions, accept heartbeats, claim tasks idempotently, "
+            "renew Attempt leases and complete Attempts with retained receipts. "
             "Liveness is independent of database access. Task scheduling and "
             "execution are not implemented."
         ),
@@ -73,4 +74,5 @@ def create_app(settings: Settings, *, engine: Engine | None = None) -> FastAPI:
     app.include_router(worker_router)
     app.include_router(claim_router)
     app.include_router(lease_router)
+    app.include_router(completion_router)
     return app

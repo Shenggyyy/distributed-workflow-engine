@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.3c.2: Completion lock races, post-lock clocks and timeout recovery verified.**
+**M2.3d: Completion HTTP with token-free receipts and commit-before-success responses.**
 
 Available now:
 
@@ -106,7 +106,10 @@ Available now:
 - Historical replay, capacity reuse, conflicting report and rollback tests.
 - Controlled completion/renewal/recovery interleavings and all five lock positions tested.
 
-Completion HTTP, background heartbeat/expiry loops, scheduling and handler execution
+- Completion HTTP with historical replay, sanitized errors and token-free responses.
+- Completion HTTP validation/rollback tests and real container checks in CI.
+
+Background heartbeat/expiry loops, scheduling and handler execution
 are **not implemented yet**.
 The architecture below is the agreed target design.
 
@@ -383,6 +386,15 @@ remains reserved. See [the lease API contract](docs/lease-api.md) for retry,
 deadline, heartbeat and transaction semantics.
 
 ## Explore Attempt completion
+
+With the current API and PostgreSQL running, verify the complete HTTP path:
+
+```console
+uv run --locked python scripts/check_completion_api.py
+```
+
+It submits simulated outcomes, replays receipts and checks capacity reuse. See
+[completion HTTP](docs/completion-api.md); this does not execute handlers.
 
 ```console
 uv run --locked python examples/attempt_completion.py
@@ -845,6 +857,7 @@ docs/
     attempt-completion.md
     completion-storage.md
     completion-transactions.md
+    completion-api.md
     lease-storage.md
     task-claims.md
     lease-renewal.md
@@ -877,6 +890,7 @@ scripts/
     check_worker_api.py
     check_claim_api.py
     check_lease_api.py
+    check_completion_api.py
 src/workflow_engine/
     __init__.py
     __main__.py
@@ -919,6 +933,7 @@ src/workflow_engine/
             0008_attempt_completions.py
     api/
         __init__.py
+        completions.py
         claims.py
         leases.py
         app.py
@@ -941,6 +956,7 @@ tests/
     test_idempotency.py
     test_lease.py
     test_completion.py
+    test_completion_api.py
     test_migrations.py
     test_runtime.py
     test_worker.py
@@ -970,6 +986,7 @@ tests/
         test_completion_schema.py
         test_completions.py
         test_completion_races.py
+        test_completion_http.py
         test_claims.py
         test_lease_renewal.py
         test_claim_http.py
@@ -1048,8 +1065,12 @@ exact-owner and deferred terminal-outcome references, and migration/race tests.
 M2.3c.1 implements atomic Attempt/Task completion, retained receipt replay and
 basic concurrency/failure tests. M2.3c.2 verifies controlled completion/renewal/
 recovery races, all five post-lock clock positions, lock timeouts and predecessor
-rollback. The next subtask is M2.3d: completion HTTP, commit/error mapping and real
-HTTP checks. Handler execution remains a subsequent step.
+rollback. M2.3d exposes completion HTTP with token-free receipts, commit/error
+mapping and real HTTP checks. M2.4 connects single-worker execution in separate
+subtasks: M2.4a handler contract/registry, M2.4b Worker HTTP transport with stable
+retry identities, M2.4c execution/control lifecycle, and M2.4d CLI/container
+integration. Scheduling, multi-worker concurrency and failure recovery follow the
+milestone scopes above.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any
