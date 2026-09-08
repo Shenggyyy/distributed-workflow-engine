@@ -21,7 +21,7 @@ does not imply a handler did nothing or guarantee exactly-once effects.
 
 1. M4.3a: server timeout admission (implemented).
 2. M4.3b: Worker deadline supervision and child termination (implemented).
-3. M4.3c: ordered expiry settlement and stale-result races.
+3. M4.3c: ordered expiry settlement and stale-result races (implemented).
 4. M4.4: bounded recovery scans, Worker crash detection and fault acceptance.
 
 ## Worker supervision
@@ -37,3 +37,19 @@ The Worker does not manufacture FAILED or TIMED_OUT reports. A completion alread
 sent with uncertain acceptance may still be retried after local execution ended:
 only the server's historical receipt or current admission rules decide the result.
 Server recovery remains necessary after process crashes and local abandonment.
+
+## Ordered recovery transaction
+
+`RecoveryRepository.recover` re-reads one Attempt under Run → Worker → Task →
+Attempt → lease locks and samples the database clock after all locks. A terminal
+Attempt is already settled and is skipped. A RUNNING Attempt expires at the earlier
+of lease expiry and fixed execution timeout. Earliest timeout (including a tie)
+means TIMED_OUT; earliest lease expiry means LOST, even if scanning happens later.
+Clock regression before the last renewal defers recovery conservatively.
+
+Recovery atomically settles Attempt/Task and, within budget, writes a retry plan.
+It never fabricates a Worker completion receipt or modifies ownership history.
+Worker heartbeat state alone cannot revoke a live lease; even a STOPPED owner is
+recoverable once its deadline expires. Repeated recovery cannot reschedule a settled
+Attempt. Competing completion and renewal use the same locks and recheck admission;
+old results cannot settle a replacement Attempt. Automatic scans follow in M4.4.
