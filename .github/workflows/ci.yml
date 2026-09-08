@@ -131,6 +131,9 @@ jobs:
       - name: Exercise worker registration and heartbeat over real HTTP
         run: uv run --locked python scripts/check_worker_api.py
 
+      - name: Exercise idempotent claims over real HTTP
+        run: uv run --locked python scripts/check_claim_api.py
+
       - name: Verify authenticated SQL and write persistence probe
         run: |
           docker compose exec -T postgres sh -eu -c 'export PGPASSWORD="$(cat "$POSTGRES_PASSWORD_FILE")"; exec psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<'SQL'

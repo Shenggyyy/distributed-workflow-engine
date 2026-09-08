@@ -16,6 +16,7 @@ def test_defaults_do_not_require_an_environment_file() -> None:
     assert str(settings.api_host) == "127.0.0.1"
     assert settings.api_port == 8000
     assert settings.worker_heartbeat_timeout_seconds == 30
+    assert settings.attempt_lease_seconds == 30
 
 
 def test_dotenv_is_not_implicitly_loaded(
@@ -53,6 +54,9 @@ def test_environment_overrides_dotenv_and_defaults(
         ("DWE_API_PORT", "65536", "api_port"),
         ("DWE_API_PORT", "not-a-number", "api_port"),
         ("DWE_API_PORT", "", "api_port"),
+        ("DWE_ATTEMPT_LEASE_SECONDS", "0", "attempt_lease_seconds"),
+        ("DWE_ATTEMPT_LEASE_SECONDS", "86401", "attempt_lease_seconds"),
+        ("DWE_ATTEMPT_LEASE_SECONDS", "1.5", "attempt_lease_seconds"),
         ("DWE_ENVIRONMENT", "staging", "environment"),
         ("DWE_LOG_LEVEL", "debug", "log_level"),
         ("DWE_API_HOST", "https://localhost", "api_host"),
@@ -141,3 +145,14 @@ def test_heartbeat_policy_precedence_and_boundaries(
     assert load_settings(env_file=env_file).worker_heartbeat_timeout_seconds == 7
     monkeypatch.setenv("DWE_WORKER_HEARTBEAT_TIMEOUT_SECONDS", str(seconds))
     assert load_settings(env_file=env_file).worker_heartbeat_timeout_seconds == seconds
+
+
+@pytest.mark.parametrize("seconds", [1, 86400])
+def test_lease_policy_precedence_and_boundaries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, seconds: int
+) -> None:
+    env_file = tmp_path / "lease.env"
+    env_file.write_text("DWE_ATTEMPT_LEASE_SECONDS=7\n", encoding="utf-8")
+    assert load_settings(env_file=env_file).attempt_lease_seconds == 7
+    monkeypatch.setenv("DWE_ATTEMPT_LEASE_SECONDS", str(seconds))
+    assert load_settings(env_file=env_file).attempt_lease_seconds == seconds

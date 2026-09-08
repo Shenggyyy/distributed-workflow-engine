@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.2d.1b: Idempotent claim transactions and current ownership replay.**
+**M2.2d.2a: Task claim HTTP API with commit-before-success responses.**
 
 Available now:
 
@@ -90,8 +90,11 @@ Available now:
 - Keyed claim transactions with atomic bindings and current valid ownership replay.
 - PostgreSQL tests for uncertain outcomes, sticky no-work, stale grants and advisory-lock races.
 
-Claim/renewal HTTP endpoints, background heartbeat/expiry loops, scheduling and
-handler execution are **not implemented yet**.
+- Task claim HTTP endpoint with server-owned lease duration, typed grants and no-work responses.
+- HTTP validation, concurrent replay, commit-failure tests and a container CI smoke script.
+
+Renewal HTTP, background heartbeat/expiry loops, scheduling and handler execution
+are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -338,6 +341,20 @@ retries. See [idempotent claims](docs/idempotent-claims.md) for no-work, expiry,
 conflict and commit semantics. The example reserves capacity until future
 completion/recovery; use disposable Runs and sessions.
 
+## Claim through HTTP
+
+With API/PostgreSQL running and migrations at the current head:
+
+```console
+uv run --locked python scripts/check_claim_api.py
+```
+
+This creates a disposable Run/session, claims Task A through HTTP, and verifies
+replay, no-work and error responses. It prints no tokens and does not execute a
+handler. The claim reserves capacity until future completion/recovery. See
+[the claim API contract and PowerShell example](docs/claim-api.md) for request IDs,
+response fields and retry semantics.
+
 ## Explore Attempt leases
 
 ```console
@@ -566,6 +583,7 @@ and the `DWE_` environment prefix.
 | `DWE_API_HOST` | `127.0.0.1` | An IPv4 or IPv6 address literal |
 | `DWE_API_PORT` | `8000` | An integer from 1 through 65535 |
 | `DWE_WORKER_HEARTBEAT_TIMEOUT_SECONDS` | `30` | API session heartbeat window, integer 1–86400 seconds |
+| `DWE_ATTEMPT_LEASE_SECONDS` | `30` | New HTTP claim lease duration, integer 1–86400 seconds |
 
 Environment variable names are case-insensitive; enum values use the exact
 spelling shown above. Empty values are validated rather than silently ignored.
@@ -612,6 +630,10 @@ Database settings are documented in [database.md](docs/database.md).
 window (default 30 seconds, range 1–86400), loaded once at startup. Compose forwards
 it into the API container. It is separate from task leases and heartbeat send
 intervals; see [Worker API configuration](docs/worker-api.md#server-configuration).
+`DWE_ATTEMPT_LEASE_SECONDS` controls new HTTP claim leases with the same default
+and range, independently of heartbeats and task execution timeout. It does not
+renew existing claims or change explicit Python repository policies. See
+[claim API configuration](docs/claim-api.md#server-configuration-and-access-boundary).
 
 ### Structured logging
 
@@ -774,6 +796,7 @@ docs/
     lease-renewal.md
     claim-requests.md
     idempotent-claims.md
+    claim-api.md
     workflow-storage.md
 examples/
     diamond.json
@@ -795,6 +818,7 @@ scripts/
     check_workflow_api.py
     check_run_api.py
     check_worker_api.py
+    check_claim_api.py
 src/workflow_engine/
     __init__.py
     __main__.py
@@ -834,6 +858,7 @@ src/workflow_engine/
             0007_claim_requests.py
     api/
         __init__.py
+        claims.py
         app.py
         dependencies.py
         errors.py
@@ -943,9 +968,10 @@ M2.2c.2 adds lease renewal against current persisted ownership with state,
 clock and concurrency tests. M2.2d.1a adds immutable claim request storage and
 [the replay protocol](docs/claim-requests.md). M2.2d.1b implements keyed claim
 transactions and current-ownership replay, including uncertain outcomes and
-request-lock races. After M2.2d.1b is committed, pushed, and all three CI jobs pass,
-continue to M2.2d.2a: claim HTTP contracts and commit/error mapping. Renewal HTTP
-will follow in M2.2d.2b.
+request-lock races. M2.2d.2a exposes keyed claims over HTTP with typed responses,
+server-owned lease duration, error mapping and real HTTP checks. After M2.2d.2a
+is committed, pushed, and all three CI jobs pass, continue to M2.2d.2b: renewal
+HTTP contracts, commit/error mapping and real HTTP checks.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

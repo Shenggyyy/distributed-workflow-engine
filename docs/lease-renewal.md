@@ -95,8 +95,8 @@ COMMIT then fails. Exit/roll back the transaction or savepoint on any failure.
 Renewal retries make new observations rather than replaying a stored receipt. A
 lost response can be followed by another renewal with the same tuple; that later
 operation may extend the lease, or fail if ownership expired or became terminal.
-No code here guarantees retry delivery. Claim request idempotency is separate
-work planned before claim HTTP exposure.
+No code here guarantees retry delivery. Claim request idempotency is implemented
+separately and exposed through [claim HTTP](claim-api.md).
 
 Concurrent renewals serialize and re-read the latest timestamps. If a preceding
 renewal rolls back, its timestamps disappear. If a preceding operation commits a
@@ -154,4 +154,4 @@ M2.2d.1a now defines [claim request bindings](claim-requests.md), with immutable
 input identity and the replay/outer-lock protocol. M2.2d.1b implements
 [keyed transactions](idempotent-claims.md). Renewal and replay share the internal
 ordered ownership reader; renewal keeps its existing errors and timestamp rules.
-Claim/renewal HTTP remains future work.
+M2.2d.2a adds [claim HTTP](claim-api.md); renewal HTTP remains M2.2d.2b.

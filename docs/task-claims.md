@@ -106,8 +106,9 @@ READY and capacity permits, two calls may allocate different tasks. If a commit
 succeeds but its response is lost, ownership survives; do not blindly retry claim
 over HTTP. M2.2d.1a adds [binding storage and the replay protocol](claim-requests.md);
 M2.2d.1b implements [keyed claim transactions](idempotent-claims.md) in a separate
-repository. The primitive on this page remains unkeyed. No network delivery
-guarantee is claimed before the claim HTTP interface.
+repository. The primitive on this page remains unkeyed. M2.2d.2a exposes only
+the keyed path through [claim HTTP](claim-api.md); response delivery is still
+not atomic with database commit.
 
 The returned snapshot can already be expired after a slow commit or delayed
 delivery. Future Worker execution must honor the lease/renewal protocol; a Python
@@ -169,4 +170,4 @@ an implementation of completion, dependency scheduling or retry backoff.
 
 M2.2c.2 adds [lease renewal](lease-renewal.md) against current persisted ownership,
 with stale-owner and race checks. M2.2d.1a adds binding storage; M2.2d.1b adds
-[keyed claims](idempotent-claims.md). Claim HTTP remains later work.
+[keyed claims](idempotent-claims.md). M2.2d.2a adds [claim HTTP](claim-api.md).

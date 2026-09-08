@@ -3,7 +3,8 @@
 M2.2d.1b implements the protocol in [claim request storage](claim-requests.md), on
 schema `0007`. `ClaimRequestRepository` wraps the existing single-Run allocator
 and adds durable request lookup, current-ownership replay and conflict handling.
-There is no schema migration, HTTP endpoint, automatic retry or Worker loop here.
+This repository commit adds no migration, automatic retry or Worker loop.
+M2.2d.2a now exposes it through the [claim HTTP API](claim-api.md).
 
 ## Python contract
 
@@ -38,7 +39,7 @@ New allocations retain the [unkeyed allocator's admission errors](task-claims.md
 including missing/inactive Run or Worker, expired heartbeat, invalid dependency
 state and exhausted attempt numbers. Stored workflow errors, SQL/lock/commit
 failures and transaction errors propagate. Error messages do not echo tokens or
-supplied IDs. No HTTP status mappings are defined in this commit.
+supplied IDs. HTTP status mappings are documented in [claim API errors](claim-api.md#error-mapping).
 
 ## Request locking and atomic allocation
 
@@ -99,9 +100,9 @@ None or a replacement grant. No lease is resurrected. Clock regression is a
 separate error because it does not establish that the stored lease expired.
 
 The schema deliberately does not enforce Run membership, so a mismatched binding
-is rejected as corruption. Request IDs are not credentials. Future HTTP access
-must bind requests to an authorized Worker session; this local repository assumes
-its caller is authorized to retrieve that session's grants.
+is rejected as corruption. Request IDs are not credentials. The local repository assumes its caller is authorized to retrieve the session's
+grants. The HTTP API currently shares that trusted local boundary; authentication
+and per-session access control remain future work.
 
 ## Failure boundaries and costs
 
@@ -153,6 +154,5 @@ renewal snapshots, terminal/replacement Attempts, liveness boundaries, corruptio
 timeouts and transaction lifetime. Terminal/retry mutations simulate future
 control operations; production completion/recovery is not implemented by tests.
 
-After this commit/push and CI confirmation, M2.2d.2a will add the claim HTTP
-contract and commit/error mapping. Renewal HTTP follows as M2.2d.2b so the two
-interfaces remain independently reviewable commits.
+M2.2d.2a adds the [claim HTTP contract](claim-api.md) and commit/error mapping.
+Renewal HTTP follows as M2.2d.2b in its own independently reviewable commit.

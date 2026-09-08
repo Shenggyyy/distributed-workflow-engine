@@ -4,7 +4,8 @@ M2.2a implements a pure `AttemptLease` snapshot, ownership/time checks, monotoni
 renewal, unit tests and an in-memory example. M2.2b adds
 [lease storage](lease-storage.md) in revision `0006`. M2.2c.1 implements the
 [single-run claim transaction](task-claims.md), and M2.2c.2 adds
-[persisted lease renewal](lease-renewal.md). Claim/renewal HTTP endpoints and
+[persisted lease renewal](lease-renewal.md). M2.2d.2a adds [claim HTTP](claim-api.md).
+Renewal HTTP and
 execution loops remain later work.
 The transaction protocol below is the design for subsequent commit-sized steps.
 
@@ -139,7 +140,7 @@ ready work. See [PostgreSQL locking clauses](https://www.postgresql.org/docs/18/
 | Scenario | Required behavior |
 | --- | --- |
 | Claim transaction rolls back or API crashes before commit | No grant is published; Task remains claimable and no owned Attempt survives. |
-| Claim commits but response is lost | The Attempt and capacity reservation survive. Before automatic HTTP retries are introduced, persist a request binding and return the same grant identity on replay. |
+| Claim commits but response is lost | The Attempt and capacity reservation survive. The keyed repository and claim HTTP retain a binding; retry the same request ID to retrieve current valid ownership, or an unavailable outcome. |
 | Worker crashes after receiving a grant | Lease recovery eventually finalizes the abandoned Attempt and releases capacity; no guarantee until that scanner exists. |
 | Worker heartbeat expires but attempt lease is still valid | Reject new claims. The original owner may renew/report against its still-valid attempt lease, subject to Task/Attempt state and future task timeout checks. |
 | Lease expires while heartbeat remains healthy | Reject renewal/new completion; recovery decides LOST and retry/failure. Heartbeat does not extend task leases. |
@@ -148,11 +149,11 @@ ready work. See [PostgreSQL locking clauses](https://www.postgresql.org/docs/18/
 | Clock moves backwards | Reject observation; do not fabricate a newer timestamp or renew silently. Forward jumps may cause false expiry. |
 | A lease check succeeds but the transaction/network is slow | Deadline validity was established at observation time, not forever through response delivery; keep transactions bounded. |
 
-The claim HTTP milestone must define a durable `(worker_session_id, request_id)`
-binding before permitting blind retries of a claim-next request. Otherwise a retry
-could reserve a different READY task. Specify receipt retention, expired-grant
-replay (never executable), no-work results and the outer request-lock order in
-that milestone. These requirements are not implemented by `AttemptLease`.
+The [keyed claim repository](idempotent-claims.md) and [HTTP endpoint](claim-api.md)
+now implement durable `(worker_session_id, request_id)` bindings, retained no-work,
+current ownership replay and the outer request-lock order. Expired grants are
+never returned as executable ownership. These are transaction-level guarantees,
+not guarantees of the pure `AttemptLease` model.
 
 A task execution timeout is an independent absolute deadline. Lease renewal must
 not reset it; exact start time and simultaneous timeout/lease-expiry outcome
@@ -170,7 +171,7 @@ business idempotency remain separate responsibilities.
 | M2.2c.2 (current) | Lease renewal against current persisted ownership; post-lock clock and stale-owner tests. |
 | M2.2d.1a | [Durable claim request schema and replay protocol](claim-requests.md), complete. |
 | M2.2d.1b | [Keyed claim/replay transactions](idempotent-claims.md) with uncertain-outcome tests, complete. |
-| M2.2d.2a | Claim HTTP contracts, commit/error mapping and real HTTP checks. |
+| M2.2d.2a | [Claim HTTP](claim-api.md), commit/error mapping and real HTTP checks, complete. |
 | M2.2d.2b | Renewal HTTP contracts, error mapping and real HTTP checks. |
 
 Only proceed after each subtask's tests, owner commit/push and CI confirmation.

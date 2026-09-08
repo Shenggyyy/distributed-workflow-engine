@@ -3,7 +3,8 @@
 M2.2d.1a adds schema revision `0007`. This commit stores completed claim decisions
 and defines the replay protocol. M2.2d.1b now implements it in
 [ClaimRequestRepository](idempotent-claims.md). The older
-`ClaimRepository.claim_next()` remains unkeyed; no claim HTTP endpoint exists yet.
+`ClaimRepository.claim_next()` remains unkeyed. M2.2d.2a exposes the keyed path
+through [claim HTTP](claim-api.md).
 
 ## Why a claim needs its own request identity
 

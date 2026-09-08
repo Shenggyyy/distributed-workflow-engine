@@ -13,6 +13,7 @@ from sqlalchemy.exc import (
     TimeoutError,
 )
 
+from workflow_engine.repositories.claim_requests import StoredClaimRequestError
 from workflow_engine.repositories.runs import StoredRuntimeError
 from workflow_engine.repositories.workers import StoredWorkerError
 from workflow_engine.repositories.workflows import (
@@ -79,6 +80,7 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(StoredDefinitionError)
     @app.exception_handler(StoredRuntimeError)
     @app.exception_handler(StoredWorkerError)
+    @app.exception_handler(StoredClaimRequestError)
     @app.exception_handler(SQLAlchemyError)
     async def storage_failure(request: Request, exc: Exception) -> JSONResponse:
         logging.getLogger(__name__).error(
