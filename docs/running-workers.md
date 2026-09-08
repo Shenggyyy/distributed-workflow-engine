@@ -4,6 +4,10 @@ M2.4d provides `engine worker`. Start PostgreSQL and the API, apply migrations t
 head, publish a Workflow and create a Run using the [API](run-api.md). The Worker
 talks only to the API; it needs no PostgreSQL password or database connection.
 M3.1c makes `--run-id` optional: omit it to discover work across active Runs.
+M3.2a separates session registration/heartbeat supervision from per-slot claim,
+renewal, execution and completion control. It retains one slot in this step;
+parallel slot admission follows in M3.2b. Both control paths remain bounded and
+check stop signals without waiting for HTTP requests.
 
 ## Host process
 
