@@ -14,6 +14,7 @@ from sqlalchemy.exc import DBAPIError
 
 from tests.integration.migration_helpers import migration_config
 from workflow_engine.domain.lease import LeaseClockRegressionError
+from workflow_engine.domain.retry import ExecutionPolicy
 from workflow_engine.domain.workflow import TaskDefinition, WorkflowDefinition
 from workflow_engine.repositories.claim_requests import (
     _CLAIM_LOCK_NAMESPACE,
@@ -66,8 +67,13 @@ def seed(
     version = WorkflowRepository(connection).publish(
         WorkflowDefinition(
             name="keyed_" + uuid4().hex,
+            schema_version=2,
             tasks=tuple(
-                TaskDefinition(task_id=chr(65 + i), task_type="demo.echo")
+                TaskDefinition(
+                    task_id=chr(65 + i),
+                    task_type="demo.echo",
+                    execution=ExecutionPolicy(timeout_seconds=3600),
+                )
                 for i in range(roots)
             ),
         )

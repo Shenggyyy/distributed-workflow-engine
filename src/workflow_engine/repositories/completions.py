@@ -12,6 +12,7 @@ from workflow_engine.domain.completion import (
     accept_completion,
 )
 from workflow_engine.domain.runtime import TaskEvent
+from workflow_engine.domain.timeout import require_before_timeout
 from workflow_engine.repositories._ownership import (
     LeaseInactiveError,
     LeaseNotFoundError,
@@ -19,7 +20,7 @@ from workflow_engine.repositories._ownership import (
     StoredLeaseError,
     lock_ownership,
 )
-from workflow_engine.repositories._retry import failed_task
+from workflow_engine.repositories._retry import execution_policy, failed_task
 from workflow_engine.repositories.workflows import RepositoryTransactionError
 from workflow_engine.schema import attempt_completions, task_attempts, task_runs
 
@@ -128,6 +129,9 @@ class CompletionRepository:
             raise CompletionInactiveError("Attempt completion is inactive.") from None
         receipt = accept_completion(
             owned.attempt, owned.lease, proposed, observed_at=self._database_now()
+        )
+        require_before_timeout(
+            owned.lease, execution_policy(self._connection, owned), receipt.accepted_at
         )
         if proposed.result.outcome is CompletionOutcome.SUCCEEDED:
             task = owned.task.transition(TaskEvent.ATTEMPT_SUCCEEDED)

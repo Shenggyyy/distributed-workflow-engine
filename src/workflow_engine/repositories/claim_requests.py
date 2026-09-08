@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import Connection, RowMapping, func, select, text
 
 from workflow_engine.domain.lease import LeaseExpiredError
+from workflow_engine.domain.timeout import AttemptTimeoutError, require_before_timeout
 from workflow_engine.repositories._ownership import (
     LeaseInactiveError,
     LeaseNotFoundError,
@@ -178,13 +179,15 @@ class ClaimRequestRepository:
         try:
             # The binding authorizes retrieval, not a submitted renewal token.
             # Read the token only after validating that exact retained allocation.
+            observed = self._database_now()
             owned.lease.require_valid_owner(
                 attempt_id=attempt_id,
                 worker_session_id=worker_session_id,
                 lease_token=owned.lease.lease_token,
-                observed_at=self._database_now(),
+                observed_at=observed,
             )
-        except LeaseExpiredError:
+            require_before_timeout(owned.lease, definition.execution_policy, observed)
+        except (LeaseExpiredError, AttemptTimeoutError):
             raise ClaimReplayUnavailableError(
                 "Bound claim is no longer available."
             ) from None

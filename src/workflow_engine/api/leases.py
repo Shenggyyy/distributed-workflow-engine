@@ -17,6 +17,7 @@ from workflow_engine.domain.lease import (
     LeaseExpiredError,
     LeaseOwnershipError,
 )
+from workflow_engine.domain.timeout import AttemptTimeoutError
 from workflow_engine.repositories.leases import (
     LeaseInactiveError,
     LeaseNotFoundError,
@@ -106,6 +107,8 @@ def renew_lease(
                 raise StoredLeaseError(
                     "Stored renewal cannot be represented."
                 ) from None
+    except AttemptTimeoutError:
+        raise APIError(409, "attempt_timed_out", "Attempt deadline elapsed.") from None
     except LeaseNotFoundError:
         raise APIError(404, "lease_not_found", "Attempt lease was not found.") from None
     except LeaseInactiveError:

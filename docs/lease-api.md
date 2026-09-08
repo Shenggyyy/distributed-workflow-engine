@@ -5,6 +5,10 @@ without a migration. OpenAPI is at `/openapi.json`; interactive documentation is
 at `/docs`. This endpoint renews ownership metadata; it does not run a handler,
 finish an Attempt, release capacity or recover expired work.
 
+M4.3a additionally enforces the [fixed Attempt execution deadline](timeouts.md).
+At that deadline renewal returns HTTP 409 `attempt_timed_out`; renewing the lease
+does not extend execution time. Existing lease ownership checks still apply first.
+
 ## Request and response
 
 `POST /worker-sessions/{session_id}/attempts/{attempt_id}/renew` requires a JSON

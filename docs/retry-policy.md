@@ -36,7 +36,7 @@ external effects still require cooperating business idempotency.
 3. M4.2a: append-only retry schedule schema (implemented); M4.2b: atomic failure
    settlement (implemented); M4.2c: due-task promotion (implemented);
    M4.2d: HTTP and Worker retry acceptance (implemented).
-4. M4.3: hard Attempt timeout admission and expired ownership recovery.
+4. M4.3: [hard Attempt timeout admission and expiry recovery](timeouts.md).
 5. M4.4: Worker crash scanning, recovery coordination, stale-result races and
    end-to-end failure acceptance, followed by the M4 milestone review.
 

@@ -26,6 +26,7 @@ from workflow_engine.domain.lease import (
     LeaseExpiredError,
     LeaseOwnershipError,
 )
+from workflow_engine.domain.retry import ExecutionPolicy
 from workflow_engine.domain.workflow import TaskDefinition, WorkflowDefinition
 from workflow_engine.repositories.claim_requests import (
     ClaimReplayUnavailableError,
@@ -77,8 +78,14 @@ def claimed(engine: Engine, completion_schema: str) -> TaskClaim:
         version = WorkflowRepository(connection).publish(
             WorkflowDefinition(
                 name="complete_" + uuid4().hex,
+                schema_version=2,
                 tasks=(
-                    TaskDefinition(task_id="A", task_type="demo.echo"),
+                    # Keep the execution deadline beyond lease-boundary scenarios.
+                    TaskDefinition(
+                        task_id="A",
+                        task_type="demo.echo",
+                        execution=ExecutionPolicy(timeout_seconds=3600),
+                    ),
                     TaskDefinition(task_id="B", task_type="demo.echo"),
                     TaskDefinition(
                         task_id="C", task_type="demo.echo", depends_on=("A",)

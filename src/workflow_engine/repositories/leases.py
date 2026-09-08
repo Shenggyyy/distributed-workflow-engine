@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import Connection, func, select
 
 from workflow_engine.domain.lease import MAX_LEASE_SECONDS, AttemptLease
+from workflow_engine.domain.timeout import require_before_timeout
 from workflow_engine.repositories._ownership import (
     LeaseInactiveError as LeaseInactiveError,
 )
@@ -19,6 +20,7 @@ from workflow_engine.repositories._ownership import (
     _read_lease,
     lock_ownership,
 )
+from workflow_engine.repositories._retry import execution_policy
 from workflow_engine.repositories.workflows import RepositoryTransactionError
 from workflow_engine.schema import attempt_leases
 
@@ -86,6 +88,9 @@ class LeaseRepository:
             lease_token=lease_token,
             observed_at=self._database_now(),
             lease_seconds=self._lease_seconds,
+        )
+        require_before_timeout(
+            lease, execution_policy(self._connection, owned), renewed.last_renewed_at
         )
         row = (
             self._connection.execute(

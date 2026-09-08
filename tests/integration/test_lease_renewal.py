@@ -19,6 +19,7 @@ from workflow_engine.domain.lease import (
     LeaseExpiredError,
     LeaseOwnershipError,
 )
+from workflow_engine.domain.retry import ExecutionPolicy
 from workflow_engine.domain.workflow import TaskDefinition, WorkflowDefinition
 from workflow_engine.repositories.claims import ClaimRepository, TaskClaim
 from workflow_engine.repositories.leases import (
@@ -64,7 +65,14 @@ def leased(engine: Engine, lease_schema: str) -> TaskClaim:
         version = WorkflowRepository(connection).publish(
             WorkflowDefinition(
                 name="renewal",
-                tasks=(TaskDefinition(task_id="A", task_type="demo.echo"),),
+                schema_version=2,
+                tasks=(
+                    TaskDefinition(
+                        task_id="A",
+                        task_type="demo.echo",
+                        execution=ExecutionPolicy(timeout_seconds=3600),
+                    ),
+                ),
             )
         )
         run = RunRepository(connection).create(version.id).run

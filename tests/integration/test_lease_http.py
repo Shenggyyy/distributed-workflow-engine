@@ -57,7 +57,14 @@ def lease(client: TestClient) -> AttemptLease:
         "/workflows",
         json={
             "name": "renew_http_" + uuid4().hex,
-            "tasks": [{"task_id": "A", "task_type": "demo.echo"}],
+            "schema_version": 2,
+            "tasks": [
+                {
+                    "task_id": "A",
+                    "task_type": "demo.echo",
+                    "execution": {"timeout_seconds": 3600},
+                }
+            ],
         },
     )
     assert version.status_code == 201

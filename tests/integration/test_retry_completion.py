@@ -29,7 +29,9 @@ from workflow_engine.schema import (
 pytestmark = pytest.mark.integration
 
 
-def make_claim(engine: Engine, schema: str, *, budget: int = 3) -> TaskClaim:
+def make_claim(
+    engine: Engine, schema: str, *, budget: int = 3, timeout: int = 300
+) -> TaskClaim:
     with transaction(engine, schema) as connection:
         version = WorkflowRepository(connection).publish(
             WorkflowDefinition(
@@ -39,7 +41,9 @@ def make_claim(engine: Engine, schema: str, *, budget: int = 3) -> TaskClaim:
                     TaskDefinition(
                         task_id="A",
                         task_type="demo.fail",
-                        execution=ExecutionPolicy(max_attempts=budget),
+                        execution=ExecutionPolicy(
+                            max_attempts=budget, timeout_seconds=timeout
+                        ),
                     ),
                 ),
             )

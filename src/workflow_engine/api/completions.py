@@ -23,6 +23,7 @@ from workflow_engine.domain.lease import (
     LeaseOwnershipError,
 )
 from workflow_engine.domain.runtime import TaskAttempt
+from workflow_engine.domain.timeout import AttemptTimeoutError
 from workflow_engine.repositories.completions import (
     CompletionInactiveError,
     CompletionNotFoundError,
@@ -115,6 +116,8 @@ def complete_attempt(
                 raise StoredCompletionError(
                     "Stored completion cannot be represented."
                 ) from None
+    except AttemptTimeoutError:
+        raise APIError(409, "attempt_timed_out", "Attempt deadline elapsed.") from None
     except CompletionNotFoundError:
         raise APIError(
             404, "completion_not_found", "Owned Attempt was not found."
