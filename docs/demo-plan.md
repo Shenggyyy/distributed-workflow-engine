@@ -135,3 +135,11 @@ heartbeats, per-invocation sampled timelines, claim/completion/retry timestamps 
 raw UUIDs. Browser inspection observed two real Worker execution intervals overlap
 (peak 2); no JavaScript errors. Three Node evidence tests and six database/API
 tests pass; CI runs the evidence tests. No frontend build step is required.
+
+D5 split: D5a adds reproducible real-container evidence acceptance; D5b captures
+actual browser runs and completes README, walkthrough and regression review.
+
+D5a verified: the acceptance script completed all three fresh container scenarios.
+Parallel and distribution both measured peak overlap 2; distribution used two
+sessions. Recovery observed RETRY_WAIT and retained LOST Attempt 1 without FINISH,
+then succeeded with a different owner. Raw evidence is retained locally.

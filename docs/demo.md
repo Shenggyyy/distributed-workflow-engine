@@ -51,3 +51,20 @@ operate on development Workers. A failed scenario-creation POST is not retried
 automatically: inspect `http://127.0.0.1:18080/demo/runs` for any created Run.
 
 Evidence semantics and acceptance boundaries: [demo plan](demo-plan.md).
+
+## Repeatable evidence checks
+
+After `up`, keep the page open with **Follow newest Run** enabled:
+
+```powershell
+uv run python -m scripts.demo_acceptance
+```
+
+This creates three real Runs, checks positive measured overlap in a common clock
+domain, verifies two Worker owners, and injects a scoped recovery failure. It must
+observe RETRY_WAIT before accepting recovery success. It retains raw snapshots
+(including the retry checkpoint) in ignored `.uv-cache/demo-acceptance/`.
+For one scenario use `--scenario recovery`; for a different port use `--port 18081`.
+This script checks engine evidence; browser inspection remains a separate gate.
+Pure timeline calculations can be tested with Node.js 22+:
+`node --test tests/demo-evidence.test.mjs`. Node.js is not needed to run the demo.
