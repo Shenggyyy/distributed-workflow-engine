@@ -24,7 +24,7 @@ Terminal Runs leave discovery. Receipt replay must remain available after settle
 - M5.2a: cooperating business-idempotency example (implemented).
 - M5.2b: real process crash after a committed effect, recovery and duplicate acceptance (implemented).
 - M5.3a: terminal Run and failure-branch container acceptance (implemented).
-- M5.3b: failure documentation, final M0–M5 validation and correctness audit.
+- M5.3b: failure documentation, final M0–M5 validation and correctness audit (complete; see [review](mvp-review.md)).
 
 Larger steps may be split further; V2/V3 features stay outside the MVP.
 

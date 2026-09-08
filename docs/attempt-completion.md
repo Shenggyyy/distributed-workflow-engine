@@ -150,9 +150,9 @@ An accepted_at timestamp is the locked database observation, not a Worker finish
 time or precise COMMIT timestamp. A slow commit may return after lease expiry.
 
 Worker-reported failure means FAILED; the Worker cannot self-authorize LOST or
-TIMED_OUT. Task timeout has no persisted deadline yet. M4 must check that independent
-absolute deadline for new acceptance, resolve simultaneous timeout/lease expiry and
-ensure renewal cannot reset it. Neither terminal metadata nor a receipt proves the
+TIMED_OUT. The fixed [Attempt deadline](timeouts.md) derives from immutable lease
+acquisition plus pinned policy. Server admission and recovery check it independently
+of renewable lease expiry. Neither terminal metadata nor a receipt proves the
 process stopped or removes duplicate external effects.
 
 Retention currently has no TTL or deletion contract. Losing a receipt loses the

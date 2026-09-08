@@ -41,8 +41,9 @@ clock jumps, process pauses or partitions.
 The 10% margin is a conservative operational choice, not a fencing guarantee.
 Tick interval, OS scheduling and process termination can delay actual stopping.
 Only server ownership checks fence accepted engine results; external systems must
-cooperate with Task idempotency keys. Renewal does not extend the future M4 hard
-execution deadline. The current loop has no hard task timeout.
+cooperate with Task idempotency keys. Renewal does not extend the fixed hard
+execution deadline. [Timeout supervision](timeouts.md) bounds local execution
+independently of lease renewal and stalled HTTP requests.
 
 Transient transport/HTTP errors retain operation identity and use bounded-rate
 fixed retry intervals. Terminal ownership errors, invalid protocols, child loss,

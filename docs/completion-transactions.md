@@ -1,9 +1,9 @@
 # Atomic completion and historical replay
 
-M2.3c.1 adds `CompletionRepository.complete()` on schema `0008`. It uses the
+`CompletionRepository.complete()` uses the
 [completion domain contract](attempt-completion.md) and [receipt storage](completion-storage.md)
 to settle one Attempt and Task in a caller-owned transaction. This is a Python
-repository API; no completion HTTP route or handler execution is added.
+repository API; the [HTTP adapter](completion-api.md) exposes its commit contract.
 
 ## Python contract
 
@@ -24,7 +24,7 @@ retry requests, sleep, execute a handler or hold locks across external work.
 
 The returned receipt is provisional until COMMIT. Roll back the transaction or
 containing savepoint on **any** failure; do not catch a validation error after a
-partial write and then commit the remaining changes. The future HTTP adapter must
+partial write and then commit the remaining changes. The HTTP adapter must
 validate its outgoing response and complete the transaction before returning success.
 
 ## First completion
@@ -40,10 +40,10 @@ validate its outgoing response and complete the transaction before returning suc
    `clock_timestamp()` after all ownership locks. Validate session/token and the
    interval `last_renewed_at <= observation < lease_expires_at` through the domain
    helper. Heartbeat expiry or LOST Worker status alone does not revoke a live lease.
-4. Apply the explicit Attempt SUCCEED/FAIL event. Success applies Task
-   ATTEMPT_SUCCEEDED; failure currently applies FAIL_PERMANENTLY. The Worker cannot
-   specify retry time, LOST or TIMED_OUT. M4 will add a server retry policy before
-   selecting RETRY_SCHEDULED; this version deliberately has no implicit retry.
+4. Check the fixed Attempt deadline using the pinned policy. Apply explicit Attempt
+   SUCCEED/FAIL. Success applies Task ATTEMPT_SUCCEEDED; failure selects
+   RETRY_SCHEDULED with an atomic retry record or FAIL_PERMANENTLY when exhausted.
+   The Worker cannot specify retry time, LOST or TIMED_OUT.
 5. Persist Attempt and Task statuses and compare returned identities/statuses with
    the expected snapshots. Insert the receipt, reconstruct and validate it, and
    require exact equality with the proposed receipt. Unexpected trigger/write
@@ -53,8 +53,8 @@ Attempt, Task and receipt become visible together at COMMIT. Capacity is counted
 from RUNNING Attempts, so ending the Attempt releases its slot without a separate
 counter update. Lease metadata, Worker heartbeat, claim bindings, other Tasks and
 Run status are unchanged. A new poll can use freed capacity for another READY Task.
-Downstream dependency resolution and Run aggregation remain separate milestones:
-even a completed one-task Run still shows RUNNING until aggregation exists.
+Downstream dependency resolution and Run aggregation use a separate Scheduler
+transaction; a completed Run may show RUNNING until that next reconciliation.
 
 ## Receipt replay
 

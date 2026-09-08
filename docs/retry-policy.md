@@ -1,8 +1,7 @@
 # Execution policy and retry semantics
 
-M4.1a defines a pure, immutable `ExecutionPolicy` and `retry_delay`. It does not yet
-change execution or persistence. Later M4 commits pin policies to Workflow versions
-and atomically persist retry eligibility with Attempt settlement.
+M4 defines immutable `ExecutionPolicy` and `retry_delay`, pins policies to Workflow
+versions and atomically persists retry eligibility with Attempt settlement.
 
 | Field | Default | Range / meaning |
 | --- | --- | --- |
@@ -67,8 +66,8 @@ post-lock database timestamp and moves the Task to RETRY_WAIT. Otherwise the Tas
 becomes FAILED. Attempt status and completion receipt remain FAILED in either case.
 All writes share one caller-owned transaction, including deferred COMMIT checks.
 Existing receipt replay returns before policy evaluation or entropy sampling.
-No extra Attempt is allocated here, and retries cannot yet become READY until
-M4.2c installs the due-time reconciler. Default schema 1 failures remain permanent.
+No extra Attempt is allocated here; the due-time reconciler promotes eligible
+Tasks to READY. Default schema 1 failures remain permanent.
 
 ## Due-task promotion (M4.2c)
 
@@ -96,4 +95,4 @@ uv run --locked python scripts/check_dag_execution.py --scheduler-container --re
 For a host Scheduler, replace `--scheduler-container` with
 `--database-env-file .env.database-test`. Use the same database as the API.
 The script verifies final Task outcome; PostgreSQL integration tests additionally
-inspect every Attempt and retry record. Full Run aggregation follows in M5.
+inspect every Attempt and retry record. The script also verifies final Run FAILED.

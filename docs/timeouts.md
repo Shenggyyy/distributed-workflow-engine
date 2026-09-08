@@ -27,7 +27,7 @@ does not imply a handler did nothing or guarantee exactly-once effects.
 M4.4 is split into M4.4a advisory expiry discovery, M4.4b Scheduler recovery
 coordination, and M4.4c crash/timeout end-to-end acceptance and milestone review.
 
-M4.4a and M4.4b are implemented.
+M4.4a, M4.4b and M4.4c are implemented.
 
 ## Worker supervision
 
@@ -57,7 +57,7 @@ It never fabricates a Worker completion receipt or modifies ownership history.
 Worker heartbeat state alone cannot revoke a live lease; even a STOPPED owner is
 recoverable once its deadline expires. Repeated recovery cannot reschedule a settled
 Attempt. Competing completion and renewal use the same locks and recheck admission;
-old results cannot settle a replacement Attempt. Automatic scans follow in M4.4.
+old results cannot settle a replacement Attempt. Automatic scans are described below.
 
 ## Bounded discovery (M4.4a)
 

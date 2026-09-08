@@ -97,7 +97,7 @@ def main() -> None:
         "Worker execution checks passed: real handlers, success/failure "
         "and persisted Task outcomes."
     )
-    print("This check uses independent roots; Run aggregation remains pending.")
+    print("This Worker-only check starts no Scheduler; run one for Run aggregation.")
 
 
 if __name__ == "__main__":

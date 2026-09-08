@@ -5,136 +5,68 @@ multiple workers, with durable state, explicit task ownership, and failure
 recovery.
 
 The project explores what happens when processes crash, requests are duplicated,
-leases expire, and execution results arrive late. The execution contract will be
+leases expire, and execution results arrive late. The execution contract is
 at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M5.1 complete: failure propagation and terminal Run aggregation.**
+**M0–M5 MVP complete.**
 
-See the [M4 validation and correctness review](docs/m4-review.md).
-[Failure propagation and aggregation](docs/settlement.md) now complete the Run
-lifecycle. Business idempotency acceptance and the final MVP audit follow.
+See the [final validation and correctness review](docs/mvp-review.md): 1508 tests,
+real process crash recovery, business-effect deduplication and container acceptance.
+V2/V3 remain follow-up work; this is a trusted-deployment MVP, not a production SLA.
 
-Available now:
+## Start here
 
-- An installable Python package using a `src/` layout.
-- A CLI exposing help, version, configuration validation, API startup, and database checks.
-- A FastAPI application with liveness, OpenAPI, and interactive API documentation.
-- Immutable settings loaded from environment variables and explicit dotenv files.
-- JSON application logs on stderr, with log-level control and correlation fields.
-- A uv dependency lockfile and pytest entry-point smoke tests.
-- Ruff lint/format checks and strict mypy checks for source code and tests.
-- A GitHub Actions workflow targeting Python 3.13 on Linux and Windows.
-- A non-root API image and Compose environment with persistent PostgreSQL storage.
-- Local secret initialization and a separate container integration CI job.
-- A bounded PostgreSQL connection pool using SQLAlchemy 2 and psycopg 3.
-- Real PostgreSQL integration tests for transactions, pool limits, and SQL timeouts.
-- Packaged Alembic revisions with explicit upgrades and a PostgreSQL migration lock.
-- Frozen workflow/task definitions with strict fields and complete DAG validation.
-- Deterministic topological ordering, root detection, and dependency indexes.
-- Migrated workflow/version tables with JSONB snapshots and database mutation guards.
-- A transaction-scoped repository with concurrent version allocation and validated reads.
-- PostgreSQL tests for concurrent first publication, rollback, and workflow lock isolation.
+Read the [architecture and trade-offs](docs/architecture.md),
+[failure scenarios](docs/failure-scenarios.md), and
+[business idempotency demonstration](docs/business-idempotency.md).
+The sections below retain detailed module examples from the incremental roadmap.
 
-- Workflow publication and version lookup HTTP endpoints with typed OpenAPI contracts.
-- Commit-before-success responses, sanitized validation/storage errors, and lazy API pooling.
-- Real HTTP container checks plus PostgreSQL tests for commit failure and concurrent requests.
+The MVP provides immutable static DAGs, idempotent Run submission, PostgreSQL
+queueing, multiple Schedulers and Workers, parallel handler processes, heartbeat,
+lease fencing, persisted retries/backoff, fixed timeouts, automatic recovery,
+failed-dependency propagation and final Run aggregation. Domain, SQL, HTTP and
+process tests cover their individual contracts.
 
-- Immutable Run, TaskRun and TaskAttempt snapshots with explicit event-driven transitions.
-- Terminal-state protection and separate task-retry versus attempt-outcome semantics.
+### Run an actual workflow
 
-- Migrated run/task/attempt tables with foreign keys and lifecycle/history guards.
-- Scoped task/attempt uniqueness and at most one RUNNING attempt row per task.
+Requires Python 3.13, uv and Docker Desktop in Linux-container mode. Run from the
+repository root; see [platform-specific setup](docs/local-development.md) for
+Linux secret permissions and occupied Windows ports.
 
-- Transactional creation of version-pinned runs and complete DAG task sets.
-- Root-only readiness with rollback, concurrent creation and visibility tests.
+```console
+uv sync --locked
+python scripts/init_dev_secrets.py
+docker compose up --build --wait --wait-timeout 120
+docker compose exec -T api alembic upgrade head
+uv run --locked python scripts/check_dag_execution.py --scheduler-container
+```
 
-- Durable request-binding storage with immutable keys and deferred Run/Version validation.
+The script publishes `A -> B/C -> D`, creates a Run, starts a Scheduler container
+and a host Worker, verifies every Task and the final Run, then stops its helper.
+Expected output (Run UUID varies):
 
-- Keyed run creation with stable receipt replay and different-input conflict handling.
-- PostgreSQL tests for concurrent duplicates, owner rollback, timeouts and commit failure.
+```text
+DAG execution passed: independent Scheduler/Worker processes completed A -> B/C -> D.
+Run <uuid>: SUCCEEDED
+```
 
-- Typed Run metadata and Run/Task queries with one-statement snapshot consistency.
-- Read-only transaction support, bounded results and explicit invalid-data errors.
+For failures, add `--failed-branch`, `--retry-failure` or `--abandon-claim`.
+For parallel containers, run `scripts/check_distributed_execution.py --container`.
+Use `--base-url` when changing the published API port. API contracts are at
+`http://127.0.0.1:8000/docs` and [documented here](docs/api.md).
 
-- Run creation HTTP API with required idempotency keys, stable receipts and conflicts.
-- Run metadata/task HTTP queries, typed contracts and real HTTP checks in CI.
+For a persistent local fleet after migrations:
 
-- Immutable WorkerSession models with per-process identity and terminal lifecycle rules.
-- Worker identity/heartbeat/lease design boundaries and an in-memory lifecycle example.
+```console
+docker compose --profile scheduler --profile workers up -d --scale worker=2 --scale scheduler=2
+```
 
-- Migrated Worker sessions with immutable identities, terminal-state and time guards.
-- PostgreSQL tests for concurrent identities, late renewal and preserved migration data.
-
-- Transactional Worker registration through Python with same-session replay and conflicts.
-- Database-clock initialization after lock waits, rollback and concurrent registration tests.
-
-- Transactional Worker heartbeat renewal and per-session expiry with post-lock clock checks.
-- PostgreSQL tests for exact deadlines, concurrent renewal/expiry and commit rollback.
-
-- Worker registration/replay and heartbeat HTTP endpoints with server-owned timeout policy.
-- Strict request validation, typed error mapping and real Worker HTTP checks in CI.
-
-- Immutable Attempt lease snapshots with explicit ownership and exclusive deadline checks.
-- Pure monotonic renewal, clock/identity boundary tests and a documented claim lock protocol.
-
-- Migrated Attempt lease records with immutable ownership, monotonic times and history guards.
-- PostgreSQL tests for lease uniqueness, concurrent updates and preserved migration data.
-
-- Single-run task claims that atomically create RUNNING Attempts and lease ownership.
-- Worker admission/capacity and dependency checks with PostgreSQL concurrency/failure tests.
-
-- Transactional lease renewal with current-state checks and post-lock database time.
-- PostgreSQL tests for stale owners, terminal execution, concurrent renewal and rollback.
-
-- Migrated immutable claim request bindings for granted Attempts and completed no-work polls.
-- PostgreSQL tests for scoped uniqueness, exact lease owners, retention and migration compatibility.
-
-- Keyed claim transactions with atomic bindings and current valid ownership replay.
-- PostgreSQL tests for uncertain outcomes, sticky no-work, stale grants and advisory-lock races.
-
-- Task claim HTTP endpoint with server-owned lease duration, typed grants and no-work responses.
-- HTTP validation, concurrent replay, commit-failure tests and a container CI smoke script.
-
-- Attempt lease renewal HTTP with server-owned policy and current ownership checks.
-- HTTP renewal races, expiry/rollback tests and a claim/renew/replay container CI check.
-
-- Pure completion results and immutable receipts with lease-gated first acceptance.
-- Original-result replay, ownership/result conflicts and an in-memory completion example.
-
-- Completion receipt storage bound to exact lease ownership and committed Attempt outcome.
-- PostgreSQL constraint, retention, duplicate-insert and populated migration tests.
-
-- Python completion transactions that settle Attempt/Task and retain a receipt atomically.
-- Historical replay, capacity reuse, conflicting report and rollback tests.
-- Controlled completion/renewal/recovery interleavings and all five lock positions tested.
-
-- Completion HTTP with historical replay, sanitized errors and token-free responses.
-- Completion HTTP validation/rollback tests and real container checks in CI.
-- A [handler contract and registry](docs/handlers.md) with pure execution tests,
-  bounded outcomes and explicit business idempotency identity.
-- [Worker transport](docs/worker-transport.md) with strict response admission and
-  PostgreSQL tests for response loss after commit.
-- [Handler subprocess execution](docs/worker-execution.md), result polling and
-  cleanup, tested with real spawned processes.
-- A [bounded Worker loop](docs/worker-loop.md) connecting HTTP ownership,
-  fresh renewal, independent heartbeat and handler subprocess completion.
-- [Worker CLI and container startup](docs/running-workers.md), configuration,
-  signal cleanup and real execution checks in CI.
-- [Transactional readiness scheduling](docs/scheduling.md) with all-parent success
-  checks and the existing per-Run lock coordination.
-- [Scheduler CLI/container](docs/running-scheduler.md) and complete diamond DAG
-  execution with independent Scheduler and Worker processes.
-- [Active Run discovery](docs/run-discovery.md) with bounded UUID pagination and
-  an advisory READY filter for automatic polling.
-- [Parallel Worker slots](docs/running-workers.md) with bounded reservations and
-  shared heartbeats, verified across multiple Worker and Scheduler processes.
-
-Recovery scanners, persisted retries, fixed Attempt timeouts, failed-dependency
-propagation and Run aggregation are implemented. See [M4](docs/m4-review.md) and
-[settlement](docs/settlement.md) for their transaction and failure contracts.
-The architecture below is the agreed target design.
+The stock registry contains `demo.echo` and `demo.fail`; trusted custom handlers
+use the [registration contract](docs/handlers.md). No arbitrary code upload or
+input/output payload passing is implemented. Published ports bind to loopback;
+this trusted MVP has no authentication or tenant isolation.
 
 ## Validate a workflow
 
@@ -501,7 +433,7 @@ expiry scan has run. Neither method changes task ownership. See
 race outcomes, clock limitations and examples. These are individual transactions;
 no background loop runs yet.
 
-## Planned architecture
+## Architecture
 
 ```mermaid
 flowchart TB
@@ -516,7 +448,7 @@ flowchart TB
     Handlers --> External[Business storage / external services]
 ```
 
-API, scheduler, and worker will be separate process roles in one codebase.
+API, scheduler, and worker are separate process roles in one codebase.
 Workflow Engine and Dispatch Service are modules, not separate microservices.
 
 The architecture baseline is:
@@ -530,7 +462,7 @@ The architecture baseline is:
 - Persistent retry deadlines, exponential backoff with jitter, and recovery scans.
 - At-least-once execution with explicit API and business idempotency contracts.
 
-Task terminal states will remain terminal. An attempt failure may move its task
+Task terminal states remain terminal. An attempt failure may move its task
 to RETRY_WAIT; FAILED represents a task that will receive no further automatic
 attempts.
 
@@ -1157,8 +1089,8 @@ M3.1a implements discovery queries/API and indexes; M3.1b adds Scheduler scan
 coordination; M3.1c adds Worker automatic discovery. M3.2a extracts slot control;
 M3.2b enables bounded parallel slots with a shared heartbeat. M3.3 verifies
 multi-process execution. [M4.1a](docs/retry-policy.md) defines pure policy/backoff;
-M4.1b pins policies to immutable Workflow versions. Next is persisted retry,
-then timeout/recovery. See [schema 2 policy publication](docs/workflows.md#execution-policy-schema-version-2).
+M4.1b pins policies to immutable Workflow versions. M4 completes persisted retry,
+timeout and recovery; M5 adds settlement and business-idempotency acceptance. See [schema 2 policy publication](docs/workflows.md#execution-policy-schema-version-2).
 Run `uv run --locked pytest tests/test_worker_loop.py` to test control behavior
 without PostgreSQL; integration tests also execute real handler subprocesses.
 
