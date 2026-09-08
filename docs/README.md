@@ -1,13 +1,13 @@
 # Documentation guide
 
-Start with the [project homepage](../README.md). Detailed technical references are
+Start with the project homepage: [English](../README.md) | [简体中文](../README.zh-CN.md). Detailed technical references are
 in **English** unless marked otherwise. The runnable commands are executed from
 the repository root. Historical reviews describe their named commits/milestones;
 their counts and revisions are not claims about the current checkout.
 
 ## Quick start and local development
 
-- [Demo startup and three-minute walkthrough](demo.md): the fastest way to see the engine.
+- Demo startup and three-minute walkthrough: [English](demo.md) | [简体中文](demo.zh-CN.md); the fastest way to see the engine.
 - [Container development](local-development.md): credentials, ports and persistence.
 - [Configuration and structured logging](configuration.md): precedence, validation and diagnostics.
 - [Database connections](database.md) and [migrations](migrations.md).
@@ -41,7 +41,7 @@ their counts and revisions are not claims about the current checkout.
 
 ## Demonstration
 
-- [Startup and walkthrough](demo.md), [design and evidence](demo-design.md),
+- Startup and walkthrough: [English](demo.md) | [简体中文](demo.zh-CN.md); [design and evidence](demo-design.md),
   [scoped query API](demo-api.md).
 - [Original real execution evidence](demo-review.md) and
   [six-step flow evidence](demo-flow-review.md), including retained screenshots.
