@@ -3,6 +3,8 @@
 M2.3a adds pure completion models, acceptance/replay checks, unit tests and an
 in-memory example. No tables, routes or running tasks change. A constructed
 receipt is a proposal until the later repository commits it with all state changes.
+M2.3b now adds [receipt storage](completion-storage.md) in revision `0008`; application
+completion transactions and HTTP remain unimplemented.
 
 ## Why completion needs a retained result
 
@@ -123,9 +125,9 @@ handler execution, network operations or backoff.
 
 The proposed receipt storage retains immutable ownership, normalized outcome/code,
 accepted_at and the Attempt reference. The immutable TaskAttempt identity and
-terminal-state guards allow reconstruction of its historical snapshot. M2.3b will
-define the exact schema, foreign keys, mutation guards and migration compatibility;
-existing terminal Attempts must not receive invented completion receipts.
+terminal-state guards allow reconstruction of its historical snapshot. M2.3b now
+defines the [schema, foreign keys, mutation guards and migration compatibility](completion-storage.md);
+existing terminal Attempts do not receive invented completion receipts.
 
 ## Failure cases and limits
 
@@ -181,8 +183,8 @@ validation bypasses. Real races, rollback and migration tests belong to storage 
 | Subtask | Deliverable |
 | --- | --- |
 | M2.3a (implemented) | Pure completion results, receipts, acceptance/replay and this protocol. |
-| M2.3b (next) | Completion storage schema and guarded migration with PostgreSQL tests. |
-| M2.3c | Atomic completion/replay repository with state, race and failure tests; split further if needed. |
+| M2.3b (implemented) | [Completion storage schema](completion-storage.md) and guarded migration with PostgreSQL tests. |
+| M2.3c (next) | Atomic completion/replay repository with state, race and failure tests; split further if needed. |
 | M2.3d | Completion HTTP contract, sanitized errors and real HTTP verification. |
 
 Proceed only after each subtask's owner commit/push and CI confirmation. Handler

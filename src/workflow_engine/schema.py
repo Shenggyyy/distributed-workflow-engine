@@ -139,6 +139,7 @@ task_attempts = Table(
         name="status_values",
     ),
     UniqueConstraint("task_id", "attempt_number"),
+    UniqueConstraint("id", "status", name="uq_task_attempts_id_status"),
     CheckConstraint("attempt_number > 0", name="attempt_number_positive"),
 )
 
@@ -238,6 +239,12 @@ attempt_leases = Table(
     Column("lease_expires_at", DateTime(timezone=True), nullable=False),
     UniqueConstraint("lease_token"),
     UniqueConstraint("attempt_id", "worker_session_id"),
+    UniqueConstraint(
+        "attempt_id",
+        "worker_session_id",
+        "lease_token",
+        name="uq_attempt_leases_owner_token",
+    ),
     CheckConstraint(
         "isfinite(acquired_at) AND isfinite(last_renewed_at) "
         "AND isfinite(lease_expires_at)",
@@ -289,3 +296,43 @@ claim_requests = Table(
     CheckConstraint("isfinite(created_at)", name="finite_time"),
 )
 Index("ix_claim_requests_run_id", claim_requests.c.run_id)
+
+
+# Optional immutable Worker receipt. Engine-generated LOST/TIMED_OUT and legacy
+# terminal Attempts remain valid without one. Time authorization is transactional.
+attempt_completions = Table(
+    "attempt_completions",
+    metadata,
+    Column("attempt_id", Uuid, primary_key=True),
+    Column("worker_session_id", Uuid, nullable=False),
+    Column("lease_token", Uuid, nullable=False),
+    Column("outcome", String(16, collation="C"), nullable=False),
+    Column("error_code", String(64, collation="C"), nullable=True),
+    Column("accepted_at", DateTime(timezone=True), nullable=False),
+    ForeignKeyConstraint(
+        ["attempt_id", "worker_session_id", "lease_token"],
+        [
+            "attempt_leases.attempt_id",
+            "attempt_leases.worker_session_id",
+            "attempt_leases.lease_token",
+        ],
+        ondelete="RESTRICT",
+        name="fk_attempt_completions_owner_lease",
+    ),
+    ForeignKeyConstraint(
+        ["attempt_id", "outcome"],
+        ["task_attempts.id", "task_attempts.status"],
+        ondelete="NO ACTION",
+        deferrable=True,
+        initially="DEFERRED",
+        name="fk_attempt_completions_attempt_outcome",
+    ),
+    CheckConstraint("outcome IN ('SUCCEEDED', 'FAILED')", name="outcome_values"),
+    CheckConstraint(
+        "(outcome = 'SUCCEEDED' AND error_code IS NULL) OR "
+        "(outcome = 'FAILED' AND error_code IS NOT NULL "
+        "AND error_code ~ '^[A-Za-z][A-Za-z0-9_-]{0,63}$')",
+        name="error_code_format",
+    ),
+    CheckConstraint("isfinite(accepted_at)", name="finite_time"),
+)

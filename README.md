@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.3a: Attempt completion results and replay domain contract.**
+**M2.3b: Immutable completion receipt storage and guarded migration.**
 
 Available now:
 
@@ -99,7 +99,10 @@ Available now:
 - Pure completion results and immutable receipts with lease-gated first acceptance.
 - Original-result replay, ownership/result conflicts and an in-memory completion example.
 
-Durable completion/HTTP, background heartbeat/expiry loops, scheduling and handler execution
+- Completion receipt storage bound to exact lease ownership and committed Attempt outcome.
+- PostgreSQL constraint, retention, duplicate-insert and populated migration tests.
+
+Completion transactions/HTTP, background heartbeat/expiry loops, scheduling and handler execution
 are **not implemented yet**.
 The architecture below is the agreed target design.
 
@@ -384,9 +387,10 @@ uv run --locked pytest tests/test_completion.py
 
 This in-memory example accepts success under a valid lease, rejects a new report
 after expiry, replays the original receipt and rejects a conflicting result.
-It needs no Docker or PostgreSQL. Receipt persistence, Task state changes and
-capacity release are not implemented yet. See [the completion contract and
-transaction plan](docs/attempt-completion.md).
+It needs no Docker or PostgreSQL. Receipt storage is available in revision `0008`,
+but the application completion transaction, Task state changes and capacity release
+are not implemented yet. See [the completion contract and transaction plan](docs/attempt-completion.md)
+and [receipt storage](docs/completion-storage.md).
 
 ## Explore Attempt leases
 
@@ -594,7 +598,8 @@ Revision `0004` adds immutable run-creation request bindings; `0005` adds
 [Worker session storage](docs/worker-storage.md) and heartbeat/lifecycle constraints.
 Revision `0006` adds [Attempt lease storage](docs/lease-storage.md).
 Revision `0007` adds [claim request bindings](docs/claim-requests.md).
-Current revision should be `0007 (head)`. See the
+Revision `0008` adds [completion receipts](docs/completion-storage.md).
+Current revision should be `0008 (head)`. See the
 [runtime storage contract](docs/runtime-storage.md) for guarantees and boundaries.
 Migration commands are explicit and never run on API startup. With Compose,
 `docker compose exec api alembic upgrade head` uses the container's existing
@@ -826,6 +831,7 @@ docs/
     worker-api.md
     attempt-leases.md
     attempt-completion.md
+    completion-storage.md
     lease-storage.md
     task-claims.md
     lease-renewal.md
@@ -895,6 +901,7 @@ src/workflow_engine/
             0005_worker_sessions.py
             0006_attempt_leases.py
             0007_claim_requests.py
+            0008_attempt_completions.py
     api/
         __init__.py
         claims.py
@@ -945,6 +952,7 @@ tests/
         test_run_http.py
         test_worker_schema.py
         test_lease_schema.py
+        test_completion_schema.py
         test_claims.py
         test_lease_renewal.py
         test_claim_http.py
@@ -1018,9 +1026,10 @@ server-owned lease duration, error mapping and real HTTP checks. M2.2d.2b adds
 renewal HTTP with current ownership checks, commit/error mapping and real HTTP
 claim/renew/replay verification. M2.3a adds pure Attempt completion results,
 receipts and first-acceptance/replay checks, with the [durable completion
-protocol](docs/attempt-completion.md). After M2.3a is committed, pushed, and all
-three CI jobs pass, continue to M2.3b: completion storage schema and migration
-tests. Completion transactions, HTTP and handler execution remain separate steps.
+protocol](docs/attempt-completion.md). M2.3b adds immutable completion storage,
+exact-owner and deferred terminal-outcome references, and migration/race tests.
+After M2.3b is committed, pushed, and all three CI jobs pass, continue to M2.3c:
+atomic completion/replay transactions. HTTP and handler execution remain separate steps.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any
