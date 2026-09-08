@@ -143,3 +143,9 @@ D5a verified: the acceptance script completed all three fresh container scenario
 Parallel and distribution both measured peak overlap 2; distribution used two
 sessions. Recovery observed RETRY_WAIT and retained LOST Attempt 1 without FINISH,
 then succeeded with a different owner. Raw evidence is retained locally.
+
+D5b complete: actual browser captures document all three scenarios and recovery
+RETRY_WAIT/final replacement, with a three-minute walkthrough and scoped API docs.
+1551 Python tests, three Node tests, package privacy/assets, image startup and
+retained-history shutdown/restart pass. The pre-documentation CI run passed all
+three jobs; the final documentation commit is followed by a fresh CI check.

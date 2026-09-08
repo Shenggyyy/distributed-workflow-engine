@@ -68,3 +68,53 @@ For one scenario use `--scenario recovery`; for a different port use `--port 180
 This script checks engine evidence; browser inspection remains a separate gate.
 Pure timeline calculations can be tested with Node.js 22+:
 `node --test tests/demo-evidence.test.mjs`. Node.js is not needed to run the demo.
+
+## Three-minute walkthrough
+
+Before starting the timer, run `up` and open `http://127.0.0.1:18080/demo/`.
+First-time image downloads/builds are setup time. Keep **Follow newest Run** checked
+and scroll between the Run header, DAG/Workers and execution timeline.
+
+| Time | Action and expected evidence |
+| --- | --- |
+| 0:00 | Run `uv run python -m scripts.demo_acceptance`. A new parallel Run appears automatically. A/B start while C/D remain READY and Join remains PENDING. |
+| 0:10 | Point to overlapping sampled A/B bars and peak overlap 2. One Worker ID has two slots. The bars grow only on actual Handler samples. |
+| 0:30 | Distribution starts automatically. Two Worker IDs and two colors now own tasks in one DAG. Their actual execution intervals overlap; four roots feed Join. |
+| 1:00 | Recovery starts. The script waits for actual execution samples, kills only that demo Worker, and starts B. Heartbeat/lease expiry is not instantaneous. |
+| 1:10 | A becomes RETRY_WAIT; Worker 1 is LOST. Its dashed bar stops at the last observed sample, with no claimed finish. Retry eligibility comes from the persisted backoff. |
+| 1:30 | Attempt 2 is executed by Worker 2. It has a new identity and a separate bar after the gap. Join runs only after A succeeds. |
+| 2:00 | Open the Attempt table: old LOST, no completion receipt, retry timestamps, new SUCCEEDED with an accepted completion. The final Run is SUCCEEDED. |
+| 2:30 | Explain at-least-once execution, business idempotency, and the single-machine boundary. Expand full identities or open the real JSON snapshot. |
+
+Timings are approximate, not a recovery SLA. Individual `run` and `fail` commands
+above give manual control. A pinned `?run=...` page stops following new Runs; use
+the selector or re-enable **Follow newest Run**. API requests and snapshot schemas
+are described in [demo API](demo-api.md); interactive OpenAPI is at
+`http://127.0.0.1:18080/docs`.
+
+Workers exit normally when their selected Run finishes. Their registry heartbeat
+later expires to LOST even on a successful Run; this alone is not evidence of a
+failed Task. The recovery evidence is the old LOST **Attempt**, retained retry
+schedule, explicit fault command and replacement Attempt. Browser disconnection
+freezes the last view and displays a stale-data warning.
+
+## Actual captures
+
+These unmodified browser captures were taken on 2026-09-08, with Run IDs and measured
+results recorded in [demonstration review](demo-review.md). Your new Runs get new IDs.
+
+Parallel execution in two slots of one Worker:
+
+![Actual parallel Handler samples](images/demo-parallel.png)
+
+Two independent Worker containers:
+
+![Actual distributed Worker assignment](images/demo-distribution.png)
+
+After the deliberate Worker crash, while the Task waits for its retry:
+
+![Actual RETRY_WAIT with expired original Worker](images/demo-retry.png)
+
+The completed replacement retains the original abandoned execution:
+
+![Actual LOST Attempt and successful replacement](images/demo-recovery.png)

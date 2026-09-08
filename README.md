@@ -12,6 +12,11 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 **M0–M5 MVP complete.**
 
+**Local demonstration complete.** Open a real DAG, watch overlapping Handler
+execution across Workers, and stop a dedicated Worker to see durable recovery.
+The [demonstration acceptance record](docs/demo-review.md) covers actual browser
+screenshots and a full 1551-test regression, separately from core MVP acceptance.
+
 See the [final validation and correctness review](docs/mvp-review.md): 1508 tests,
 real process crash recovery, business-effect deduplication and container acceptance.
 V2/V3 remain follow-up work; this is a trusted-deployment MVP, not a production SLA.
@@ -28,6 +33,41 @@ queueing, multiple Schedulers and Workers, parallel handler processes, heartbeat
 lease fencing, persisted retries/backoff, fixed timeouts, automatic recovery,
 failed-dependency propagation and final Run aggregation. Domain, SQL, HTTP and
 process tests cover their individual contracts.
+
+### Watch distributed execution
+
+From the repository root, with Docker Desktop running Linux containers:
+
+```console
+uv sync --locked
+uv run python scripts/demo.py up
+```
+
+Open **[http://127.0.0.1:18080/demo/](http://127.0.0.1:18080/demo/)**, keep
+**Follow newest Run** checked, then run:
+
+```console
+uv run python -m scripts.demo_acceptance
+```
+
+This runs three real scenarios: two parallel Handler processes, two independent
+Worker containers sharing a Workflow, and a scoped Worker crash followed by retry
+and replacement. [Startup, individual commands and three-minute walkthrough](docs/demo.md).
+
+Actual two-Worker execution, captured from the running engine:
+
+![Two Workers executing overlapping tasks](docs/images/demo-distribution.png)
+
+The recovery timeline retains the abandoned execution, its unknown finish, and a
+new Attempt completed by another Worker:
+
+![Real abandoned Attempt and successful retry](docs/images/demo-recovery.png)
+
+These bars use samples taken inside trusted Handlers. Claim time and completion
+admission are shown separately; RUNNING and `created_at` are not execution proof.
+This verifies one machine with multiple Linux containers, not multi-machine
+deployment or CPU utilization. `uv run python scripts/demo.py down` stops the demo
+while retaining its database and history. Development services remain separate.
 
 ### Run an actual workflow
 
