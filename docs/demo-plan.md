@@ -91,3 +91,7 @@ Check browser errors, persisted evidence and core invariants, capture screenshot
 from those runs and document exact commands/addresses. Existing core tests must
 continue to pass. V2/V3 scheduling, metrics platforms and multi-machine claims are
 outside this phase.
+
+D1a verified: revision 0011 adds four append-only demo tables. Upgrade preserves
+existing Attempts; downgrade/re-upgrade and metadata comparison pass. 28 focused
+migration tests and strict type checking pass. No core state transaction changed.

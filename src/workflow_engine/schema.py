@@ -1,6 +1,7 @@
 """SQLAlchemy table definitions and shared constraint naming conventions."""
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Column,
     DateTime,
@@ -373,4 +374,90 @@ task_retry_schedules = Table(
         "AND scheduled_at < available_at",
         name="time_order",
     ),
+)
+
+# Optional demonstration evidence. Core scheduling never reads these tables.
+demo_runs = Table(
+    "demo_runs",
+    metadata,
+    Column(
+        "run_id",
+        Uuid,
+        ForeignKey("workflow_runs.id", ondelete="RESTRICT"),
+        primary_key=True,
+    ),
+    Column("scenario", String(16), nullable=False),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.clock_timestamp(),
+    ),
+    CheckConstraint(
+        "scenario IN ('parallel', 'distribution', 'recovery')", name="scenario_values"
+    ),
+)
+demo_workers = Table(
+    "demo_workers",
+    metadata,
+    Column(
+        "worker_session_id",
+        Uuid,
+        ForeignKey("worker_sessions.id", ondelete="RESTRICT"),
+        primary_key=True,
+    ),
+    Column(
+        "run_id",
+        Uuid,
+        ForeignKey("demo_runs.run_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+)
+Index("ix_demo_workers_run_id", demo_workers.c.run_id)
+demo_invocations = Table(
+    "demo_invocations",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column(
+        "attempt_id",
+        Uuid,
+        ForeignKey("attempt_leases.attempt_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("clock_domain", String(160), nullable=False),
+    CheckConstraint("length(clock_domain) > 0", name="clock_domain_nonempty"),
+)
+Index("ix_demo_invocations_attempt_id", demo_invocations.c.attempt_id)
+demo_samples = Table(
+    "demo_samples",
+    metadata,
+    Column(
+        "invocation_id",
+        Uuid,
+        ForeignKey("demo_invocations.id", ondelete="RESTRICT"),
+        primary_key=True,
+    ),
+    Column("sequence", Integer, primary_key=True),
+    Column("phase", String(8), nullable=False),
+    Column("monotonic_ns", BigInteger, nullable=False),
+    Column(
+        "recorded_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.clock_timestamp(),
+    ),
+    CheckConstraint("sequence BETWEEN 0 AND 240", name="sequence_bound"),
+    CheckConstraint("monotonic_ns >= 0", name="monotonic_nonnegative"),
+    CheckConstraint(
+        "(sequence = 0 AND phase = 'START') OR "
+        "(sequence > 0 AND phase IN ('PULSE', 'FINISH'))",
+        name="phase_values",
+    ),
+    CheckConstraint("isfinite(recorded_at)", name="recorded_finite"),
+)
+Index(
+    "uq_demo_samples_finish",
+    demo_samples.c.invocation_id,
+    unique=True,
+    postgresql_where=text("phase = 'FINISH'"),
 )
