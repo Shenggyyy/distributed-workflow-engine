@@ -62,7 +62,7 @@ def create_app(settings: Settings, *, engine: Engine | None = None) -> FastAPI:
             "Register Worker sessions, accept heartbeats, claim tasks idempotently, "
             "renew Attempt leases and complete Attempts with retained receipts. "
             "Liveness is independent of database access. Handlers execute in the "
-            "separate Worker process; DAG scheduling is not implemented yet."
+            "separate Worker process; a Scheduler reconciles DAG readiness."
         ),
         lifespan=lifespan,
     )

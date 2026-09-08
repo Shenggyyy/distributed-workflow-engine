@@ -19,6 +19,7 @@ from workflow_engine.database import (
     database_engine,
 )
 from workflow_engine.logging import configure_logging
+from workflow_engine.scheduler.entrypoint import run_scheduler
 from workflow_engine.worker.entrypoint import run_worker
 
 
@@ -50,7 +51,7 @@ def main() -> None:
         description=(
             "Distributed Workflow Engine. "
             "Publish workflows and run single-slot workers for ready tasks; "
-            "DAG scheduling and recovery are not implemented yet."
+            "Schedule DAG dependencies; crash recovery is not implemented yet."
         ),
     )
     parser.add_argument(
@@ -64,6 +65,7 @@ def main() -> None:
         ("check-config", "Validate configuration without starting services."),
         ("api", "Start the HTTP API server."),
         ("worker", "Execute ready tasks from one Run with a single local slot."),
+        ("scheduler", "Reconcile dependencies for one Run in short transactions."),
         ("check-db", "Check authenticated database connectivity; no schema changes."),
     ):
         command_parser = commands.add_parser(name, help=help_text)
@@ -80,6 +82,8 @@ def main() -> None:
         type=int,
         help="Exit after this many confirmed completions (including failures).",
     )
+    command_parsers["scheduler"].add_argument("--run-id", type=UUID, required=True)
+    command_parsers["scheduler"].add_argument("--once", action="store_true")
 
     args = parser.parse_args()
     if args.command is None:
@@ -87,6 +91,8 @@ def main() -> None:
         return
 
     settings = _load_cli_settings(command_parsers[args.command], args.env_file)
+    if args.command == "scheduler":
+        raise SystemExit(run_scheduler(settings, args.run_id, once=args.once))
     if args.command == "worker":
         if args.max_tasks is not None and args.max_tasks < 1:
             command_parsers["worker"].error("--max-tasks must be positive.")

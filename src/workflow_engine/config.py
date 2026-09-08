@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     worker_retry_seconds: float = Field(
         default=0.5, ge=0.05, le=60, allow_inf_nan=False
     )
+    scheduler_poll_seconds: float = Field(
+        default=0.5, ge=0.05, le=60, allow_inf_nan=False
+    )
 
     database_host: str = Field(default="127.0.0.1", min_length=1)
     database_port: int = Field(default=5432, ge=1, le=65535)

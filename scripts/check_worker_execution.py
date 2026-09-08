@@ -87,7 +87,7 @@ def main() -> None:
         "Worker execution checks passed: real handlers, success/failure "
         "and persisted Task outcomes."
     )
-    print("Run aggregation and dependency scheduling remain later milestones.")
+    print("This check uses independent roots; Run aggregation remains pending.")
 
 
 if __name__ == "__main__":

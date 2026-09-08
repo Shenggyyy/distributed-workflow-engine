@@ -10,7 +10,10 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.5a: Transactional DAG readiness with concurrent scan and rollback verification.**
+**M2.5b: Scheduler CLI/container and end-to-end execution of a successful DAG.**
+
+See the [M2 validation and correctness review](docs/m2-review.md), including
+the remaining M3–M5 boundaries.
 
 Available now:
 
@@ -120,8 +123,10 @@ Available now:
   signal cleanup and real execution checks in CI.
 - [Transactional readiness scheduling](docs/scheduling.md) with all-parent success
   checks and the existing per-Run lock coordination.
+- [Scheduler CLI/container](docs/running-scheduler.md) and complete diamond DAG
+  execution with independent Scheduler and Worker processes.
 
-Scheduler process startup and recovery scanners
+Parallel Worker capacity, recovery scanners, failed-dependency propagation and Run aggregation
 are **not implemented yet**.
 The architecture below is the agreed target design.
 
@@ -175,7 +180,7 @@ checks equality before reporting success. It also accepts an explicit
 
 The [repository contract](docs/workflow-storage.md#transactional-repository)
 explains locking, transaction ownership, typed lookups, and failure semantics.
-HTTP publication and retrieval use this repository. Task execution remains a later subtask.
+HTTP publication and retrieval use this repository. Separate Worker processes execute tasks.
 
 ## Publish through HTTP
 
@@ -379,7 +384,7 @@ uv run --locked python scripts/check_claim_api.py
 
 This creates a disposable Run/session, claims Task A through HTTP, and verifies
 replay, no-work and error responses. It prints no tokens and does not execute a
-handler. The claim reserves capacity until future completion/recovery. See
+handler. The claim reserves capacity until completion or recovery. See
 [the claim API contract and PowerShell example](docs/claim-api.md) for request IDs,
 response fields and retry semantics.
 
@@ -417,7 +422,14 @@ uv run --locked python scripts/check_worker_execution.py --container
 
 Both create independent success/failure tasks and verify persisted results.
 See [running Workers](docs/running-workers.md) for an existing Run, configuration
-and shutdown semantics. Dependency scheduling and Run aggregation remain pending.
+and shutdown semantics. To execute a complete DAG with a separate Scheduler:
+
+```console
+uv run --locked python scripts/check_dag_execution.py --database-env-file .env.database-test
+uv run --locked python scripts/check_dag_execution.py --scheduler-container
+```
+
+See [running the Scheduler](docs/running-scheduler.md). Run aggregation remains pending.
 
 ```console
 uv run --locked python examples/attempt_completion.py
@@ -545,7 +557,7 @@ engine 0.1.0
 ```
 
 The `api` command starts the HTTP server. The `worker` command executes READY tasks
-from an explicit Run; dependency scheduling is not implemented yet.
+from an explicit Run; `scheduler` advances its satisfied dependencies.
 Development dependencies are included by default. Python support is deliberately
 limited to 3.13 until additional versions are tested.
 
@@ -761,16 +773,16 @@ logger.info(
 )
 ```
 
-This is the intended logging pattern for future task execution; workers are not
-implemented yet. Supported optional identifiers are `request_id`, `run_id`,
+Worker and Scheduler processes use this logging pattern.
+Supported optional identifiers are `request_id`, `run_id`,
 `task_id`, `attempt_id`, and `worker_session_id` (strings or UUIDs).
 `duration_ms` accepts finite, non-negative numbers. Unsupported extra fields
 and incorrectly typed optional values are omitted. A missing event name becomes
 `log`. Core component/environment fields cannot be overwritten through extras.
 
 Context is passed explicitly, without shared mutable request/task state.
-This does not create traces or propagate IDs across HTTP/process boundaries;
-those protocols will supply the IDs when implemented.
+This does not create distributed traces. Worker protocols explicitly carry the
+Run/Task/Attempt identities used in execution logs.
 
 `logger.exception(...)` adds the current exception type and stack locations
 (filename, line, function). Exception messages, source lines, local variables,
@@ -887,6 +899,8 @@ docs/
     worker-execution.md
     worker-loop.md
     running-workers.md
+    scheduling.md
+    running-scheduler.md
     lease-storage.md
     task-claims.md
     lease-renewal.md
@@ -921,6 +935,7 @@ scripts/
     check_lease_api.py
     check_completion_api.py
     check_worker_execution.py
+    check_dag_execution.py
 src/workflow_engine/
     __init__.py
     __main__.py
@@ -980,6 +995,10 @@ src/workflow_engine/
         execution.py
         loop.py
         entrypoint.py
+    scheduler/
+        __init__.py
+        service.py
+        entrypoint.py
 tests/
     __init__.py
     conftest.py
@@ -1002,6 +1021,8 @@ tests/
     test_worker_transport.py
     test_worker_loop.py
     test_worker_entrypoint.py
+    test_readiness.py
+    test_scheduler_service.py
     test_workflow.py
     test_workflow_api.py
     test_run_api.py
@@ -1031,6 +1052,8 @@ tests/
         test_completion_http.py
         test_worker_transport.py
         test_worker_loop.py
+        test_scheduling.py
+        test_scheduler_service.py
         test_claims.py
         test_lease_renewal.py
         test_claim_http.py
@@ -1119,7 +1142,9 @@ milestone scopes above.
 M2.4a, M2.4b, M2.4c.1 (handler process lifecycle) and M2.4c.2 (execution/control
 loop), and M2.4d (Worker CLI/container integration) are implemented.
 M2.5a transactional readiness reconciliation is implemented.
-Next is M2.5b scheduler process/CLI integration.
+M2.5b integrates the Scheduler process/CLI/container and complete DAG execution.
+M3 follows with M3.1 bounded Run discovery and scan coordination, M3.2 parallel
+Worker execution slots, and M3.3 multi-process concurrency acceptance.
 Run `uv run --locked pytest tests/test_worker_loop.py` to test control behavior
 without PostgreSQL; integration tests also execute real handler subprocesses.
 

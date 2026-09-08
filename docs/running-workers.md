@@ -69,6 +69,6 @@ uv run --locked python scripts/check_worker_execution.py --container
 Use `--base-url` for a different host API port. These scripts create a fresh Run
 with independent success/failure Tasks, execute the installed Worker command and
 verify persisted outcomes. CI runs both host and container variants. They print
-no ownership tokens. Until scheduling/aggregation is implemented, Run status stays
-RUNNING and dependent Tasks do not advance. The next M2 subtask is dependency
-scheduling; retry and crash recovery follow in M4.
+no ownership tokens. This check uses independent roots; Run aggregation remains
+M5 work. For dependent Tasks, run the separate [Scheduler](running-scheduler.md).
+Retry and crash recovery follow in M4.

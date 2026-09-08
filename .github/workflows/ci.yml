@@ -146,6 +146,12 @@ jobs:
       - name: Execute handlers inside the Worker container
         run: uv run --locked python scripts/check_worker_execution.py --container
 
+      - name: Execute a diamond DAG with independent host processes
+        run: uv run --locked python scripts/check_dag_execution.py --database-env-file .env.database-test
+
+      - name: Execute a diamond DAG with a Scheduler container
+        run: uv run --locked python scripts/check_dag_execution.py --scheduler-container
+
       - name: Verify authenticated SQL and write persistence probe
         run: |
           docker compose exec -T postgres sh -eu -c 'export PGPASSWORD="$(cat "$POSTGRES_PASSWORD_FILE")"; exec psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<'SQL'
