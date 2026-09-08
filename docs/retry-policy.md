@@ -33,7 +33,8 @@ external effects still require cooperating business idempotency.
 
 1. M4.1a: execution policy and bounded backoff helpers (implemented).
 2. M4.1b: immutable Workflow policy publication and compatibility (implemented).
-3. M4.2: persisted retry scheduling and due-task promotion.
+3. M4.2a: append-only retry schedule schema (implemented); M4.2b: atomic failure
+   settlement; M4.2c: due-task promotion; M4.2d: HTTP and Worker retry acceptance.
 4. M4.3: hard Attempt timeout admission and expired ownership recovery.
 5. M4.4: Worker crash scanning, recovery coordination, stale-result races and
    end-to-end failure acceptance, followed by the M4 milestone review.
@@ -42,3 +43,17 @@ Each larger step will be split into independent commits for its schema, transact
 behavior and acceptance checks. Policies apply to business failure, timeout and lost
 ownership within the configured attempt budget; failure categories remain distinct
 in Attempt history.
+
+## Durable retry records (M4.2a)
+
+Revision `0010` adds `task_retry_schedules`, keyed by Attempt ID, with terminal
+failure outcome, `scheduled_at` and `available_at`. A deferred composite FK binds
+the record to the Attempt's actual FAILED/TIMED_OUT/LOST status. Times are finite
+and eligibility strictly follows scheduling. All UPDATE/DELETE/TRUNCATE operations
+are rejected, including empty statements. Existing executions are retained.
+
+This is history, not a queue copy: the eventual reconciler must select only the
+latest Attempt of a RETRY_WAIT Task. An old schedule cannot authorize another
+retry. Per-Run scanning uses existing Task/Attempt indexes; a global deadline
+index is unnecessary for this bounded scan design. Downgrade discards eligibility
+records and is a planned, destructive rollback requiring stopped writers.

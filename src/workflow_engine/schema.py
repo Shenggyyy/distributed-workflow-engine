@@ -346,3 +346,31 @@ attempt_completions = Table(
     ),
     CheckConstraint("isfinite(accepted_at)", name="finite_time"),
 )
+
+
+# One immutable retry decision per failed Attempt; only the latest Attempt's
+# schedule may promote a RETRY_WAIT Task. Eligibility uses the database clock.
+task_retry_schedules = Table(
+    "task_retry_schedules",
+    metadata,
+    Column("attempt_id", Uuid, primary_key=True),
+    Column("outcome", String(16, collation="C"), nullable=False),
+    Column("scheduled_at", DateTime(timezone=True), nullable=False),
+    Column("available_at", DateTime(timezone=True), nullable=False),
+    ForeignKeyConstraint(
+        ["attempt_id", "outcome"],
+        ["task_attempts.id", "task_attempts.status"],
+        ondelete="NO ACTION",
+        deferrable=True,
+        initially="DEFERRED",
+        name="fk_task_retry_schedules_attempt_outcome",
+    ),
+    CheckConstraint(
+        "outcome IN ('FAILED', 'TIMED_OUT', 'LOST')", name="outcome_values"
+    ),
+    CheckConstraint(
+        "isfinite(scheduled_at) AND isfinite(available_at) "
+        "AND scheduled_at < available_at",
+        name="time_order",
+    ),
+)
