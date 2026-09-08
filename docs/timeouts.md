@@ -24,6 +24,9 @@ does not imply a handler did nothing or guarantee exactly-once effects.
 3. M4.3c: ordered expiry settlement and stale-result races (implemented).
 4. M4.4: bounded recovery scans, Worker crash detection and fault acceptance.
 
+M4.4 is split into M4.4a advisory expiry discovery, M4.4b Scheduler recovery
+coordination, and M4.4c crash/timeout end-to-end acceptance and milestone review.
+
 ## Worker supervision
 
 After mandatory renewal, the Worker maps the remaining fixed server duration to
@@ -53,3 +56,14 @@ Worker heartbeat state alone cannot revoke a live lease; even a STOPPED owner is
 recoverable once its deadline expires. Repeated recovery cannot reschedule a settled
 Attempt. Competing completion and renewal use the same locks and recheck admission;
 old results cannot settle a replacement Attempt. Automatic scans follow in M4.4.
+
+## Bounded discovery (M4.4a)
+
+Discovery returns up to 100 expired ACTIVE Worker IDs using the existing deadline
+index. Per active Run it examines at most 1000 current owned Attempts, deriving
+hard deadlines from the pinned version, and returns only due IDs. It takes no row
+locks and releases its transaction before mutation. Renewal/completion may make a
+hint stale; each subsequent recovery operation must re-read under ownership locks.
+Historical unleased Attempts from pre-Worker storage are outside automatic lease
+recovery; all current claim paths atomically create leases. No global timer queue
+or new index is needed for this bounded per-Run approach.
