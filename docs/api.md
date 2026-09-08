@@ -4,6 +4,7 @@ M1.4 publishes and retrieves workflow definitions. M1.9b adds a separate
 [Run HTTP API](run-api.md) for keyed creation and queries. M2.1d adds the
 [Worker HTTP API](worker-api.md) for registration and heartbeat. M2.2d.2a adds
 [claim HTTP](claim-api.md) for idempotent allocation and current ownership replay.
+M2.2d.2b adds [lease renewal HTTP](lease-api.md) for current Attempt ownership.
 These APIs do not execute tasks.
 OpenAPI is at `/openapi.json`; interactive documentation is at
 `/docs`. These routes use the definition tables introduced in revision `0002`.

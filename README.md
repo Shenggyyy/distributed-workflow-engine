@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.2d.2a: Task claim HTTP API with commit-before-success responses.**
+**M2.2d.2b: Attempt lease renewal HTTP API with commit-before-success responses.**
 
 Available now:
 
@@ -93,7 +93,10 @@ Available now:
 - Task claim HTTP endpoint with server-owned lease duration, typed grants and no-work responses.
 - HTTP validation, concurrent replay, commit-failure tests and a container CI smoke script.
 
-Renewal HTTP, background heartbeat/expiry loops, scheduling and handler execution
+- Attempt lease renewal HTTP with server-owned policy and current ownership checks.
+- HTTP renewal races, expiry/rollback tests and a claim/renew/replay container CI check.
+
+Completion, background heartbeat/expiry loops, scheduling and handler execution
 are **not implemented yet**.
 The architecture below is the agreed target design.
 
@@ -355,6 +358,20 @@ handler. The claim reserves capacity until future completion/recovery. See
 [the claim API contract and PowerShell example](docs/claim-api.md) for request IDs,
 response fields and retry semantics.
 
+## Renew through HTTP
+
+With API/PostgreSQL running and migrations at the current head:
+
+```console
+uv run --locked python scripts/check_lease_api.py
+```
+
+This creates a disposable Run/session, claims a task, renews its lease twice and
+verifies that claim replay reads the renewed deadline. It also checks conflict
+and validation responses. Tokens stay in memory. No handler executes and capacity
+remains reserved. See [the lease API contract](docs/lease-api.md) for retry,
+deadline, heartbeat and transaction semantics.
+
 ## Explore Attempt leases
 
 ```console
@@ -583,7 +600,7 @@ and the `DWE_` environment prefix.
 | `DWE_API_HOST` | `127.0.0.1` | An IPv4 or IPv6 address literal |
 | `DWE_API_PORT` | `8000` | An integer from 1 through 65535 |
 | `DWE_WORKER_HEARTBEAT_TIMEOUT_SECONDS` | `30` | API session heartbeat window, integer 1–86400 seconds |
-| `DWE_ATTEMPT_LEASE_SECONDS` | `30` | New HTTP claim lease duration, integer 1–86400 seconds |
+| `DWE_ATTEMPT_LEASE_SECONDS` | `30` | HTTP claim and renewal lease duration, integer 1–86400 seconds |
 
 Environment variable names are case-insensitive; enum values use the exact
 spelling shown above. Empty values are validated rather than silently ignored.
@@ -630,10 +647,11 @@ Database settings are documented in [database.md](docs/database.md).
 window (default 30 seconds, range 1–86400), loaded once at startup. Compose forwards
 it into the API container. It is separate from task leases and heartbeat send
 intervals; see [Worker API configuration](docs/worker-api.md#server-configuration).
-`DWE_ATTEMPT_LEASE_SECONDS` controls new HTTP claim leases with the same default
-and range, independently of heartbeats and task execution timeout. It does not
-renew existing claims or change explicit Python repository policies. See
-[claim API configuration](docs/claim-api.md#server-configuration-and-access-boundary).
+`DWE_ATTEMPT_LEASE_SECONDS` controls new HTTP claim leases and HTTP renewal with
+the same default and range, independently of heartbeats and task execution timeout.
+Changing configuration alone does not renew existing claims; claim replay reads
+stored metadata. Explicit Python repository policies remain separate. See
+[lease API configuration](docs/lease-api.md#server-configuration).
 
 ### Structured logging
 
@@ -797,6 +815,7 @@ docs/
     claim-requests.md
     idempotent-claims.md
     claim-api.md
+    lease-api.md
     workflow-storage.md
 examples/
     diamond.json
@@ -819,6 +838,7 @@ scripts/
     check_run_api.py
     check_worker_api.py
     check_claim_api.py
+    check_lease_api.py
 src/workflow_engine/
     __init__.py
     __main__.py
@@ -859,6 +879,7 @@ src/workflow_engine/
     api/
         __init__.py
         claims.py
+        leases.py
         app.py
         dependencies.py
         errors.py
@@ -885,6 +906,8 @@ tests/
     test_workflow_api.py
     test_run_api.py
     test_worker_api.py
+    test_claim_api.py
+    test_lease_api.py
     integration/
         __init__.py
         conftest.py
@@ -904,6 +927,8 @@ tests/
         test_lease_schema.py
         test_claims.py
         test_lease_renewal.py
+        test_claim_http.py
+        test_lease_http.py
         test_worker_registration.py
         test_worker_heartbeat.py
         test_worker_http.py
@@ -969,9 +994,11 @@ clock and concurrency tests. M2.2d.1a adds immutable claim request storage and
 [the replay protocol](docs/claim-requests.md). M2.2d.1b implements keyed claim
 transactions and current-ownership replay, including uncertain outcomes and
 request-lock races. M2.2d.2a exposes keyed claims over HTTP with typed responses,
-server-owned lease duration, error mapping and real HTTP checks. After M2.2d.2a
-is committed, pushed, and all three CI jobs pass, continue to M2.2d.2b: renewal
-HTTP contracts, commit/error mapping and real HTTP checks.
+server-owned lease duration, error mapping and real HTTP checks. M2.2d.2b adds
+renewal HTTP with current ownership checks, commit/error mapping and real HTTP
+claim/renew/replay verification. After M2.2d.2b is committed, pushed, and all three
+CI jobs pass, continue to M2.3a: Attempt completion result and replay domain
+contract. Completion persistence, HTTP and handler execution remain separate steps.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

@@ -3,6 +3,7 @@
 M2.2c.2 adds `LeaseRepository.renew()` on schema `0006`. It renews only current,
 RUNNING execution ownership in a caller-owned PostgreSQL transaction. No migration,
 HTTP route, Worker loop, completion handler or expiry recovery is introduced.
+M2.2d.2b subsequently exposes this repository through the [lease HTTP API](lease-api.md).
 
 ## Python contract
 
@@ -20,7 +21,8 @@ with engine.begin() as connection:
 
 All three identifiers must be UUID instances. The constructor accepts a strict
 integer duration from 1 to 86400 seconds, default 30. This server policy is
-independent of Worker heartbeat timeout; no new environment setting is added.
+independent of Worker heartbeat timeout. The Python constructor policy remains
+explicit; the later HTTP adapter supplies `DWE_ATTEMPT_LEASE_SECONDS` from Settings.
 Each operation uses a fresh READ COMMITTED transaction, with driver autocommit
 disabled. A repository cannot outlive its original transaction or be shared across
 threads. Callers must not hold locks that reverse the ordering below.
@@ -154,4 +156,5 @@ M2.2d.1a now defines [claim request bindings](claim-requests.md), with immutable
 input identity and the replay/outer-lock protocol. M2.2d.1b implements
 [keyed transactions](idempotent-claims.md). Renewal and replay share the internal
 ordered ownership reader; renewal keeps its existing errors and timestamp rules.
-M2.2d.2a adds [claim HTTP](claim-api.md); renewal HTTP remains M2.2d.2b.
+M2.2d.2a adds [claim HTTP](claim-api.md); M2.2d.2b adds [renewal HTTP](lease-api.md)
+with commit/error mapping and real HTTP claim/renew/replay checks.

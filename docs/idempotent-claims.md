@@ -155,4 +155,5 @@ timeouts and transaction lifetime. Terminal/retry mutations simulate future
 control operations; production completion/recovery is not implemented by tests.
 
 M2.2d.2a adds the [claim HTTP contract](claim-api.md) and commit/error mapping.
-Renewal HTTP follows as M2.2d.2b in its own independently reviewable commit.
+M2.2d.2b adds [renewal HTTP](lease-api.md) in its own independently reviewable
+commit. Claim replay still reads the current lease without extending it.

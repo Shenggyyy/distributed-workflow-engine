@@ -5,8 +5,8 @@ renewal, unit tests and an in-memory example. M2.2b adds
 [lease storage](lease-storage.md) in revision `0006`. M2.2c.1 implements the
 [single-run claim transaction](task-claims.md), and M2.2c.2 adds
 [persisted lease renewal](lease-renewal.md). M2.2d.2a adds [claim HTTP](claim-api.md).
-Renewal HTTP and
-execution loops remain later work.
+M2.2d.2b adds [renewal HTTP](lease-api.md). Completion and execution loops remain
+later work.
 The transaction protocol below is the design for subsequent commit-sized steps.
 
 ## Implemented model
@@ -168,11 +168,12 @@ business idempotency remain separate responsibilities.
 | M2.2a (implemented) | Pure lease snapshot, owner/time/renewal boundaries, example and this protocol. |
 | M2.2b (implemented) | Attempt lease storage and migration, identity/time/history guards, foreign keys and PostgreSQL tests. Explicitly handle pre-existing Attempts without inventing owners. |
 | M2.2c.1 (implemented) | Single-run claim transaction, worker admission/capacity and atomic Task/Attempt/lease creation; concurrency/rollback tests. |
-| M2.2c.2 (current) | Lease renewal against current persisted ownership; post-lock clock and stale-owner tests. |
+| M2.2c.2 (implemented) | Lease renewal against current persisted ownership; post-lock clock and stale-owner tests. |
 | M2.2d.1a | [Durable claim request schema and replay protocol](claim-requests.md), complete. |
 | M2.2d.1b | [Keyed claim/replay transactions](idempotent-claims.md) with uncertain-outcome tests, complete. |
 | M2.2d.2a | [Claim HTTP](claim-api.md), commit/error mapping and real HTTP checks, complete. |
-| M2.2d.2b | Renewal HTTP contracts, error mapping and real HTTP checks. |
+| M2.2d.2b | [Renewal HTTP](lease-api.md) contracts, error mapping and real HTTP checks, complete. |
+| M2.3a (next) | Attempt completion result and replay domain contract; persistence and HTTP follow separately. |
 
 Only proceed after each subtask's tests, owner commit/push and CI confirmation.
 Completion, handler execution, recovery and task retry/timeout each need their own

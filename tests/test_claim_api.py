@@ -132,4 +132,5 @@ def test_openapi_claim_contract(client: TestClient) -> None:
     assert "claim" in response["required"]
     assert {"type": "null"} in response["properties"]["claim"]["anyOf"]
     assert schema["components"]["schemas"]["TaskClaimResponse"]["properties"]["lease"]
-    assert not any("renew" in path for path in schema["paths"])
+    # Renewal is a separate route and cannot be requested through the claim body.
+    assert "lease_seconds" not in request["properties"]

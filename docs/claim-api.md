@@ -2,7 +2,7 @@
 
 M2.2d.2a exposes the [idempotent claim repository](idempotent-claims.md) over HTTP.
 It uses schema `0007` without a new migration. OpenAPI is at `/openapi.json`, with
-interactive documentation at `/docs`. Lease renewal HTTP remains M2.2d.2b.
+interactive documentation at `/docs`. M2.2d.2b adds [lease renewal HTTP](lease-api.md).
 
 ## Request and response
 
@@ -43,7 +43,8 @@ present its ownership on renewal/completion. It is not printed by the smoke scri
 or included in the response model's repr.
 
 Successful responses set `Cache-Control: no-store` and no Location header. There
-is no claim query endpoint or HTTP renewal/completion endpoint in this commit.
+is no claim query endpoint or completion endpoint. Renewal has a separate
+[HTTP endpoint](lease-api.md).
 Errors use the existing error envelope and never include a claim/token.
 
 ## Transaction, replay and delivery semantics
@@ -80,7 +81,7 @@ dependencies, recover expired Attempts or release their slots.
 
 ## Server configuration and access boundary
 
-`DWE_ATTEMPT_LEASE_SECONDS` sets new HTTP claim lease duration, default 30 seconds,
+`DWE_ATTEMPT_LEASE_SECONDS` sets new HTTP claim and renewal lease duration, default 30 seconds,
 range 1–86400. It is loaded in the immutable Settings snapshot at process startup,
 and Compose forwards it into the API container. Changing the environment of an
 already running process does not change that snapshot. Replay ignores the new-claim
