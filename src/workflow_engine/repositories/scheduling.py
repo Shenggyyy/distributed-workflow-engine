@@ -8,6 +8,7 @@ from sqlalchemy import Connection, func, select
 from workflow_engine.domain.dag import MAX_TASKS
 from workflow_engine.domain.readiness import ready_transitions
 from workflow_engine.domain.runtime import RunStatus, TaskRun, TaskStatus, WorkflowRun
+from workflow_engine.domain.settlement import settle
 from workflow_engine.repositories._retry import due_tasks
 from workflow_engine.repositories.runs import StoredRuntimeError
 from workflow_engine.repositories.workflows import (
@@ -106,6 +107,7 @@ class SchedulingRepository:
                 for task in rows
             )
             ready = ready_transitions(version.definition, run, tasks)
+            settlement = settle(version.definition, run, tasks)
             if any(task.status is TaskStatus.RETRY_WAIT for task in tasks):
                 ready += due_tasks(
                     self._connection, version.definition, tasks, self._database_now()
@@ -114,24 +116,64 @@ class SchedulingRepository:
             raise StoredRuntimeError(
                 "Stored scheduling snapshot is inconsistent."
             ) from None
-        if not ready:
-            return ()
+        self._write_tasks(settlement.skipped, (TaskStatus.PENDING,), TaskStatus.SKIPPED)
+        self._write_tasks(
+            ready, (TaskStatus.PENDING, TaskStatus.RETRY_WAIT), TaskStatus.READY
+        )
+        if settlement.run != run:
+            updated_run = (
+                self._connection.execute(
+                    workflow_runs.update()
+                    .where(
+                        workflow_runs.c.id == run.id,
+                        workflow_runs.c.status == RunStatus.RUNNING.value,
+                    )
+                    .values(status=settlement.run.status.value)
+                    .returning(workflow_runs)
+                )
+                .mappings()
+                .one_or_none()
+            )
+            try:
+                if (
+                    updated_run is None
+                    or WorkflowRun(
+                        id=updated_run["id"],
+                        workflow_version_id=updated_run["workflow_version_id"],
+                        status=RunStatus(updated_run["status"]),
+                    )
+                    != settlement.run
+                ):
+                    raise ValueError()
+            except (TypeError, ValueError):
+                raise StoredRuntimeError(
+                    "Run settlement did not match its proposal."
+                ) from None
+        # Preserve readiness counters; skipped tasks never represent dispatchable work.
+        return ready
+
+    def _write_tasks(
+        self,
+        proposals: tuple[TaskRun, ...],
+        before: tuple[TaskStatus, ...],
+        after: TaskStatus,
+    ) -> None:
+        if not proposals:
+            return
         changed = (
             self._connection.execute(
                 task_runs.update()
                 .where(
-                    task_runs.c.id.in_([task.id for task in ready]),
-                    task_runs.c.status.in_(
-                        [TaskStatus.PENDING.value, TaskStatus.RETRY_WAIT.value]
-                    ),
+                    task_runs.c.id.in_([task.id for task in proposals]),
+                    task_runs.c.status.in_([status.value for status in before]),
                 )
-                .values(status=TaskStatus.READY.value)
+                .values(status=after.value)
                 .returning(task_runs)
             )
             .mappings()
             .all()
         )
-        expected = {task.id: task for task in ready}
+        expected = {task.id: task for task in proposals}
         try:
             actual = {
                 row["id"]: TaskRun(
@@ -142,10 +184,9 @@ class SchedulingRepository:
                 )
                 for row in changed
             }
-            if len(changed) != len(ready) or actual != expected:
+            if len(changed) != len(proposals) or actual != expected:
                 raise ValueError()
         except (TypeError, ValueError):
             raise StoredRuntimeError(
                 "Readiness update did not match its proposal."
             ) from None
-        return ready

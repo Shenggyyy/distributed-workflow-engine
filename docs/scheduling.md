@@ -37,10 +37,11 @@ Task execution remains outside these transactions.
 
 ## Current scope and verification
 
-This subtask changes only readiness. Failed/SKIPPED parents do not satisfy a success
-dependency; failure propagation and Run aggregation are M5. It creates no Attempt,
-executes no handler, applies no retry/timeout, and runs no background scanner.
-M2.5b adds a scheduler process and CLI to repeatedly invoke reconciliation.
+The current reconciler also promotes due retries and applies [M5 failure
+propagation and Run aggregation](settlement.md). Failed/SKIPPED parents cascade
+SKIPPED through pending descendants; independent branches continue. All changes
+commit atomically. Separate recovery transactions run before reconciliation in
+the Scheduler process. Reconciliation itself creates no Attempt or handler.
 
 ```console
 uv run --locked pytest tests/test_readiness.py

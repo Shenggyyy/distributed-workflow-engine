@@ -80,7 +80,7 @@ def test_claim_complete_reconcile_diamond(
             connection.scalar(
                 select(workflow_runs.c.status).where(workflow_runs.c.id == run.run.id)
             )
-            == "RUNNING"
+            == "SUCCEEDED"
         )
 
 

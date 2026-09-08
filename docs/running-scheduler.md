@@ -76,10 +76,10 @@ Use `--base-url` for a non-default host API port. The first command starts the
 Scheduler on the host; the second starts it inside Compose while the Worker runs
 on the host. Both run in CI, alongside the existing container Worker check.
 
-M3 provides automatic Scheduler/Worker discovery and parallel capacity. M4 adds
-retry/timeout/crash recovery; M5 adds failed-dependency propagation and Run status
-aggregation. Currently failed dependencies leave descendants PENDING, and even
-all-successful Task sets leave their Run RUNNING. This is not final MVP acceptance.
+The Scheduler performs automatic discovery, retry promotion, expiry recovery and
+[failure propagation/Run aggregation](settlement.md). Failed dependencies skip
+pending descendants. Independent branches continue; the Run becomes terminal on
+a later pass once all Tasks settle. Final container assertions follow in M5.3.
 
 ## Multiple processes
 

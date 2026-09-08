@@ -10,10 +10,11 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M4 complete: durable retries, fixed timeouts and automatic crash recovery.**
+**M5.1 complete: failure propagation and terminal Run aggregation.**
 
 See the [M4 validation and correctness review](docs/m4-review.md).
-M5 follows with failure propagation, final Run aggregation and business idempotency.
+[Failure propagation and aggregation](docs/settlement.md) now complete the Run
+lifecycle. Business idempotency acceptance and the final MVP audit follow.
 
 Available now:
 
@@ -130,8 +131,9 @@ Available now:
 - [Parallel Worker slots](docs/running-workers.md) with bounded reservations and
   shared heartbeats, verified across multiple Worker and Scheduler processes.
 
-Recovery scanners, failed-dependency propagation and Run aggregation
-are **not implemented yet**.
+Recovery scanners, persisted retries, fixed Attempt timeouts, failed-dependency
+propagation and Run aggregation are implemented. See [M4](docs/m4-review.md) and
+[settlement](docs/settlement.md) for their transaction and failure contracts.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -433,7 +435,7 @@ uv run --locked python scripts/check_dag_execution.py --database-env-file .env.d
 uv run --locked python scripts/check_dag_execution.py --scheduler-container
 ```
 
-See [running the Scheduler](docs/running-scheduler.md). Run aggregation remains pending.
+See [running the Scheduler](docs/running-scheduler.md), including Run aggregation.
 
 ```console
 uv run --locked python examples/attempt_completion.py
@@ -452,7 +454,7 @@ uv run --locked python examples/complete_attempt.py --env-file .env
 
 This creates disposable work, submits a simulated success, and replays the committed
 receipt. Attempt and Task settle, and capacity is released. No handler executes;
-Run status remains RUNNING until aggregation exists. See [completion transactions](docs/completion-transactions.md)
+Run status updates on the next Scheduler reconciliation. See [completion transactions](docs/completion-transactions.md)
 for a failure example, retry semantics and remaining concurrency verification.
 
 ## Explore Attempt leases
