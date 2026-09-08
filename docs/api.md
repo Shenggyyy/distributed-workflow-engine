@@ -185,4 +185,5 @@ deployment needs those controls and separate runtime/migration database roles.
 
 No readiness endpoint, Run HTTP submission, task scheduling, cancellation or
 event log is exposed. M1.8 implements [keyed Run creation](run-idempotency.md)
-through the Python repository; workflow publication through this API remains unkeyed.
+through the Python repository, and M1.9a adds [Run queries](run-queries.md).
+Workflow publication through this API remains unkeyed; Run HTTP routes are next.

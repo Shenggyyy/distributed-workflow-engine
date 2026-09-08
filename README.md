@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M1.8b: Idempotent run creation, replay and concurrent conflict handling.**
+**M1.9a: Run queries with consistent run/task statement snapshots.**
 
 Available now:
 
@@ -50,6 +50,9 @@ Available now:
 
 - Keyed run creation with stable receipt replay and different-input conflict handling.
 - PostgreSQL tests for concurrent duplicates, owner rollback, timeouts and commit failure.
+
+- Typed Run metadata and Run/Task queries with one-statement snapshot consistency.
+- Read-only transaction support, bounded results and explicit invalid-data errors.
 
 Run HTTP endpoints, scheduling and workers are **not implemented yet**.
 The architecture below is the agreed target design.
@@ -179,6 +182,17 @@ Keep the same key/version for retries. Different input with that key is rejected
 a new key creates a distinct run. This does not execute tasks. See
 [run-creation idempotency](docs/run-idempotency.md) for the transaction, concurrency,
 failure and receipt contracts.
+
+## Query a persisted run
+
+```console
+uv run --locked python examples/query_run.py --run-id "<Run ID from creation>"
+```
+
+With PostgreSQL configured, this reads the run and its tasks from one statement
+snapshot. Tasks are sorted by key; querying does not aggregate statuses or execute
+work. A missing run exits with code 1. See the [Run query contract](docs/run-queries.md)
+for consistency, ordering, limits and diagnostic behavior.
 
 ## Planned architecture
 
@@ -551,6 +565,7 @@ docs/
     runtime-storage.md
     run-creation.md
     run-idempotency.md
+    run-queries.md
     workflows.md
     workflow-storage.md
 examples/
@@ -559,6 +574,7 @@ examples/
     publish_workflow.py
     create_run.py
     create_idempotent_run.py
+    query_run.py
     runtime_lifecycle.py
 scripts/
     init_dev_secrets.py
@@ -625,6 +641,7 @@ tests/
         test_run_repository.py
         test_run_request_schema.py
         test_run_idempotency.py
+        test_run_queries.py
 alembic.ini
 Dockerfile
 compose.yaml
@@ -666,9 +683,10 @@ M1.5 defines runtime identities and explicit legal state transitions for
 runs/tasks/attempts. M1.6 adds runtime storage, database lifecycle constraints and
 migration verification. M1.7 implements transactional run creation and DAG-node/root
 initialization. M1.8a adds durable request-binding storage and migration tests.
-M1.8b adds atomic keyed creation, receipt replay and conflict handling. After M1.8b
-is committed, pushed, and all three CI jobs pass, continue to M1.9a: Run query
-storage operations. M1.9b will expose keyed creation and queries over HTTP.
+M1.8b adds atomic keyed creation, receipt replay and conflict handling. M1.9a adds
+Run query storage operations with consistent statement snapshots. After M1.9a is
+committed, pushed, and all three CI jobs pass, continue to M1.9b: keyed Run creation
+and queries over HTTP.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

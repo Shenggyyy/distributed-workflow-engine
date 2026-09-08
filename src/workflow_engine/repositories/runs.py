@@ -1,16 +1,20 @@
-"""Initialize a pinned workflow run in one caller-owned transaction."""
+"""Create and query workflow runs using caller-owned PostgreSQL transactions."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Connection, select
+from sqlalchemy import Connection, RowMapping, select
 from sqlalchemy.dialects.postgresql import insert
 
+from workflow_engine.domain.dag import MAX_TASKS
 from workflow_engine.domain.idempotency import validate_idempotency_key
 from workflow_engine.domain.runtime import (
     RunEvent,
+    RunStatus,
     TaskEvent,
     TaskRun,
+    TaskStatus,
     WorkflowRun,
 )
 from workflow_engine.repositories.workflows import (
@@ -45,8 +49,64 @@ class RunCreationReceipt:
     workflow_version_id: UUID
 
 
+class StoredRuntimeError(ValueError):
+    """Persisted runtime data cannot be represented by the supported read model."""
+
+
+@dataclass(frozen=True, slots=True)
+class StoredRun:
+    id: UUID
+    workflow_version_id: UUID
+    status: RunStatus
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class StoredTaskRun:
+    id: UUID
+    run_id: UUID
+    task_key: str
+    status: TaskStatus
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class RunTaskSnapshot:
+    """Run and tasks from one SQL statement snapshot, ordered by task key."""
+
+    run: StoredRun
+    tasks: tuple[StoredTaskRun, ...]
+
+
+def _read_run(row: RowMapping) -> StoredRun:
+    try:
+        run = WorkflowRun(
+            id=row["id"],
+            workflow_version_id=row["workflow_version_id"],
+            status=RunStatus(row["status"]),
+        )
+    except (ValueError, TypeError):
+        raise StoredRuntimeError("Stored runtime data is invalid.") from None
+    return StoredRun(run.id, run.workflow_version_id, run.status, row["created_at"])
+
+
+def _read_task(row: RowMapping) -> StoredTaskRun:
+    try:
+        task = TaskRun(
+            id=row["task_id"],
+            run_id=row["task_run_id"],
+            task_key=row["task_key"],
+            status=TaskStatus(row["task_status"]),
+        )
+    except (ValueError, TypeError):
+        raise StoredRuntimeError("Stored runtime data is invalid.") from None
+    return StoredTaskRun(
+        task.id, task.run_id, task.task_key, task.status, row["task_created_at"]
+    )
+
+
 class RunRepository:
-    """Create inside engine.begin(); propagate failures out of the transaction.
+    """Use inside engine.begin(); propagate failures out of the transaction.
 
     There is no internal commit, retry, dispatch or attempt creation.
     create() always creates fresh identities; create_idempotent() binds a key.
@@ -109,6 +169,57 @@ class RunRepository:
                 "Idempotency key is already bound to another workflow version."
             )
         return RunCreationReceipt(binding.run_id, binding.workflow_version_id)
+
+    def get_run(self, run_id: UUID) -> StoredRun | None:
+        """Read persisted run metadata in one statement; None means absent."""
+        self._require_read_id(run_id)
+        row = (
+            self._connection.execute(
+                select(workflow_runs).where(workflow_runs.c.id == run_id)
+            )
+            .mappings()
+            .one_or_none()
+        )
+        return None if row is None else _read_run(row)
+
+    def get_run_with_tasks(self, run_id: UUID) -> RunTaskSnapshot | None:
+        """Read run/tasks in one bounded statement snapshot without row locks."""
+        self._require_read_id(run_id)
+        rows = (
+            self._connection.execute(
+                select(
+                    workflow_runs,
+                    task_runs.c.id.label("task_id"),
+                    task_runs.c.run_id.label("task_run_id"),
+                    task_runs.c.task_key,
+                    task_runs.c.status.label("task_status"),
+                    task_runs.c.created_at.label("task_created_at"),
+                )
+                .select_from(
+                    workflow_runs.outerjoin(
+                        task_runs, task_runs.c.run_id == workflow_runs.c.id
+                    )
+                )
+                .where(workflow_runs.c.id == run_id)
+                .order_by(task_runs.c.task_key)
+                .limit(MAX_TASKS + 1)
+            )
+            .mappings()
+            .all()
+        )
+        if not rows:
+            return None
+        if len(rows) > MAX_TASKS:
+            raise StoredRuntimeError("Stored run exceeds the supported task limit.")
+        return RunTaskSnapshot(
+            run=_read_run(rows[0]),
+            tasks=tuple(_read_task(row) for row in rows if row["task_id"] is not None),
+        )
+
+    def _require_read_id(self, run_id: UUID) -> None:
+        self._require_transaction()
+        if not isinstance(run_id, UUID):
+            raise TypeError("run_id must be a UUID.")
 
     def _require_transaction(self) -> None:
         if (

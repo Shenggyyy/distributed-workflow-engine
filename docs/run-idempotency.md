@@ -246,5 +246,5 @@ tests establish that returning from create_idempotent is not a successful COMMIT
 The committed-replay test simulates discarding an acknowledged creation result;
 it does not claim to inject a real network disconnect during COMMIT.
 
-After this subtask is committed, pushed and verified in CI, M1.9a will add Run
-query storage operations. M1.9b will expose keyed creation and queries over HTTP.
+M1.9a adds [Run query storage operations](run-queries.md) for current persisted
+state. M1.9b will expose keyed creation and queries over HTTP.

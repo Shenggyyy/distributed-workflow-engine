@@ -19,8 +19,8 @@ with engine.begin() as connection:
 The caller supplies a UUID for a concrete version, not a workflow name or "latest".
 The method returns a frozen CreatedRun containing a WorkflowRun snapshot and a
 tuple of TaskRun snapshots in deterministic topological order. These are creation
-results, not live state subscriptions or a general run-query API. Database audit
-timestamps remain stored in the tables.
+results, not live state subscriptions. M1.9a adds [Run queries](run-queries.md)
+for current persisted metadata and tasks, including database audit timestamps.
 
 Use PostgreSQL READ COMMITTED with DBAPI autocommit disabled. The repository
 composes WorkflowRepository for validated version reads and its transaction
