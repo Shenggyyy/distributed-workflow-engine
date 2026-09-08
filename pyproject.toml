@@ -37,6 +37,7 @@ packages = ["src/workflow_engine"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = ["--import-mode=importlib", "--strict-config", "--strict-markers", "--tb=short"]
 markers = ["integration: requires an explicitly configured PostgreSQL test database"]
 
