@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 
 from workflow_engine.domain.completion import AttemptCompletion
 from workflow_engine.domain.lease import AttemptLease
+from workflow_engine.domain.timeout import attempt_deadline
 from workflow_engine.domain.worker import WorkerStatus
 from workflow_engine.worker.execution import ProcessExecution
 from workflow_engine.worker.handlers import HandlerContext, HandlerRegistry
@@ -89,6 +90,7 @@ class _Slot:
         ) = None
         self.work_started = self.next_work = 0.0
         self.lease_deadline = self.renew_at = 0.0
+        self.execution_deadline: float | None = None
         self.cursor: UUID | None = None
         self.poll: ClaimPoll | None = None
         self.claim: ClaimedTask | None = None
@@ -155,7 +157,22 @@ class _Slot:
                         self.phase = "renew"
                 elif self.phase == "renew":
                     assert isinstance(value, AttemptLease)
+                    assert self.claim is not None
                     self.lease = value
+                    remaining = (
+                        attempt_deadline(value, self.claim.definition.execution_policy)
+                        - value.last_renewed_at
+                    ).total_seconds()
+                    candidate = self.work_started + remaining * 0.9
+                    self.execution_deadline = (
+                        candidate
+                        if self.execution_deadline is None
+                        else min(candidate, self.execution_deadline)
+                    )
+                    if now >= self.execution_deadline:
+                        raise WorkerControlError(
+                            "Attempt execution deadline elapsed locally."
+                        )
                     duration = (
                         value.lease_expires_at - value.last_renewed_at
                     ).total_seconds()
@@ -204,6 +221,7 @@ class _Slot:
                         },
                     )
                     self.claim = self.lease = self.report = None
+                    self.execution_deadline = None
                     self.work = None
                     self.phase = "idle"
                     return True
@@ -211,6 +229,8 @@ class _Slot:
 
         now = time.monotonic()
         if self.execution is not None:
+            if self.execution_deadline is not None and now >= self.execution_deadline:
+                raise WorkerControlError("Attempt execution deadline elapsed locally.")
             if now >= self.lease_deadline:
                 raise WorkerControlError("Attempt lease confirmation expired locally.")
             if self.phase == "cleanup":

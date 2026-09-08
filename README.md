@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M4.3a: Fixed Attempt timeout admission for completion, renewal and claim replay.**
+**M4.3b: Worker hard-timeout supervision and handler termination.**
 
 See the [M3 validation and correctness review](docs/m3-review.md), including
 the remaining M4–M5 boundaries.
