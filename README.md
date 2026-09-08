@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M4.2c: Database-clock retry promotion with concurrent Scheduler coordination.**
+**M4.2d: Durable retry acceptance through Worker, HTTP and Scheduler processes.**
 
 See the [M3 validation and correctness review](docs/m3-review.md), including
 the remaining M4–M5 boundaries.

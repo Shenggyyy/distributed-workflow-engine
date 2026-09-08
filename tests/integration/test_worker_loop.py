@@ -1,6 +1,7 @@
 """Spawned handler + HTTP protocol + PostgreSQL with lost committed responses."""
 
 import multiprocessing
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from multiprocessing.synchronize import Barrier
 from pathlib import Path
@@ -15,7 +16,13 @@ from tests.integration.test_lease_http import client as client
 from tests.integration.test_lease_http import http_engine as http_engine
 from workflow_engine.domain.completion import CompletionOutcome, CompletionResult
 from workflow_engine.domain.worker import WorkerSession
-from workflow_engine.schema import attempt_completions, task_attempts, task_runs
+from workflow_engine.scheduler.service import SchedulerService
+from workflow_engine.schema import (
+    attempt_completions,
+    task_attempts,
+    task_retry_schedules,
+    task_runs,
+)
 from workflow_engine.worker.handlers import (
     HandlerContext,
     HandlerRegistration,
@@ -26,6 +33,92 @@ from workflow_engine.worker.loop import WorkerLoop
 from workflow_engine.worker.transport import TransportUnavailable, WorkerTransport
 
 pytestmark = pytest.mark.integration
+
+
+def test_worker_retries_with_scheduler_and_lost_completion(
+    client: TestClient,
+    http_engine: Engine,
+) -> None:
+    version = client.post(
+        "/workflows",
+        json={
+            "schema_version": 2,
+            "name": "retry_loop",
+            "tasks": [
+                {
+                    "task_id": "A",
+                    "task_type": "demo.fail",
+                    "execution": {
+                        "max_attempts": 3,
+                        "initial_backoff_ms": 20,
+                        "max_backoff_ms": 100,
+                    },
+                }
+            ],
+        },
+    )
+    assert version.status_code == 201
+    run = client.post(
+        "/runs",
+        json={"workflow_version_id": version.json()["id"]},
+        headers={"Idempotency-Key": uuid4().hex},
+    )
+    assert run.status_code == 201
+    lost = False
+
+    def send(method: str, path: str, body: bytes) -> tuple[int, bytes]:
+        nonlocal lost
+        response = client.request(
+            method, path, content=body, headers={"Content-Type": "application/json"}
+        )
+        if path.endswith("/complete") and not lost:
+            lost = True
+            assert response.status_code == 200
+            raise TransportUnavailable("Completion response lost.")
+        return response.status_code, response.content
+
+    worker = WorkerLoop(
+        WorkerTransport(
+            WorkerSession(id=uuid4(), worker_name="retry", max_concurrency=1), send
+        ),
+        builtin_registry(),
+        UUID(run.json()["run_id"]),
+        retry_seconds=0.01,
+        tick_seconds=0.01,
+    )
+    stop = Event()
+    timer = Timer(20, stop.set)
+    timer.start()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        scheduler = pool.submit(
+            SchedulerService(http_engine, poll_seconds=0.01).run,
+            UUID(run.json()["run_id"]),
+            stop,
+        )
+        try:
+            assert worker.run(stop, max_tasks=3) == 3
+            assert not stop.is_set()
+        finally:
+            stop.set()
+            timer.cancel()
+            timer.join(timeout=1)
+            scheduler.result(timeout=5)
+    with http_engine.connect() as connection:
+        assert connection.scalar(select(task_runs.c.status)) == "FAILED"
+        numbers = connection.scalars(
+            select(task_attempts.c.attempt_number).order_by(
+                task_attempts.c.attempt_number
+            )
+        ).all()
+        assert numbers == [1, 2, 3]
+        assert (
+            connection.scalar(select(func.count()).select_from(attempt_completions))
+            == 3
+        )
+        assert (
+            connection.scalar(select(func.count()).select_from(task_retry_schedules))
+            == 2
+        )
 
 
 @dataclass(frozen=True)

@@ -35,7 +35,7 @@ external effects still require cooperating business idempotency.
 2. M4.1b: immutable Workflow policy publication and compatibility (implemented).
 3. M4.2a: append-only retry schedule schema (implemented); M4.2b: atomic failure
    settlement (implemented); M4.2c: due-task promotion (implemented);
-   M4.2d: HTTP and Worker retry acceptance.
+   M4.2d: HTTP and Worker retry acceptance (implemented).
 4. M4.3: hard Attempt timeout admission and expired ownership recovery.
 5. M4.4: Worker crash scanning, recovery coordination, stale-result races and
    end-to-end failure acceptance, followed by the M4 milestone review.
@@ -80,3 +80,20 @@ Missing/inconsistent retry history aborts the transaction rather than silently
 losing a Task. The same Run lock serializes simultaneous Scheduler proposals;
 rollback preserves RETRY_WAIT. A new claim allocates the next Attempt, retaining
 the Task's business idempotency key. No timer or cursor must survive a restart.
+
+## Retry acceptance (M4.2d)
+
+The real Worker integration test executes three handler subprocesses through HTTP,
+loses a committed failure response, and verifies exactly three Attempts, three
+receipts and two schedules. The final Task is FAILED after budget exhaustion.
+The container smoke runs the same retry lifecycle through independent API,
+Scheduler and host Worker processes:
+
+```console
+uv run --locked python scripts/check_dag_execution.py --scheduler-container --retry-failure
+```
+
+For a host Scheduler, replace `--scheduler-container` with
+`--database-env-file .env.database-test`. Use the same database as the API.
+The script verifies final Task outcome; PostgreSQL integration tests additionally
+inspect every Attempt and retry record. Full Run aggregation follows in M5.

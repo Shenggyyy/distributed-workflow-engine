@@ -50,8 +50,9 @@ Storage-error logs omit exception messages, bound values and tokens.
 First acceptance requires current RUNNING Run/Task/Attempt and a non-STOPPED owner
 with valid session/token and lease at the post-lock database observation. A stale
 heartbeat or LOST Worker alone does not revoke an unexpired Attempt lease. At the
-exact lease deadline, a new report is rejected. Failure currently ends the Task
-permanently; retry scheduling remains M4 work.
+exact lease deadline, a new report is rejected. Failure keeps the Attempt FAILED;
+the Task enters RETRY_WAIT within its pinned policy budget, otherwise FAILED.
+The immutable retry time and receipt commit together. See [retry semantics](retry-policy.md).
 
 An existing valid receipt is compared before current-state/deadline admission.
 Resending the exact original report confirms its accepted result even after lease

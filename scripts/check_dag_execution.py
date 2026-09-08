@@ -34,16 +34,35 @@ def main() -> None:
     parser.add_argument("--database-env-file", help="Required for a host Scheduler.")
     parser.add_argument("--scheduler-container", action="store_true")
     parser.add_argument("--automatic-scheduler", action="store_true")
+    parser.add_argument(
+        "--retry-failure",
+        action="store_true",
+        help="Execute one failing Task until its three-Attempt budget ends.",
+    )
     args = parser.parse_args()
     if not args.scheduler_container and not args.database_env_file:
         parser.error("Provide --database-env-file or --scheduler-container.")
     base = str(args.base_url).rstrip("/")
+    retry_tasks = [
+        {
+            "task_id": "A",
+            "task_type": "demo.fail",
+            "execution": {
+                "max_attempts": 3,
+                "initial_backoff_ms": 200,
+                "max_backoff_ms": 1000,
+            },
+        }
+    ]
     version = request(
         base,
         "/workflows",
         {
             "name": "dag_smoke_" + uuid4().hex,
-            "tasks": [
+            "schema_version": 2 if args.retry_failure else 1,
+            "tasks": retry_tasks
+            if args.retry_failure
+            else [
                 {"task_id": "A", "task_type": "demo.echo"},
                 {"task_id": "B", "task_type": "demo.echo", "depends_on": ["A"]},
                 {"task_id": "C", "task_type": "demo.echo", "depends_on": ["A"]},
@@ -109,7 +128,7 @@ def main() -> None:
                 "--run-id",
                 run_id,
                 "--max-tasks",
-                "4",
+                "3" if args.retry_failure else "4",
             ],
             env={**os.environ, "DWE_WORKER_API_URL": base},
             capture_output=True,
@@ -121,13 +140,18 @@ def main() -> None:
         snapshot = request(base, f"/runs/{run_id}/tasks")
         tasks = snapshot["tasks"]
         assert isinstance(tasks, list)
-        assert {task["task_key"]: task["status"] for task in tasks} == {
-            key: "SUCCEEDED" for key in ("A", "B", "C", "D")
-        }
+        expected = (
+            {"A": "FAILED"}
+            if args.retry_failure
+            else {key: "SUCCEEDED" for key in ("A", "B", "C", "D")}
+        )
+        assert {task["task_key"]: task["status"] for task in tasks} == expected
         if scheduler is not None and scheduler.poll() is not None:
             raise RuntimeError("Scheduler exited unexpectedly.")
         print(
-            "DAG execution passed: independent Scheduler/Worker processes "
+            "Retry execution passed: three failed Attempts exhausted the budget."
+            if args.retry_failure
+            else "DAG execution passed: independent Scheduler/Worker processes "
             "completed A -> B/C -> D."
         )
         print("Run aggregation remains M5; this check verifies all Task outcomes.")
