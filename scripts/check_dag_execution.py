@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from uuid import uuid4
@@ -51,8 +52,13 @@ def main() -> None:
         action="store_true",
         help="Abandon one allocation and verify automatic recovery.",
     )
+    parser.add_argument(
+        "--failed-branch",
+        action="store_true",
+        help="Fail one branch while independent work succeeds.",
+    )
     args = parser.parse_args()
-    if args.retry_failure and args.abandon_claim:
+    if sum((args.retry_failure, args.abandon_claim, args.failed_branch)) > 1:
         parser.error("Choose only one failure scenario.")
     if not args.scheduler_container and not args.database_env_file:
         parser.error("Provide --database-env-file or --scheduler-container.")
@@ -81,6 +87,13 @@ def main() -> None:
                 },
             }
         ]
+    if args.failed_branch:
+        retry_tasks = [
+            {"task_id": "A", "task_type": "demo.fail"},
+            {"task_id": "B", "task_type": "demo.echo"},
+            {"task_id": "C", "task_type": "demo.echo", "depends_on": ["A"]},
+            {"task_id": "D", "task_type": "demo.echo", "depends_on": ["C"]},
+        ]
     version = request(
         base,
         "/workflows",
@@ -88,7 +101,7 @@ def main() -> None:
             "name": "dag_smoke_" + uuid4().hex,
             "schema_version": 2 if args.retry_failure or args.abandon_claim else 1,
             "tasks": retry_tasks
-            if args.retry_failure or args.abandon_claim
+            if args.retry_failure or args.abandon_claim or args.failed_branch
             else [
                 {"task_id": "A", "task_type": "demo.echo"},
                 {"task_id": "B", "task_type": "demo.echo", "depends_on": ["A"]},
@@ -171,7 +184,13 @@ def main() -> None:
                 "--run-id",
                 run_id,
                 "--max-tasks",
-                "1" if args.abandon_claim else "3" if args.retry_failure else "4",
+                "1"
+                if args.abandon_claim
+                else "2"
+                if args.failed_branch
+                else "3"
+                if args.retry_failure
+                else "4",
             ],
             env={**os.environ, "DWE_WORKER_API_URL": base},
             capture_output=True,
@@ -180,11 +199,23 @@ def main() -> None:
         )
         if worker.returncode != 0:
             raise RuntimeError("Worker failed to execute the diamond DAG.")
+        final_status = (
+            "FAILED" if args.failed_branch or args.retry_failure else "SUCCEEDED"
+        )
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if request(base, f"/runs/{run_id}")["status"] == final_status:
+                break
+            time.sleep(0.1)
+        else:
+            raise RuntimeError("Scheduler did not settle the Run.")
         snapshot = request(base, f"/runs/{run_id}/tasks")
         tasks = snapshot["tasks"]
         assert isinstance(tasks, list)
         expected = (
-            {"A": "FAILED"}
+            {"A": "FAILED", "B": "SUCCEEDED", "C": "SKIPPED", "D": "SKIPPED"}
+            if args.failed_branch
+            else {"A": "FAILED"}
             if args.retry_failure
             else {"A": "SUCCEEDED"}
             if args.abandon_claim
@@ -211,14 +242,16 @@ def main() -> None:
         if scheduler is not None and scheduler.poll() is not None:
             raise RuntimeError("Scheduler exited unexpectedly.")
         print(
-            "Recovery passed: abandoned Attempt replaced; stale result rejected."
+            "Failure propagation passed: A failed; B succeeded; C/D skipped."
+            if args.failed_branch
+            else "Recovery passed: abandoned Attempt replaced; stale result rejected."
             if args.abandon_claim
             else "Retry execution passed: three failed Attempts exhausted the budget."
             if args.retry_failure
             else "DAG execution passed: independent Scheduler/Worker processes "
             "completed A -> B/C -> D."
         )
-        print("Run aggregation remains M5; this check verifies all Task outcomes.")
+        print(f"Run {run_id}: {final_status}")
     finally:
         if scheduler is not None:
             scheduler.terminate()

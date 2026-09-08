@@ -79,7 +79,10 @@ on the host. Both run in CI, alongside the existing container Worker check.
 The Scheduler performs automatic discovery, retry promotion, expiry recovery and
 [failure propagation/Run aggregation](settlement.md). Failed dependencies skip
 pending descendants. Independent branches continue; the Run becomes terminal on
-a later pass once all Tasks settle. Final container assertions follow in M5.3.
+a later pass once all Tasks settle. The smoke scripts wait for and assert terminal
+Run outcomes. Add `--failed-branch` to `check_dag_execution.py` to verify that
+failure skips descendants while independent work succeeds. `--retry-failure`
+checks budget exhaustion; `--abandon-claim` checks recovery and stale rejection.
 
 ## Multiple processes
 

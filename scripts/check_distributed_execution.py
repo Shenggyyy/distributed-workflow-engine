@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
@@ -107,9 +108,16 @@ def main() -> None:
         assert {task["task_key"]: task["status"] for task in tasks} == {
             key: "SUCCEEDED" for key in "ABCDEF"
         }
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if request(base, f"/runs/{run['run_id']}")["status"] == "SUCCEEDED":
+                break
+            time.sleep(0.1)
+        else:
+            raise RuntimeError("Distributed Schedulers did not settle the Run.")
         print(
             "Distributed execution passed: two Workers, two Schedulers, "
-            "six successful Tasks."
+            "six successful Tasks and a SUCCEEDED Run."
         )
     finally:
         try:
