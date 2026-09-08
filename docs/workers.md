@@ -180,5 +180,6 @@ JSON round trips, frozen fields and revalidation of bypassed models.
 Each requires its own verified commit and owner push before starting the next.
 M2.2a adds the pure [Attempt lease model and claim protocol](attempt-leases.md).
 M2.2b adds [Attempt lease persistence](lease-storage.md), and M2.2c.1 adds
-[single-run claim transactions](task-claims.md). Actual Worker execution follows
-these foundations.
+[single-run claim transactions](task-claims.md). M2.2c.2 adds
+[lease renewal](lease-renewal.md); it accepts live leases from ACTIVE/LOST owners
+but rejects STOPPED owners. Actual Worker execution follows these foundations.

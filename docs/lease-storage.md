@@ -2,8 +2,8 @@
 
 M2.2b adds revision `0006` and `attempt_leases` for the
 [AttemptLease model](attempt-leases.md). This is persistence infrastructure;
-M2.2c.1 adds [claim transactions](task-claims.md). Lease renewal and recovery
-remain subsequent work.
+M2.2c.1 adds [claim transactions](task-claims.md), and M2.2c.2 adds
+[lease renewal](lease-renewal.md). Recovery remains subsequent work.
 Existing Workflow, Run and Worker HTTP contracts remain unchanged.
 
 ## Schema and identity
@@ -70,13 +70,13 @@ The schema does not duplicate Attempt status in this table. It does not enforce:
 In particular, a structurally valid raw SQL update can advance lease metadata
 even if its Attempt is terminal or its deadline has elapsed. Such an update is
 not an authorized renewal. A test records this boundary explicitly; only the
-future ordered repository transaction will expose renewal as an application action.
+M2.2c.2 [ordered repository transaction](lease-renewal.md) exposes authorized renewal.
 
 The table's triggers deliberately do not acquire Run/Worker/Attempt locks while
 updating a lease. That would add reverse lock edges against the planned
 `Run -> Worker -> Task -> Attempt -> lease` protocol. Cross-row decisions will be
 made under that order in M2.2c. M2.2c.1 implements claim admission, capacity and
-allocation with post-lock clock samples and race tests; renewal remains M2.2c.2.
+allocation with post-lock clock samples and race tests; M2.2c.2 adds renewal.
 This migration alone does not provide crash recovery or stale-result rejection.
 
 ## Indexes and retention trade-offs

@@ -164,5 +164,5 @@ waiting claimant, lock timeout, each failed write and deferred COMMIT failure.
 Test-only state changes simulate successful/failed earlier Attempts; they are not
 an implementation of completion, dependency scheduling or retry backoff.
 
-After the verified owner commit/push and CI, the next subtask is M2.2c.2: lease
-renewal against current persisted ownership, with stale-owner and race checks.
+M2.2c.2 adds [lease renewal](lease-renewal.md) against current persisted ownership,
+with stale-owner and race checks. Claim HTTP and request bindings remain later work.
