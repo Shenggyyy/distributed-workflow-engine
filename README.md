@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M4.2a: Append-only retry eligibility storage and migration.**
+**M4.2b: Atomic failure settlement with durable retry eligibility.**
 
 See the [M3 validation and correctness review](docs/m3-review.md), including
 the remaining M4–M5 boundaries.

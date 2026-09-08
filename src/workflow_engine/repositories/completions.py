@@ -19,6 +19,7 @@ from workflow_engine.repositories._ownership import (
     StoredLeaseError,
     lock_ownership,
 )
+from workflow_engine.repositories._retry import failed_task
 from workflow_engine.repositories.workflows import RepositoryTransactionError
 from workflow_engine.schema import attempt_completions, task_attempts, task_runs
 
@@ -128,11 +129,17 @@ class CompletionRepository:
         receipt = accept_completion(
             owned.attempt, owned.lease, proposed, observed_at=self._database_now()
         )
-        task = owned.task.transition(
-            TaskEvent.ATTEMPT_SUCCEEDED
-            if proposed.result.outcome is CompletionOutcome.SUCCEEDED
-            else TaskEvent.FAIL_PERMANENTLY
-        )
+        if proposed.result.outcome is CompletionOutcome.SUCCEEDED:
+            task = owned.task.transition(TaskEvent.ATTEMPT_SUCCEEDED)
+        else:
+            try:
+                task = failed_task(
+                    self._connection, owned, receipt.attempt, receipt.accepted_at
+                )
+            except StoredLeaseError:
+                raise StoredCompletionError(
+                    "Stored retry settlement is invalid."
+                ) from None
         # Compare all returned snapshot fields: an unexpected write/trigger result
         # must abort instead of being represented as successful completion.
         for table, snapshot in ((task_attempts, receipt.attempt), (task_runs, task)):

@@ -34,7 +34,7 @@ external effects still require cooperating business idempotency.
 1. M4.1a: execution policy and bounded backoff helpers (implemented).
 2. M4.1b: immutable Workflow policy publication and compatibility (implemented).
 3. M4.2a: append-only retry schedule schema (implemented); M4.2b: atomic failure
-   settlement; M4.2c: due-task promotion; M4.2d: HTTP and Worker retry acceptance.
+   settlement (implemented); M4.2c: due-task promotion; M4.2d: HTTP and Worker retry acceptance.
 4. M4.3: hard Attempt timeout admission and expired ownership recovery.
 5. M4.4: Worker crash scanning, recovery coordination, stale-result races and
    end-to-end failure acceptance, followed by the M4 milestone review.
@@ -57,3 +57,14 @@ latest Attempt of a RETRY_WAIT Task. An old schedule cannot authorize another
 retry. Per-Run scanning uses existing Task/Attempt indexes; a global deadline
 index is unnecessary for this bounded scan design. Downgrade discards eligibility
 records and is a planned, destructive rollback requiring stopped writers.
+
+## Atomic failure settlement (M4.2b)
+
+A new FAILED completion reads the pinned policy under existing ownership locks.
+Within its budget, it writes an immutable retry record using the completion's
+post-lock database timestamp and moves the Task to RETRY_WAIT. Otherwise the Task
+becomes FAILED. Attempt status and completion receipt remain FAILED in either case.
+All writes share one caller-owned transaction, including deferred COMMIT checks.
+Existing receipt replay returns before policy evaluation or entropy sampling.
+No extra Attempt is allocated here, and retries cannot yet become READY until
+M4.2c installs the due-time reconciler. Default schema 1 failures remain permanent.
