@@ -2,8 +2,9 @@
 
 M2.2a implements a pure `AttemptLease` snapshot, ownership/time checks, monotonic
 renewal, unit tests and an in-memory example. M2.2b adds
-[lease storage](lease-storage.md) in revision `0006`. No claim/renewal repository,
-renewal HTTP endpoint or execution loop is installed.
+[lease storage](lease-storage.md) in revision `0006`. M2.2c.1 implements the
+[single-run claim transaction](task-claims.md). Lease renewal transactions,
+claim/renewal HTTP endpoints and execution loops remain later work.
 The transaction protocol below is the design for subsequent commit-sized steps.
 
 ## Implemented model
@@ -99,7 +100,8 @@ while holding that Worker lock. This avoids a reverse edge against claim/complet
 Future graceful shutdown must obey the same rule rather than locking all owned
 Runs after its Worker. All paths need real PostgreSQL race tests when implemented.
 
-The claim transaction will:
+M2.2c.1 implements the following claim transaction; see [task claims](task-claims.md)
+for exact results, errors and implemented verification:
 
 1. Lock the Run and require RUNNING.
 2. Lock the Worker session and sample database time after all relevant waits.
@@ -161,8 +163,8 @@ business idempotency remain separate responsibilities.
 | Subtask | Scope and verification |
 | --- | --- |
 | M2.2a (implemented) | Pure lease snapshot, owner/time/renewal boundaries, example and this protocol. |
-| M2.2b (current) | Attempt lease storage and migration, identity/time/history guards, foreign keys and PostgreSQL tests. Explicitly handle pre-existing Attempts without inventing owners. |
-| M2.2c.1 | Single-run claim transaction, worker admission/capacity and atomic Task/Attempt/lease creation; concurrency/rollback tests. |
+| M2.2b (implemented) | Attempt lease storage and migration, identity/time/history guards, foreign keys and PostgreSQL tests. Explicitly handle pre-existing Attempts without inventing owners. |
+| M2.2c.1 (current) | Single-run claim transaction, worker admission/capacity and atomic Task/Attempt/lease creation; concurrency/rollback tests. |
 | M2.2c.2 | Lease renewal against current persisted ownership; post-lock clock and stale-owner tests. |
 | M2.2d.1 | Durable claim request binding/receipt protocol and persistence with uncertain-outcome tests. |
 | M2.2d.2 | Claim/renewal HTTP contracts, commit/error mapping and real HTTP checks. |
@@ -194,4 +196,4 @@ exact deadline and one microsecond on either side, ownership mismatch, backwards
 time, duration limits/coercion, shortened policy, UTC normalization, datetime
 overflow, frozen required fields, JSON round trips and bypass revalidation.
 Storage constraint/concurrent-write tests are now covered in M2.2b.
-Claim/renewal protocol races remain deferred until those transactions exist.
+Claim protocol races are covered in M2.2c.1; renewal races remain M2.2c.2.

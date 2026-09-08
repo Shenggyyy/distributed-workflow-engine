@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.2b: Attempt lease storage and migration with ownership/history guards.**
+**M2.2c.1: Atomic single-run task claims with Worker admission and capacity checks.**
 
 Available now:
 
@@ -78,8 +78,11 @@ Available now:
 - Migrated Attempt lease records with immutable ownership, monotonic times and history guards.
 - PostgreSQL tests for lease uniqueness, concurrent updates and preserved migration data.
 
-Task claims, lease renewal transactions, background heartbeat/expiry loops,
-scheduling and execution are **not implemented yet**.
+- Single-run task claims that atomically create RUNNING Attempts and lease ownership.
+- Worker admission/capacity and dependency checks with PostgreSQL concurrency/failure tests.
+
+Lease renewal transactions, claim HTTP endpoints, background heartbeat/expiry
+loops, scheduling and handler execution are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -280,6 +283,20 @@ process start. Different fields with an existing UUID raise a conflict. This
 example registers a record; it does not start a heartbeat loop or execute tasks.
 See [Worker registration](docs/worker-registration.md) for the transaction,
 advisory lock, clock and failure contracts.
+
+## Claim one Task
+
+The Python repository can now claim one READY Task for a registered Worker:
+
+```console
+uv run --locked python examples/claim_task.py --run-id <RUN_UUID> --session-id <SESSION_UUID>
+```
+
+Use a freshly registered session and an existing Run in the same configured
+PostgreSQL database. The example commits one RUNNING Attempt and lease but does
+not execute a handler. It reserves capacity; no recovery loop releases that slot
+yet. See [task claims](docs/task-claims.md#local-example) for a complete runnable
+PowerShell example and transaction/failure semantics.
 
 ## Explore Attempt leases
 
@@ -712,6 +729,7 @@ docs/
     worker-api.md
     attempt-leases.md
     lease-storage.md
+    task-claims.md
     workflow-storage.md
 examples/
     diamond.json
@@ -725,6 +743,7 @@ examples/
     register_worker.py
     worker_heartbeat.py
     attempt_lease.py
+    claim_task.py
 scripts/
     init_dev_secrets.py
     check_workflow_api.py
@@ -748,6 +767,7 @@ src/workflow_engine/
         worker.py
     repositories/
         __init__.py
+        claims.py
         workflows.py
         runs.py
         workers.py
@@ -807,6 +827,7 @@ tests/
         test_run_http.py
         test_worker_schema.py
         test_lease_schema.py
+        test_claims.py
         test_worker_registration.py
         test_worker_heartbeat.py
         test_worker_http.py
@@ -865,9 +886,10 @@ registration/heartbeat HTTP contracts, server policy and real HTTP checks; see
 M2.2a adds the pure Attempt lease model, ownership/time checks and
 [the claim protocol and subtask plan](docs/attempt-leases.md).
 M2.2b adds lease storage, identity/time/history constraints and populated migration
-compatibility tests. After M2.2b is committed, pushed, and all three CI jobs pass,
-continue to M2.2c.1: single-run task claim transactions with Worker admission,
-capacity checks and atomic Task/Attempt/lease creation.
+compatibility tests. M2.2c.1 adds single-run task claim transactions with Worker
+admission, capacity checks and atomic Task/Attempt/lease creation.
+After M2.2c.1 is committed, pushed, and all three CI jobs pass, continue to
+M2.2c.2: lease renewal transactions against current persisted ownership.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

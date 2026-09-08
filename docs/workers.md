@@ -83,7 +83,8 @@ whose fields happen to be valid. Persistence guards are documented separately in
 M2.1c.1 implements registration steps 1–2 through the Python repository; see
 [its exact snapshot, lock and clock contracts](worker-registration.md).
 M2.1c.2 implements the per-session heartbeat/expiry checks in step 3.
-Automatic expiry scanning and claim behavior in step 4 remain future work:
+M2.2c.1 implements claim admission in step 4 through the
+[claim repository](task-claims.md). Automatic expiry scanning remains future work:
 
 1. Use the M2.1b session table for UUID, immutable name/capacity, status,
    registration time, last accepted heartbeat time and deadline. Registration
@@ -100,7 +101,7 @@ Automatic expiry scanning and claim behavior in step 4 remain future work:
    flag left behind by a delayed recovery scan. No handler runs while a database
    lock is held. M2.2a specifies the planned Run -> Worker -> Task -> Attempt
    ordering in the [claim protocol](attempt-leases.md#planned-transaction-boundaries);
-   database integration and race verification follow in the claim milestone.
+   M2.2c.1 implements the claim transaction and its race verification.
 
 Repeated heartbeat requests are liveness observations; they are not registration
 replays. Before expiry, a delayed heartbeat can still be accepted as an observation
@@ -178,5 +179,6 @@ JSON round trips, frozen fields and revalidation of bypassed models.
 
 Each requires its own verified commit and owner push before starting the next.
 M2.2a adds the pure [Attempt lease model and claim protocol](attempt-leases.md).
-M2.2b adds [Attempt lease persistence](lease-storage.md). Task claiming and actual
-Worker execution follow these foundations.
+M2.2b adds [Attempt lease persistence](lease-storage.md), and M2.2c.1 adds
+[single-run claim transactions](task-claims.md). Actual Worker execution follows
+these foundations.
