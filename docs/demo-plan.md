@@ -95,3 +95,9 @@ outside this phase.
 D1a verified: revision 0011 adds four append-only demo tables. Upgrade preserves
 existing Attempts; downgrade/re-upgrade and metadata comparison pass. 28 focused
 migration tests and strict type checking pass. No core state transaction changed.
+
+D1b verified: opt-in trusted timed handlers persist START/PULSE/FINISH from inside
+the callable. Eight PostgreSQL tests cover scope, identity, monotonic ordering,
+interruption and separation from Attempt completion. Sampling failure fails the
+handler; it never invents evidence. Linux boot/time namespace is required. Only
+the invocation evidence row is locked when appending; core ownership is untouched.
