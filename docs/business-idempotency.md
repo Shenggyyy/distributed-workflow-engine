@@ -36,3 +36,18 @@ General resource fencing and business key selection are application decisions.
 
 M5.2a implements the example and concurrent/rollback/conflict tests. M5.2b verifies
 the crash-after-effect window with real Worker processes and engine recovery.
+
+## Crash acceptance (M5.2b)
+
+The `effect` case in `tests/integration/test_crash_recovery.py` claims via real
+HTTP, commits the business increment, then exits its Worker process without any
+completion receipt. A fresh Scheduler recovers the LOST Attempt. A replacement
+Worker executes the same handler in a spawned child with the same Task key.
+The final checks require two Attempts, one business receipt, one increment,
+one engine completion receipt, a SUCCEEDED Run and rejection of the old result.
+The sink is a separate transaction from the engine even when tests share a
+disposable PostgreSQL instance. No distributed transaction is assumed.
+
+```console
+uv run --locked pytest tests/integration/test_crash_recovery.py -k effect --database-env-file .env.database-test
+```

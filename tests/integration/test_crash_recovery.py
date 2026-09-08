@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 import pytest
 import uvicorn
+from examples.idempotent_effect import EffectHandler, counter, initialize, receipts
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, func, select
 
@@ -30,8 +31,14 @@ from workflow_engine.schema import (
     task_attempts,
     task_retry_schedules,
     task_runs,
+    workflow_runs,
 )
-from workflow_engine.worker.handlers import builtin_registry
+from workflow_engine.worker.handlers import (
+    HandlerContext,
+    HandlerRegistration,
+    HandlerRegistry,
+    builtin_registry,
+)
 from workflow_engine.worker.loop import WorkerLoop
 from workflow_engine.worker.transport import (
     ClaimedTask,
@@ -44,7 +51,9 @@ from workflow_engine.worker.transport import (
 pytestmark = pytest.mark.integration
 
 
-def crash_after_claim(base: str, run_id: UUID, result: Connection) -> None:
+def crash_after_claim(
+    base: str, run_id: UUID, result: Connection, effect: EffectHandler | None = None
+) -> None:
     transport = WorkerTransport(
         WorkerSession(id=uuid4(), worker_name="crashing", max_concurrency=1),
         HTTPSender(base),
@@ -52,18 +61,41 @@ def crash_after_claim(base: str, run_id: UUID, result: Connection) -> None:
     transport.register()
     claimed = transport.claim(ClaimPoll(run_id=run_id, request_id=uuid4())).claim
     assert claimed is not None
+    if effect is not None:
+        effect(
+            HandlerContext(
+                run_id=claimed.task.run_id,
+                workflow_version_id=claimed.workflow_version_id,
+                task_id=claimed.task.id,
+                task_key=claimed.task.task_key,
+                attempt_id=claimed.attempt.id,
+                attempt_number=claimed.attempt.attempt_number,
+            )
+        )
     result.send(claimed.model_dump_json())
     os._exit(17)
 
 
-@pytest.mark.parametrize("fault", ["lease", "timeout"])
+@pytest.mark.parametrize("fault", ["lease", "timeout", "effect"])
 def test_process_crash_recovers_and_rejects_stale_completion(
-    http_engine: Engine, monkeypatch: pytest.MonkeyPatch, fault: str
+    http_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str,
+    database_settings: Settings,
+    migration_schema: str,
 ) -> None:
     monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2]))
     settings = Settings(
-        environment="test", attempt_lease_seconds=2 if fault == "lease" else 5
+        environment="test", attempt_lease_seconds=5 if fault == "timeout" else 2
     )
+    effect = (
+        EffectHandler(database_settings, migration_schema)
+        if fault == "effect"
+        else None
+    )
+    if effect is not None:
+        with http_engine.begin() as connection:
+            initialize(connection)
     app = create_app(settings, engine=http_engine)
     with TestClient(app) as client:
         version = client.post(
@@ -74,10 +106,12 @@ def test_process_crash_recovers_and_rejects_stale_completion(
                 "tasks": [
                     {
                         "task_id": "A",
-                        "task_type": "demo.echo",
+                        "task_type": "test.effect"
+                        if effect is not None
+                        else "demo.echo",
                         "execution": {
                             "max_attempts": 2,
-                            "timeout_seconds": 10 if fault == "lease" else 2,
+                            "timeout_seconds": 2 if fault == "timeout" else 10,
                             "initial_backoff_ms": 20,
                             "max_backoff_ms": 100,
                         },
@@ -101,7 +135,9 @@ def test_process_crash_recovers_and_rejects_stale_completion(
         server = uvicorn.Server(uvicorn.Config(app, log_config=None, access_log=False))
         thread = Thread(target=server.run, kwargs={"sockets": [listener]}, daemon=True)
         thread.start()
-        crashed = spawn.Process(target=crash_after_claim, args=(base, run_id, sender))
+        crashed = spawn.Process(
+            target=crash_after_claim, args=(base, run_id, sender, effect)
+        )
         try:
             deadline = time.monotonic() + 5
             while (
@@ -115,6 +151,15 @@ def test_process_crash_recovers_and_rejects_stale_completion(
             abandoned = ClaimedTask.model_validate_json(receiver.recv())
             crashed.join(timeout=5)
             assert crashed.exitcode == 17
+            if effect is not None:
+                with http_engine.connect() as connection:
+                    assert connection.scalar(select(counter.c.value)) == 1
+                    assert (
+                        connection.scalar(
+                            select(func.count()).select_from(attempt_completions)
+                        )
+                        == 0
+                    )
             replacement = WorkerTransport(
                 WorkerSession(id=uuid4(), worker_name="replacement", max_concurrency=1),
                 HTTPSender(base),
@@ -130,7 +175,11 @@ def test_process_crash_recovers_and_rejects_stale_completion(
                     assert (
                         WorkerLoop(
                             replacement,
-                            builtin_registry(),
+                            HandlerRegistry(
+                                (HandlerRegistration("test.effect", effect),)
+                            )
+                            if effect is not None
+                            else builtin_registry(),
                             run_id,
                             poll_seconds=0.02,
                             tick_seconds=0.01,
@@ -138,6 +187,17 @@ def test_process_crash_recovers_and_rejects_stale_completion(
                         == 1
                     )
                     assert not stop.is_set()
+                    deadline = time.monotonic() + 3
+                    while time.monotonic() < deadline:
+                        with http_engine.connect() as connection:
+                            if (
+                                connection.scalar(select(workflow_runs.c.status))
+                                == "SUCCEEDED"
+                            ):
+                                break
+                        time.sleep(0.02)
+                    else:
+                        pytest.fail("Scheduler did not settle the recovered Run.")
                 finally:
                     stop.set()
                     timer.cancel()
@@ -177,6 +237,11 @@ def test_process_crash_recovers_and_rejects_stale_completion(
         statuses = connection.scalars(
             select(task_attempts.c.status).order_by(task_attempts.c.attempt_number)
         ).all()
-        assert statuses == ["LOST" if fault == "lease" else "TIMED_OUT", "SUCCEEDED"]
+        assert statuses == ["TIMED_OUT" if fault == "timeout" else "LOST", "SUCCEEDED"]
         for table in (task_retry_schedules, attempt_completions):
             assert connection.scalar(select(func.count()).select_from(table)) == 1
+        if effect is not None:
+            assert connection.scalar(select(counter.c.value)) == 1
+            assert connection.scalars(select(receipts.c.task_id)).all() == [
+                abandoned.task.id
+            ]

@@ -22,7 +22,7 @@ Terminal Runs leave discovery. Receipt replay must remain available after settle
 - M5.1a: pure failure propagation and aggregation decisions (implemented).
 - M5.1b: transactional Scheduler settlement, concurrency/rollback/HTTP acceptance (implemented).
 - M5.2a: cooperating business-idempotency example (implemented).
-- M5.2b: real process crash after a committed effect, recovery and duplicate acceptance.
+- M5.2b: real process crash after a committed effect, recovery and duplicate acceptance (implemented).
 - M5.3: end-to-end container acceptance, failure documentation and final M0–M5 audit.
 
 Larger steps may be split further; V2/V3 features stay outside the MVP.
