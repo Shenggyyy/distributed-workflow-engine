@@ -64,6 +64,9 @@ class Demo:
         if docker is None:
             raise ValueError("Docker CLI is unavailable. Start Docker Desktop.")
         self.docker = docker
+        self.env["PATH"] = (
+            str(Path(docker).parent) + os.pathsep + self.env.get("PATH", "")
+        )
         context = json.loads(self.command("context", "inspect"))[0]
         host = self.env.get("DOCKER_HOST") or context["Endpoints"]["docker"]["Host"]
         if not host.startswith(("unix://", "npipe://")):
