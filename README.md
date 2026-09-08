@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M4.4a: Bounded advisory discovery of expired Workers and Attempts.**
+**M4.4b: Scheduler crash detection and automatic expiry recovery coordination.**
 
 See the [M3 validation and correctness review](docs/m3-review.md), including
 the remaining M4–M5 boundaries.

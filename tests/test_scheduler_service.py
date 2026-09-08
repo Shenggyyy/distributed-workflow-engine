@@ -34,6 +34,7 @@ def test_transient_failures_retry_fresh_pass(
 ) -> None:
     engine = create_engine("sqlite://")
     service = SchedulerService(engine, poll_seconds=0.001)
+    monkeypatch.setattr(service, "recover_run", lambda run_id, stop: 0)
     stop = Event()
     calls = 0
 
@@ -61,6 +62,7 @@ def test_once_and_nontransient_errors_exit(
 ) -> None:
     engine = create_engine("sqlite://")
     service = SchedulerService(engine)
+    monkeypatch.setattr(service, "recover_run", lambda run_id, stop: 0)
 
     def reconcile(run_id: object) -> int:
         raise DBAPIError("private-sql", {}, DriverError(state))
@@ -76,6 +78,7 @@ def test_once_and_nontransient_errors_exit(
 def test_stop_and_once(monkeypatch: pytest.MonkeyPatch) -> None:
     engine = create_engine("sqlite://")
     service = SchedulerService(engine)
+    monkeypatch.setattr(service, "recover_run", lambda run_id, stop: 0)
     monkeypatch.setattr(service, "reconcile", lambda run_id: 2)
     try:
         assert service.run(uuid4(), Event(), once=True) == 2

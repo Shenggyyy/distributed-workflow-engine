@@ -27,6 +27,8 @@ does not imply a handler did nothing or guarantee exactly-once effects.
 M4.4 is split into M4.4a advisory expiry discovery, M4.4b Scheduler recovery
 coordination, and M4.4c crash/timeout end-to-end acceptance and milestone review.
 
+M4.4a and M4.4b are implemented.
+
 ## Worker supervision
 
 After mandatory renewal, the Worker maps the remaining fixed server duration to
@@ -67,3 +69,22 @@ hint stale; each subsequent recovery operation must re-read under ownership lock
 Historical unleased Attempts from pre-Worker storage are outside automatic lease
 recovery; all current claim paths atomically create leases. No global timer queue
 or new index is needed for this bounded per-Run approach.
+
+## Scheduler coordination (M4.4b)
+
+Each global Scheduler page expires a bounded batch of Worker sessions, discovers
+active Runs, then recovers due Attempts before readiness/retry reconciliation.
+Discovery, each Worker expiry, each Attempt recovery and each Run reconciliation
+use separate transactions. In particular, Worker expiry never retains a lock while
+acquiring a Run lock, and recovery never follows Task locks in the same transaction.
+Stop signals are checked between candidates. `--once` handles one page; repeated
+passes resume from persisted state. Selected-Run mode recovers that Run's Attempts
+without changing the global Worker registry. Transient database errors retry a new
+pass using existing Scheduler policy; already committed decisions remain durable.
+Recovery first tries the Run lock with SKIP LOCKED, so a busy Run cannot hold up
+recovery/readiness for independent Runs. The next scan revisits skipped work.
+
+Multiple Schedulers can observe the same candidates, but only the first valid
+settlement changes state. Recovery logs are emitted after COMMIT. No leader or
+distributed in-memory timer is required. Discovery scans bound memory, while
+per-Run coordination limits throughput for very wide hot DAGs.

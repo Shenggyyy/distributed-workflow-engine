@@ -23,7 +23,7 @@ from workflow_engine.repositories.workflows import (
     RepositoryTransactionError,
     WorkflowRepository,
 )
-from workflow_engine.schema import task_attempts, task_runs
+from workflow_engine.schema import task_attempts, task_runs, workflow_runs
 
 
 class RecoveryRepository:
@@ -45,7 +45,9 @@ class RecoveryRepository:
         ).scalar_one()
         return observed
 
-    def recover(self, attempt_id: UUID) -> TaskAttempt | None:
+    def recover(
+        self, attempt_id: UUID, *, skip_locked: bool = False
+    ) -> TaskAttempt | None:
         if (
             self._transaction is None
             or not self._transaction.is_active
@@ -56,6 +58,25 @@ class RecoveryRepository:
             )
         if type(attempt_id) is not UUID:
             raise TypeError("Attempt ID must be a UUID.")
+        if type(skip_locked) is not bool:
+            raise TypeError("skip_locked must be boolean.")
+        if skip_locked:
+            run_id = self._connection.scalar(
+                select(task_runs.c.run_id)
+                .join(task_attempts, task_attempts.c.task_id == task_runs.c.id)
+                .where(task_attempts.c.id == attempt_id)
+            )
+            if (
+                run_id is None
+                or self._connection.scalar(
+                    select(workflow_runs.c.id)
+                    .where(workflow_runs.c.id == run_id)
+                    .with_for_update(skip_locked=True)
+                )
+                is None
+            ):
+                return None
+            # Owning the Run first preserves order; lock_ownership revalidates it.
         try:
             owned = lock_ownership(self._connection, attempt_id)
         except LeaseNotFoundError:
