@@ -170,7 +170,7 @@ def test_invalid_stored_definition_rejected_on_every_read(
             {"task_id": "A", "task_type": "private.handler", "depends_on": ["A"]}
         ]
     else:
-        payload["schema_version"] = 2
+        payload["schema_version"] = 3
     workflow_id, version_id = uuid4(), uuid4()
     with transaction(engine, repository_schema) as connection:
         connection.execute(workflows.insert().values(id=workflow_id, name="demo"))

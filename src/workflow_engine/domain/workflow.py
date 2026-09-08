@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 from pydantic_core import PydanticCustomError
 
 from workflow_engine.domain.dag import DAG, MAX_TASKS, DAGValidationError, analyze_dag
+from workflow_engine.domain.retry import ExecutionPolicy
 
 Identifier = Annotated[
     str,
@@ -35,6 +36,14 @@ class TaskDefinition(BaseModel):
     task_id: Identifier
     task_type: TaskType
     depends_on: tuple[Identifier, ...] = Field(default=(), max_length=MAX_TASKS)
+    execution: ExecutionPolicy | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+    @property
+    def execution_policy(self) -> ExecutionPolicy:
+        """Resolve the fixed default without changing legacy serialized definitions."""
+        return self.execution if self.execution is not None else ExecutionPolicy()
 
 
 class WorkflowDefinition(BaseModel):
@@ -47,7 +56,7 @@ class WorkflowDefinition(BaseModel):
         hide_input_in_errors=True,
     )
 
-    schema_version: int = Field(default=1, strict=True, ge=1, le=1)
+    schema_version: int = Field(default=1, strict=True, ge=1, le=2)
     name: Identifier
     tasks: tuple[TaskDefinition, ...] = Field(min_length=1, max_length=MAX_TASKS)
 
@@ -72,6 +81,12 @@ class WorkflowDefinition(BaseModel):
 
     @model_validator(mode="after")
     def validate_graph(self) -> Self:
+        if self.schema_version == 1 and any(
+            task.execution is not None for task in self.tasks
+        ):
+            raise PydanticCustomError(
+                "execution_requires_schema_v2", "Execution policy requires schema 2."
+            )
         try:
             self.dag()
         except DAGValidationError as exc:

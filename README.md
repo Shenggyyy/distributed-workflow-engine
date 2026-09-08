@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M4.1a: Immutable execution policy and bounded exponential backoff helpers.**
+**M4.1b: Versioned Workflow execution policy publication and compatibility.**
 
 See the [M3 validation and correctness review](docs/m3-review.md), including
 the remaining M4–M5 boundaries.
@@ -1155,7 +1155,8 @@ M3.1a implements discovery queries/API and indexes; M3.1b adds Scheduler scan
 coordination; M3.1c adds Worker automatic discovery. M3.2a extracts slot control;
 M3.2b enables bounded parallel slots with a shared heartbeat. M3.3 verifies
 multi-process execution. [M4.1a](docs/retry-policy.md) defines pure policy/backoff;
-next is M4.1b Workflow policy publication, then persisted retry/timeout/recovery.
+M4.1b pins policies to immutable Workflow versions. Next is persisted retry,
+then timeout/recovery. See [schema 2 policy publication](docs/workflows.md#execution-policy-schema-version-2).
 Run `uv run --locked pytest tests/test_worker_loop.py` to test control behavior
 without PostgreSQL; integration tests also execute real handler subprocesses.
 

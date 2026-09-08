@@ -36,7 +36,7 @@ against actual task records remains scheduler work.
 
 | Field | Contract |
 | --- | --- |
-| `schema_version` | Integer 1; defaults to 1. Strings, floats, and booleans are rejected. |
+| `schema_version` | Integer 1 or 2; defaults to 1. Strings, floats, and booleans are rejected. |
 | `name` | Required workflow name, using the identifier rules below. |
 | `tasks` | Required nonempty collection, at most 1,000 task definitions. |
 | `task_id` | Required identifier, unique within this definition. |
@@ -59,6 +59,22 @@ outputs, retries, task timeout, runtime state, conditional branches, dynamic
 fan-out, and external workflow dependencies are not fields in version 1.
 The `task_type` key is not resolved against a registry during validation and is
 never treated as executable code or an import path.
+
+## Execution policy, schema version 2
+
+M4.1b adds the optional Task `execution` object, available only with explicit
+`schema_version: 2`. See [retry.json](../examples/retry.json) and the
+[policy contract](retry-policy.md). All policy fields are strict and bounded;
+unknown fields are rejected. Missing or null `execution` resolves to fixed defaults
+(one total Attempt, 300-second timeout, 1000/60000 ms backoff), and is omitted on
+serialization. Existing schema 1 JSON and stored versions retain their shape.
+Changing these defaults in the future requires a new document schema version.
+
+Publication expands supplied policy defaults into the immutable version JSONB.
+Runs retain their original version ID, so publishing a different policy cannot
+change an existing Run. The same definition is returned through query and claim
+responses; no additional database migration or runtime state is introduced here.
+At M4.1b policy publication is available; enforcement follows in M4.2–M4.3.
 
 ## Run the example
 

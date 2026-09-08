@@ -6,9 +6,38 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from workflow_engine.domain.retry import ExecutionPolicy
 from workflow_engine.domain.workflow import TaskDefinition, WorkflowDefinition
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "diamond.json"
+
+
+def test_legacy_serialization_and_fixed_execution_defaults() -> None:
+    task = TaskDefinition(task_id="A", task_type="demo.echo")
+    assert task.model_dump(mode="json") == {
+        "task_id": "A",
+        "task_type": "demo.echo",
+        "depends_on": [],
+    }
+    assert task.execution_policy == ExecutionPolicy()
+    assert WorkflowDefinition(name="demo", tasks=(task,)).schema_version == 1
+
+
+def test_policy_requires_explicit_schema_two_and_is_revalidated() -> None:
+    policy = ExecutionPolicy(max_attempts=3)
+    task = TaskDefinition(task_id="A", task_type="demo.echo", execution=policy)
+    with pytest.raises(ValidationError, match="requires schema 2"):
+        WorkflowDefinition(name="demo", tasks=(task,))
+    workflow = WorkflowDefinition(schema_version=2, name="demo", tasks=(task,))
+    assert (
+        WorkflowDefinition.model_validate_json(workflow.model_dump_json()) == workflow
+    )
+    assert workflow.tasks[0].execution_policy.max_attempts == 3
+    invalid = task.model_copy(
+        update={"execution": policy.model_copy(update={"max_attempts": 0})}
+    )
+    with pytest.raises(ValidationError):
+        WorkflowDefinition(schema_version=2, name="demo", tasks=(invalid,))
 
 
 def test_example_round_trip_and_dependency_direction() -> None:
@@ -71,7 +100,7 @@ def test_task_type_is_a_registry_key(value: object) -> None:
         TaskDefinition.model_validate({"task_id": "A", "task_type": value})
 
 
-@pytest.mark.parametrize("value", [0, 2, "1", True, 1.0])
+@pytest.mark.parametrize("value", [0, 3, "1", True, 1.0])
 def test_unsupported_or_coerced_schema_version_is_rejected(value: object) -> None:
     with pytest.raises(ValidationError):
         WorkflowDefinition.model_validate(

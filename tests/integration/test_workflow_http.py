@@ -43,6 +43,31 @@ def definition(name: str = "demo") -> WorkflowDefinition:
     )
 
 
+def test_execution_policy_publication_pins_versions_and_preserves_legacy(
+    http_client: TestClient, http_engine: Engine
+) -> None:
+    legacy = definition().model_dump(mode="json")
+    first = http_client.post("/workflows", json=legacy)
+    assert first.status_code == 201
+    body = definition().model_dump(mode="json")
+    body["tasks"][0]["execution"] = {"max_attempts": 3, "timeout_seconds": 10}
+    assert http_client.post("/workflows", json=body).status_code == 422
+    body["schema_version"] = 2
+    second = http_client.post("/workflows", json=body)
+    assert second.status_code == 201
+    assert second.json()["version_number"] == 2
+    body["tasks"][0]["execution"]["max_attempts"] = 5
+    third = http_client.post("/workflows", json=body)
+    assert third.status_code == 201
+    assert http_client.get(first.headers["Location"]).json()["definition"] == legacy
+    with http_engine.begin() as connection:
+        stored = WorkflowRepository(connection).get_version(UUID(second.json()["id"]))
+        assert stored is not None
+        policy = stored.definition.tasks[0].execution_policy
+        assert policy.max_attempts == 3 and policy.timeout_seconds == 10
+    assert http_client.get(second.headers["Location"]).json() == second.json()
+
+
 def test_publish_is_committed_before_response_and_all_lookup_routes(
     http_client: TestClient, http_engine: Engine
 ) -> None:

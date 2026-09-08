@@ -222,7 +222,7 @@ def test_invalid_stored_dag_is_rejected_before_runtime_writes(
     elif corruption == "cycle":
         payload["tasks"][0]["depends_on"] = ["D"]
     else:
-        payload["schema_version"] = 2
+        payload["schema_version"] = 3
     version_id, workflow_id = uuid4(), uuid4()
     with transaction(engine, run_schema) as connection:
         connection.execute(workflows.insert().values(id=workflow_id, name="corrupt"))

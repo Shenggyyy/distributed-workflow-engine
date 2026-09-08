@@ -32,7 +32,7 @@ external effects still require cooperating business idempotency.
 ## M4 implementation sequence
 
 1. M4.1a: execution policy and bounded backoff helpers (implemented).
-2. M4.1b: immutable Workflow policy publication and compatibility.
+2. M4.1b: immutable Workflow policy publication and compatibility (implemented).
 3. M4.2: persisted retry scheduling and due-task promotion.
 4. M4.3: hard Attempt timeout admission and expired ownership recovery.
 5. M4.4: Worker crash scanning, recovery coordination, stale-result races and
