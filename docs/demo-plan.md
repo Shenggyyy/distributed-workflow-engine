@@ -107,3 +107,12 @@ creates a fresh Run); GET /demo/runs lists the latest 50 demo Runs; GET
 /demo/runs/{id} returns the coherent read-only snapshot. Six HTTP/database tests
 verify real DAG initialization, scope, no tokens, lossless nanoseconds and exclusion
 of a concurrent observation committed after the snapshot began.
+
+D3 split: D3a packages opt-in process roles and standalone Compose; D3b adds the
+local scenario/fault CLI. The demo Scheduler uses normal global discovery inside
+the dedicated demo database, including Worker expiry. Workers remain Run-scoped.
+
+D3a verified: standalone image build, revision 0011 migration, API/Scheduler startup
+and a real two-slot Worker run completed successfully with Handler samples from a
+shared Linux clock domain. The demo PostgreSQL port is not published; API binds
+127.0.0.1:18080. Stock process roles and development Compose are unchanged.

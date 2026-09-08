@@ -1,0 +1,70 @@
+# Standalone file: never merge with the development Compose environment.
+name: dwe-demo
+x-runtime: &runtime
+  image: distributed-workflow-engine:demo
+  build:
+    context: .
+    target: runtime
+  init: true
+  environment: &environment
+    DWE_ENVIRONMENT: development
+    DWE_DATABASE_HOST: postgres
+    DWE_DATABASE_PORT: "5432"
+    DWE_DATABASE_NAME: workflow_demo
+    DWE_DATABASE_USER: workflow_demo
+    DWE_DATABASE_PASSWORD_FILE: /run/secrets/demo_password
+    DWE_API_HOST: 0.0.0.0
+    DWE_API_PORT: "8000"
+    DWE_WORKER_API_URL: http://api:8000
+    DWE_WORKER_HEARTBEAT_TIMEOUT_SECONDS: "6"
+    DWE_ATTEMPT_LEASE_SECONDS: "6"
+    DWE_WORKER_HTTP_TIMEOUT_SECONDS: "2"
+  secrets: [demo_password]
+  stop_grace_period: 10s
+
+services:
+  postgres:
+    image: postgres:18.6-bookworm
+    environment:
+      POSTGRES_DB: workflow_demo
+      POSTGRES_USER: workflow_demo
+      POSTGRES_PASSWORD_FILE: /run/secrets/demo_password
+    secrets: [demo_password]
+    volumes: [demo_data:/var/lib/postgresql]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U workflow_demo -d workflow_demo"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  api:
+    <<: *runtime
+    entrypoint: [python, -m, workflow_engine.demo]
+    command: [api]
+    ports: ["127.0.0.1:${DWE_DEMO_PORT:-18080}:8000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  scheduler:
+    <<: *runtime
+    command: [scheduler]
+    healthcheck:
+      disable: true
+    depends_on:
+      api:
+        condition: service_healthy
+
+  worker:
+    <<: *runtime
+    entrypoint: [python, -m, workflow_engine.demo]
+    profiles: [manual]
+    healthcheck:
+      disable: true
+
+volumes:
+  demo_data:
+
+secrets:
+  demo_password:
+    file: ./secrets/demo_password.txt
