@@ -54,7 +54,7 @@ def test_help_describes_current_capabilities(tmp_path: Path) -> None:
     )
 
     assert "--version" in result.stdout
-    assert "run single-slot workers" in " ".join(result.stdout.split())
+    assert "run bounded parallel workers" in " ".join(result.stdout.split())
 
 
 def test_worker_run_id_is_optional(tmp_path: Path) -> None:

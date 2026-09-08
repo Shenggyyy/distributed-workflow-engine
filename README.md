@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M3.2a: Separate execution-slot control from Worker session supervision.**
+**M3.2b: Bounded parallel Worker slots sharing one session heartbeat.**
 
 See the [M2 validation and correctness review](docs/m2-review.md), including
 the remaining M3–M5 boundaries.
@@ -128,7 +128,7 @@ Available now:
 - [Active Run discovery](docs/run-discovery.md) with bounded UUID pagination and
   an advisory READY filter for future automatic polling.
 
-Parallel Worker capacity, recovery scanners, failed-dependency propagation and Run aggregation
+Recovery scanners, failed-dependency propagation and Run aggregation
 are **not implemented yet**.
 The architecture below is the agreed target design.
 
@@ -1149,8 +1149,9 @@ M2.5b integrates the Scheduler process/CLI/container and complete DAG execution.
 M3 follows with M3.1 bounded Run discovery and scan coordination, M3.2 parallel
 Worker execution slots, and M3.3 multi-process concurrency acceptance.
 M3.1a implements discovery queries/API and indexes; M3.1b adds Scheduler scan
-coordination; M3.1c adds Worker automatic discovery. M3.2a extracts slot control
-while retaining one slot; next is M3.2b bounded parallel slots and shared heartbeat.
+coordination; M3.1c adds Worker automatic discovery. M3.2a extracts slot control;
+M3.2b enables bounded parallel slots with a shared heartbeat. Next is M3.3
+multi-process concurrency acceptance and the M3 correctness review.
 Run `uv run --locked pytest tests/test_worker_loop.py` to test control behavior
 without PostgreSQL; integration tests also execute real handler subprocesses.
 

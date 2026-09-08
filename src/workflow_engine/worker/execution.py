@@ -3,6 +3,7 @@
 import contextlib
 import multiprocessing
 import os
+import time
 from multiprocessing.connection import Connection
 
 from workflow_engine.domain.completion import CompletionResult
@@ -61,6 +62,8 @@ class ProcessExecution:
         self._closed = False
         self._result: CompletionResult | None = None
         self._lost = False
+        self._stop_started: float | None = None
+        self._kill_sent_at: float | None = None
         try:
             self._process.start()
         except Exception:
@@ -104,21 +107,38 @@ class ProcessExecution:
             ) from None
         return None
 
-    def close(self) -> None:
-        """Idempotent cleanup; termination cannot undo a completed external effect."""
-        if self._closed:
+    def request_stop(self) -> None:
+        """Start bounded cleanup without waiting for this child to exit."""
+        if self._closed or self._stop_started is not None:
             return
+        self._stop_started = time.monotonic()
         if self._process.is_alive():
             self._process.terminate()
-        self._process.join(timeout=2)
+
+    def poll_closed(self) -> bool:
+        if self._closed:
+            return True
+        if self._stop_started is None:
+            raise RuntimeError("Cleanup has not been requested.")
         if self._process.is_alive():
-            self._process.kill()
-            self._process.join(timeout=2)
-        if self._process.is_alive():
-            raise RuntimeError("Handler process could not be stopped.")
+            now = time.monotonic()
+            if now - self._stop_started >= 2 and self._kill_sent_at is None:
+                self._process.kill()
+                self._kill_sent_at = now
+            elif self._kill_sent_at is not None and now - self._kill_sent_at >= 2:
+                raise RuntimeError("Handler process could not be stopped.")
+            return False
+        self._process.join(timeout=0)
         self._receiver.close()
         self._process.close()
         self._closed = True
+        return True
+
+    def close(self) -> None:
+        """Idempotent cleanup; termination cannot undo an external effect."""
+        self.request_stop()
+        while not self.poll_closed():
+            time.sleep(0.005)
 
     def __enter__(self) -> "ProcessExecution":
         return self

@@ -12,6 +12,12 @@ from workflow_engine.worker.entrypoint import run_worker
 from workflow_engine.worker.loop import WorkerLoop
 
 
+@pytest.mark.parametrize("concurrency", [0, 33, -1])
+def test_worker_concurrency_is_bounded(concurrency: int) -> None:
+    with pytest.raises(ValidationError):
+        Settings(worker_concurrency=concurrency)
+
+
 @pytest.mark.parametrize(
     "url",
     [

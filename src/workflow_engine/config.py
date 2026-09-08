@@ -43,6 +43,7 @@ class Settings(BaseSettings):
         default=0.5, ge=0.05, le=60, allow_inf_nan=False
     )
     scheduler_page_size: int = Field(default=50, ge=1, le=100)
+    worker_concurrency: int = Field(default=1, ge=1, le=32)
 
     database_host: str = Field(default="127.0.0.1", min_length=1)
     database_port: int = Field(default=5432, ge=1, le=65535)

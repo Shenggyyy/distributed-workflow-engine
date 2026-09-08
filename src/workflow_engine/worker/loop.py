@@ -1,4 +1,4 @@
-"""Single-slot Worker: network calls never block execution ownership supervision."""
+"""Bounded Worker slots with shared session supervision and independent leases."""
 
 import logging
 import math
@@ -213,7 +213,12 @@ class _Slot:
         if self.execution is not None:
             if now >= self.lease_deadline:
                 raise WorkerControlError("Attempt lease confirmation expired locally.")
-            if self.work is None:
+            if self.phase == "cleanup":
+                if self.execution.poll_closed():
+                    self.execution = None
+                    self.phase = "complete"
+                    self.next_work = now
+            elif self.work is None:
                 result = self.execution.poll()
                 if result is not None:
                     assert self.lease is not None
@@ -223,10 +228,8 @@ class _Slot:
                         lease_token=self.lease.lease_token,
                         result=result,
                     )
-                    self.execution.close()
-                    self.execution = None
-                    self.phase = "complete"
-                    self.next_work = now
+                    self.execution.request_stop()
+                    self.phase = "cleanup"
                 elif now >= self.renew_at:
                     self.phase = "renew"
         if stop.is_set():
@@ -251,9 +254,13 @@ class _Slot:
             self.execution.close()
             self.execution = None
 
+    def request_stop(self) -> None:
+        if self.execution is not None:
+            self.execution.request_stop()
+
 
 class WorkerLoop:
-    """One session heartbeat supervising a single execution slot.
+    """One session heartbeat supervising bounded execution slots.
 
     Late HTTP requests may commit after shutdown, but cannot restart execution.
     """
@@ -268,8 +275,8 @@ class WorkerLoop:
         retry_seconds: float = 0.5,
         tick_seconds: float = 0.05,
     ) -> None:
-        if transport.session.max_concurrency != 1:
-            raise ValueError("Single-slot Worker requires max_concurrency=1.")
+        if not 1 <= transport.session.max_concurrency <= 32:
+            raise ValueError("Worker runtime supports between 1 and 32 slots.")
         for interval in (poll_seconds, retry_seconds, tick_seconds):
             if (
                 isinstance(interval, bool)
@@ -291,13 +298,16 @@ class WorkerLoop:
         if max_tasks is not None and (type(max_tasks) is not int or max_tasks < 1):
             raise ValueError("max_tasks must be a positive integer.")
         self._started = True
-        slot = _Slot(
-            self.transport,
-            self.registry,
-            self.run_id,
-            poll_seconds=self.poll_seconds,
-            retry_seconds=self.retry_seconds,
-        )
+        slots = [
+            _Slot(
+                self.transport,
+                self.registry,
+                self.run_id,
+                poll_seconds=self.poll_seconds,
+                retry_seconds=self.retry_seconds,
+            )
+            for _ in range(self.transport.session.max_concurrency)
+        ]
         completed = 0
         phase = "register"
         control: _Call[WorkerObservation] | None = None
@@ -342,15 +352,41 @@ class WorkerLoop:
                         else self.transport.heartbeat
                     )
                 if heartbeat_deadline is not None:
-                    if not slot.busy:
-                        slot.start()
-                    if slot.step(stop, heartbeat_deadline):
-                        completed += 1
-                        if max_tasks is not None and completed >= max_tasks:
-                            return completed
-                    if slot.finished:
+                    for slot in slots:
+                        if stop.is_set():
+                            break
+                        if time.monotonic() >= heartbeat_deadline:
+                            raise WorkerControlError(
+                                "Worker heartbeat confirmation expired locally."
+                            )
+                        if slot.finished:
+                            continue
+                        if not slot.busy:
+                            # Reserve budget even for uncertain claims and discovery.
+                            reserved = completed + sum(item.busy for item in slots)
+                            if max_tasks is not None and reserved >= max_tasks:
+                                continue
+                            slot.start()
+                        if slot.step(stop, heartbeat_deadline):
+                            completed += 1
+                    if (max_tasks is not None and completed >= max_tasks) or all(
+                        slot.finished for slot in slots
+                    ):
                         return completed
                 stop.wait(self.tick_seconds)
             return completed
         finally:
-            slot.close()
+            failures: list[Exception] = []
+            # Signal every child before joining any, including after a slot failure.
+            for slot in slots:
+                try:
+                    slot.request_stop()
+                except Exception as error:
+                    failures.append(error)
+            for slot in slots:
+                try:
+                    slot.close()
+                except Exception as error:
+                    failures.append(error)
+            if failures:
+                raise ExceptionGroup("Worker child cleanup failed.", failures)

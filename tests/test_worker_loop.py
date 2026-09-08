@@ -39,9 +39,9 @@ from workflow_engine.worker.transport import (
 
 
 class Gateway(WorkerTransport):
-    def __init__(self) -> None:
+    def __init__(self, concurrency: int = 1) -> None:
         super().__init__(
-            WorkerSession(id=uuid4(), worker_name="test", max_concurrency=1),
+            WorkerSession(id=uuid4(), worker_name="test", max_concurrency=concurrency),
             lambda *args: (500, b""),
         )
         self.run_id = uuid4()
@@ -146,6 +146,12 @@ class FakeExecution(ProcessExecution):
 
     def close(self) -> None:
         self.closed = True
+
+    def request_stop(self) -> None:
+        self.closed = True
+
+    def poll_closed(self) -> bool:
+        return self.closed
 
 
 @pytest.fixture

@@ -50,7 +50,7 @@ def main() -> None:
         prog="engine",
         description=(
             "Distributed Workflow Engine. "
-            "Publish workflows and run single-slot workers for ready tasks; "
+            "Publish workflows and run bounded parallel workers for ready tasks; "
             "Schedule DAG dependencies; crash recovery is not implemented yet."
         ),
     )
@@ -64,7 +64,7 @@ def main() -> None:
     for name, help_text in (
         ("check-config", "Validate configuration without starting services."),
         ("api", "Start the HTTP API server."),
-        ("worker", "Discover ready tasks and execute with a single local slot."),
+        ("worker", "Discover ready tasks and execute with bounded local slots."),
         ("scheduler", "Discover active Runs and reconcile in short transactions."),
         ("check-db", "Check authenticated database connectivity; no schema changes."),
     ):

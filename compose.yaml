@@ -30,6 +30,7 @@ services:
       DWE_LOG_LEVEL: INFO
       DWE_WORKER_API_URL: http://api:8000
       DWE_WORKER_NAME: "${DWE_WORKER_NAME:-worker}"
+      DWE_WORKER_CONCURRENCY: "${DWE_WORKER_CONCURRENCY:-1}"
     healthcheck:
       disable: true
     stop_grace_period: 15s

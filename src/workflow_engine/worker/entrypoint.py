@@ -20,7 +20,9 @@ def run_worker(
     logger = logging.getLogger(__name__)
     stop = Event()
     session = WorkerSession(
-        id=uuid4(), worker_name=settings.worker_name, max_concurrency=1
+        id=uuid4(),
+        worker_name=settings.worker_name,
+        max_concurrency=settings.worker_concurrency,
     )
 
     def request_stop(signum: int, frame: object) -> None:

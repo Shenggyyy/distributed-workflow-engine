@@ -1,5 +1,9 @@
 """Spawned handler + HTTP protocol + PostgreSQL with lost committed responses."""
 
+import multiprocessing
+from dataclasses import dataclass
+from multiprocessing.synchronize import Barrier
+from pathlib import Path
 from threading import Event, Timer
 from uuid import UUID, uuid4
 
@@ -9,13 +13,28 @@ from sqlalchemy import Engine, func, select
 
 from tests.integration.test_lease_http import client as client
 from tests.integration.test_lease_http import http_engine as http_engine
+from workflow_engine.domain.completion import CompletionOutcome, CompletionResult
 from workflow_engine.domain.worker import WorkerSession
 from workflow_engine.schema import attempt_completions, task_attempts, task_runs
-from workflow_engine.worker.handlers import builtin_registry
+from workflow_engine.worker.handlers import (
+    HandlerContext,
+    HandlerRegistration,
+    HandlerRegistry,
+    builtin_registry,
+)
 from workflow_engine.worker.loop import WorkerLoop
 from workflow_engine.worker.transport import TransportUnavailable, WorkerTransport
 
 pytestmark = pytest.mark.integration
+
+
+@dataclass(frozen=True)
+class BarrierHandler:
+    barrier: Barrier
+
+    def __call__(self, context: HandlerContext) -> CompletionResult:
+        self.barrier.wait(timeout=8)
+        return CompletionResult(outcome=CompletionOutcome.SUCCEEDED)
 
 
 @pytest.mark.parametrize("failed", [False, True])
@@ -128,3 +147,57 @@ def test_automatic_worker_advances_across_runs(
     with http_engine.connect() as connection:
         assert list(connection.scalars(select(task_runs.c.status))) == ["SUCCEEDED"] * 3
         assert connection.scalar(select(func.count()).select_from(task_attempts)) == 3
+
+
+def test_two_real_handler_processes_overlap_in_one_worker(
+    client: TestClient, http_engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Spawn must import this test-defined trusted handler outside pytest's loader.
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2]))
+    version = client.post(
+        "/workflows",
+        json={
+            "name": "parallel",
+            "tasks": [
+                {"task_id": key, "task_type": "test.barrier"} for key in ("A", "B")
+            ],
+        },
+    )
+    assert version.status_code == 201
+    run = client.post(
+        "/runs",
+        json={"workflow_version_id": version.json()["id"]},
+        headers={"Idempotency-Key": uuid4().hex},
+    )
+    assert run.status_code == 201
+
+    def send(method: str, path: str, body: bytes) -> tuple[int, bytes]:
+        response = client.request(
+            method, path, content=body, headers={"Content-Type": "application/json"}
+        )
+        return response.status_code, response.content
+
+    transport = WorkerTransport(
+        WorkerSession(id=uuid4(), worker_name="parallel", max_concurrency=2), send
+    )
+    barrier = multiprocessing.get_context("spawn").Barrier(2)
+    registry = HandlerRegistry(
+        (HandlerRegistration("test.barrier", BarrierHandler(barrier)),)
+    )
+    stop = Event()
+    timer = Timer(15, stop.set)
+    timer.start()
+    try:
+        assert (
+            WorkerLoop(
+                transport, registry, UUID(run.json()["run_id"]), tick_seconds=0.005
+            ).run(stop, max_tasks=2)
+            == 2
+        )
+        assert not stop.is_set()
+    finally:
+        timer.cancel()
+        timer.join(timeout=1)
+    with http_engine.connect() as connection:
+        assert list(connection.scalars(select(task_runs.c.status))) == ["SUCCEEDED"] * 2
+        assert connection.scalar(select(func.count()).select_from(task_attempts)) == 2

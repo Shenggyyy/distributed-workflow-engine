@@ -5,9 +5,23 @@ head, publish a Workflow and create a Run using the [API](run-api.md). The Worke
 talks only to the API; it needs no PostgreSQL password or database connection.
 M3.1c makes `--run-id` optional: omit it to discover work across active Runs.
 M3.2a separates session registration/heartbeat supervision from per-slot claim,
-renewal, execution and completion control. It retains one slot in this step;
-parallel slot admission follows in M3.2b. Both control paths remain bounded and
-check stop signals without waiting for HTTP requests.
+renewal, execution and completion control. M3.2b enables 1–32 parallel slots,
+configured with `DWE_WORKER_CONCURRENCY` (default 1).
+
+One process registers one session, with one shared heartbeat request in flight.
+Each slot owns at most one work request and one child. Discovery, uncertain claims,
+execution, child cleanup and completion retries all reserve a slot. With a finite
+`--max-tasks`, completed work plus reservations never exceeds that bound; a lost
+response cannot cause a replacement claim or extra execution. PostgreSQL separately
+enforces the session's persisted concurrency limit under the Worker row lock.
+
+Handlers run in separate spawned processes, allowing CPU work to overlap. Child
+cleanup is polled without blocking other slots, escalating termination to kill after
+two seconds and failing if it is still alive two seconds after kill. Shutdown signals all children before joining
+any of them. Heartbeat loss or a fatal slot control/execution error stops the whole
+Worker conservatively; other unfinished Attempts await M4 recovery. There is no
+prefetch queue. Local spawn and OS scheduling are not hard real-time guarantees;
+the database remains authoritative for accepting ownership and results.
 
 ## Host process
 
@@ -43,6 +57,7 @@ Completion retries likewise retain the exact report without re-executing the han
 | --- | --- | --- |
 | DWE_WORKER_API_URL | http://127.0.0.1:8000 | HTTP(S) origin without credentials/path/query. |
 | DWE_WORKER_NAME | worker | Human-readable label; a new session UUID is generated each start. |
+| DWE_WORKER_CONCURRENCY | 1 | Number of local execution slots, 1–32. |
 | DWE_WORKER_HTTP_TIMEOUT_SECONDS | 5 | Per-socket-operation timeout, 0.05–60 seconds. |
 | DWE_WORKER_POLL_SECONDS | 0.5 | Delay after a confirmed empty poll, 0.05–60 seconds. |
 | DWE_WORKER_RETRY_SECONDS | 0.5 | Transient delivery retry delay, 0.05–60 seconds. |

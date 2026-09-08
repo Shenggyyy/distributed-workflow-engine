@@ -149,6 +149,8 @@ jobs:
         run: uv run --locked python scripts/check_worker_execution.py
 
       - name: Execute handlers inside the Worker container
+        env:
+          DWE_WORKER_CONCURRENCY: 2
         run: uv run --locked python scripts/check_worker_execution.py --container
 
       - name: Execute a diamond DAG with independent host processes
