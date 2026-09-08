@@ -1,0 +1,44 @@
+# Execution policy and retry semantics
+
+M4.1a defines a pure, immutable `ExecutionPolicy` and `retry_delay`. It does not yet
+change execution or persistence. Later M4 commits pin policies to Workflow versions
+and atomically persist retry eligibility with Attempt settlement.
+
+| Field | Default | Range / meaning |
+| --- | --- | --- |
+| max_attempts | 1 | 1–100 total Attempts, including the first; 1 disables retries. |
+| timeout_seconds | 300 | 1–86400 seconds per Attempt, measured from lease acquisition; renewal must not reset it. |
+| initial_backoff_ms | 1000 | 1–86400000 milliseconds before exponential growth. |
+| max_backoff_ms | 60000 | 1–86400000 milliseconds, at least the initial delay. |
+
+After failed Attempt number `n`, retry is allowed only if `n < max_attempts`.
+Compute `cap = min(max_backoff_ms, initial_backoff_ms * 2**(n - 1))`, then select
+equal jitter in `[cap / 2, cap]`, rounding up to integer milliseconds. A caller
+supplies a finite sample in `[0, 1]`. The pure function performs no random sampling,
+clock reads, sleep, state changes or I/O. Budget checks precede exponentiation so
+large historical Attempt numbers cannot cause unbounded computation.
+
+Equal jitter retains a positive delay and spreads retries after shared outages.
+Its trade-off is extra latency versus zero-delay retries. The eventual transaction
+must persist `database_observed_at + delay` once; repeated scans and completion
+replays must not move that eligibility time. HTTP transport retries remain separate
+from Task retries and keep their existing identities.
+
+A failed Attempt remains terminal. Retrying moves its Task from RUNNING to
+RETRY_WAIT, later to READY, and creates a new Attempt only on a subsequent claim.
+Exhausted tasks become FAILED. Stable Task identity is retained across Attempts;
+external effects still require cooperating business idempotency.
+
+## M4 implementation sequence
+
+1. M4.1a: execution policy and bounded backoff helpers (implemented).
+2. M4.1b: immutable Workflow policy publication and compatibility.
+3. M4.2: persisted retry scheduling and due-task promotion.
+4. M4.3: hard Attempt timeout admission and expired ownership recovery.
+5. M4.4: Worker crash scanning, recovery coordination, stale-result races and
+   end-to-end failure acceptance, followed by the M4 milestone review.
+
+Each larger step will be split into independent commits for its schema, transaction
+behavior and acceptance checks. Policies apply to business failure, timeout and lost
+ownership within the configured attempt budget; failure categories remain distinct
+in Attempt history.
