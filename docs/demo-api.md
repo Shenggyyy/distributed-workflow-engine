@@ -43,7 +43,7 @@ No telemetry endpoint grants ownership or accepts arbitrary state mutation.
 Observations use separate short transactions and lock only their own invocation
 row for ordering. Core locking, lease admission, retries and stale-result rejection
 remain unchanged. Migration 0011 is additive; existing rows are never backfilled or
-rewritten. Old clock-domain evidence remains separate. See [design](demo-plan.md).
+rewritten. Old clock-domain evidence remains separate. See [design](demo-design.md).
 
 The page polls sequentially with a 500 ms delay between completed fetch cycles;
 network/database latency adds to that interval. Brief states may be missed, while

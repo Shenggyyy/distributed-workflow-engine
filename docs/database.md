@@ -1,9 +1,8 @@
 # PostgreSQL connectivity and transaction boundaries
 
-M0.7a introduces SQLAlchemy 2 Core with psycopg 3 and an explicit engine lifetime.
-The connectivity module does not create tables. [Explicit Alembic commands](migrations.md)
-use this engine; M1.2 adds [workflow/version tables](workflow-storage.md) in revision
-0002. M1.4 connects [HTTP workflow routes](api.md) through an app-owned lazy pool.
+SQLAlchemy 2 Core with psycopg 3 provides an explicit engine lifetime. The
+connectivity module does not create tables; [explicit Alembic commands](migrations.md)
+apply the schema. [HTTP workflow routes](api.md) use an application-owned lazy pool.
 The API liveness endpoint remains independent of the database.
 
 ## Configuration and CLI
@@ -100,9 +99,11 @@ I/O concurrency warrants it.
 - SQLAlchemy uses a PostgreSQL/psycopg URL object rather than interpolating a URL
   string. Passwords containing characters such as `@`, `/`, and `%` do not
   need manual URL encoding.
-- Isolation is explicitly READ COMMITTED. A transaction alone does not prevent
-  concurrent scheduling races. Workflow publication now uses a row lock and
-  unique constraints. Durable task state transitions, leases, and fencing are later milestones.
+- Core write transactions use READ COMMITTED. A transaction alone does not prevent
+  concurrent scheduling races: repositories combine ordered locks, constraints,
+  state checks and post-lock clock observations. See the
+  [architecture and consistency boundaries](architecture.md). The optional demo
+  uses a separate read-only REPEATABLE READ snapshot for its combined evidence view.
 - Pool overflow is disabled. Each process opens at most its configured pool size;
   additional callers wait up to the pool timeout. Multiple processes multiply
   this connection budget. This does not yet implement task backpressure.
@@ -113,9 +114,11 @@ I/O concurrency warrants it.
   controls and must not surround task execution.
 - Pre-ping detects stale pooled connections on checkout. It cannot repair a
   transaction interrupted by a database/network failure.
-- There is no automatic transaction replay. Losing a connection during COMMIT
-  can leave the outcome unknown; future idempotency keys and durable state must
-  resolve it before retrying. A SQL timeout is not a workflow/task timeout.
+- The connectivity layer does not replay transactions. Losing a connection during
+  COMMIT can leave the outcome unknown; callers must preserve the protocol's
+  [Run](run-idempotency.md), [claim](idempotent-claims.md) or
+  [completion](completion-transactions.md) identity when resolving that uncertainty.
+  A SQL timeout is not a workflow/task timeout.
 - SQL echo is disabled and bound parameters are hidden in SQLAlchemy errors.
   This is not general redaction of driver errors, literal SQL, or arbitrary user
   logging. The CLI emits fixed failure messages; callers must not log raw

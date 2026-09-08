@@ -144,8 +144,9 @@ docker compose exec api alembic current
 docker compose exec api alembic check
 ```
 
-Expect `0007 (head)` and `No new upgrade operations detected.` Existing API
-examples still work. Startup does not automatically migrate the database.
+Expect the current head listed in [migrations](migrations.md) and
+`No new upgrade operations detected.` Revision `0007` introduced these bindings;
+it is not the current head. Startup does not automatically migrate the database.
 
 ```console
 uv run --locked pytest tests/integration/test_claim_request_schema.py --database-env-file .env.database-test
@@ -155,5 +156,6 @@ Tests use private schemas in a dedicated PostgreSQL database. They cover grants
 and no-work, required fields, finite times, exact owner foreign keys, scoped
 request uniqueness, Attempt uniqueness, mutation/history guards, uncommitted
 visibility, waiting duplicates after commit/rollback, metadata comparison, and a
-populated `0006 -> 0007 -> 0006 -> 0007` round trip. M2.2d.1b adds repository replay tests; HTTP
-tests follow with the endpoint. See [migrations](migrations.md) for configuration.
+populated `0006 -> 0007 -> 0006 -> 0007` round trip. Separate
+[keyed transaction](idempotent-claims.md) and [claim HTTP](claim-api.md) tests
+verify replay through the supported writers.

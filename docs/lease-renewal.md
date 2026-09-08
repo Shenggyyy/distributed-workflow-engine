@@ -1,9 +1,9 @@
 # Persisted attempt lease renewal
 
-M2.2c.2 adds `LeaseRepository.renew()` on schema `0006`. It renews only current,
-RUNNING execution ownership in a caller-owned PostgreSQL transaction. No migration,
-HTTP route, Worker loop, completion handler or expiry recovery is introduced.
-M2.2d.2b subsequently exposes this repository through the [lease HTTP API](lease-api.md).
+`LeaseRepository.renew()` renews only current, RUNNING execution ownership in a
+caller-owned PostgreSQL transaction. Lease storage originated in revision `0006`;
+run current code against the [current migration head](migrations.md). The
+[lease HTTP API](lease-api.md) exposes this transaction to Worker control loops.
 
 ## Python contract
 
@@ -22,7 +22,7 @@ with engine.begin() as connection:
 All three identifiers must be UUID instances. The constructor accepts a strict
 integer duration from 1 to 86400 seconds, default 30. This server policy is
 independent of Worker heartbeat timeout. The Python constructor policy remains
-explicit; the later HTTP adapter supplies `DWE_ATTEMPT_LEASE_SECONDS` from Settings.
+explicit; the HTTP adapter supplies `DWE_ATTEMPT_LEASE_SECONDS` from Settings.
 Each operation uses a fresh READ COMMITTED transaction, with driver autocommit
 disabled. A repository cannot outlive its original transaction or be shared across
 threads. Callers must not hold locks that reverse the ordering below.
@@ -47,7 +47,9 @@ observation; a shorter policy cannot shrink an existing deadline.
 4. Only after every lock is held, sample PostgreSQL `clock_timestamp()` and call
    the pure [lease model](attempt-leases.md) with the submitted tuple. It requires
    matching attempt/session/token, time >= last_renewed_at and time strictly less
-   than lease_expires_at. Equality at the deadline is expired.
+   than lease_expires_at. Equality at the deadline is expired. The same observation
+   must also precede the fixed Attempt deadline derived from acquisition and the
+   pinned execution policy; renewal cannot extend that deadline.
 5. Persist the two renewed timestamps and validate the returned row. Propagate
    errors so the caller rolls back. No state transitions, task execution or
    implicit lease takeover occur.
@@ -58,7 +60,7 @@ storage. Deliberate schema/trigger bypasses by database administrators are outsi
 the supported transaction protocol.
 
 The Worker row lock is retained even though renewal does not change capacity.
-This gives claim, renewal and future completion/recovery a common lock order.
+This gives claim, renewal, completion and recovery a common lock order.
 It serializes control operations sharing a Run or Worker and may limit throughput;
 benchmark before relaxing the coordination rules.
 
@@ -85,6 +87,7 @@ does not transfer existing ownership.
 | LeaseOwnershipError | Supplied attempt/session/token does not match the stored lease. |
 | LeaseClockRegressionError | Observation precedes the last accepted lease observation. |
 | LeaseExpiredError | Observation is at or beyond the current lease deadline. |
+| AttemptTimeoutError | Observation is at or beyond the fixed execution deadline. |
 | RepositoryTransactionError | Unsupported or no longer active transaction context. |
 | TypeError / ValueError | Invalid UUID inputs or server duration. |
 
@@ -103,8 +106,9 @@ separately and exposed through [claim HTTP](claim-api.md).
 Concurrent renewals serialize and re-read the latest timestamps. If a preceding
 renewal rolls back, its timestamps disappear. If a preceding operation commits a
 terminal Attempt, a waiting renewal rejects it without reopening the Attempt.
-The recovery/completion actions in these tests are controlled database mutations;
-production completion and recovery are still future milestones.
+The focused renewal tests include controlled predecessor mutations. Separate
+[completion](completion-transactions.md) and [recovery](timeouts.md) integration
+tests exercise the supported writers and their cross-operation races.
 
 Deadlines are checked at the database observation, not continuously until response
 delivery. A slow commit can leave a returned deadline already expired. Locks are
@@ -113,10 +117,11 @@ Wall-clock jumps can cause false expiry or temporary rejection. A renewed lease
 does not prove handler progress, terminate an old process or prevent duplicate
 external effects.
 
-Task execution timeout has no persisted deadline field yet. Later timeout handling
-must apply its own absolute deadline; renewing a lease must never reset that
-execution deadline. This stage does not claim to enforce task timeout or provide
-exactly-once execution.
+The fixed execution deadline is derived from immutable `acquired_at` plus the
+pinned policy's timeout; it does not need a separately mutable deadline column.
+Renewal rejects at that deadline even while the lease is still valid. Worker
+supervision and Scheduler recovery enforce their separate [timeout roles](timeouts.md).
+None of these checks guarantees exactly-once execution.
 
 ## Runnable example
 
@@ -135,11 +140,12 @@ the Attempt ID, original/new deadlines, `Ownership preserved: True`, and a
 commit confirmation. Tokens are never printed or accepted as command-line input.
 Use `--env-file` for an explicitly configured database if needed.
 
-The example still reserves capacity and does not execute or finish the task.
-There is no automatic recovery to release its slot. Run experiments with disposable
-Runs/sessions; repeating the example is another claim, not replay of the first one.
+The example reserves capacity and does not execute or finish the task. A running
+Scheduler can recover the reservation after its lease or fixed deadline expires;
+this example does not start that process. Use disposable Runs/sessions; repeating
+the example is another claim, not replay of the first one.
 
-## Verification and next step
+## Verification
 
 ```console
 uv run --locked pytest tests/integration/test_lease_renewal.py --database-env-file .env.database-test

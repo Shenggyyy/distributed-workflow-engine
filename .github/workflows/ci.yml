@@ -57,6 +57,9 @@ jobs:
       - name: Test browser evidence calculations (runner Node.js)
         run: node --test tests/demo-evidence.test.mjs
 
+      - name: Check local documentation links and anchors
+        run: uv run --locked python scripts/check_docs.py
+
       - name: Build source distribution and wheel
         run: uv build
 

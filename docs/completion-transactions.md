@@ -91,6 +91,7 @@ itself the comparison/replay implementation.
 | LeaseOwnershipError | Submitted session/token does not match first acceptance or retained receipt. |
 | LeaseExpiredError | New completion observes time at or beyond the exclusive deadline. |
 | LeaseClockRegressionError | New completion observes time before the latest lease renewal. |
+| AttemptTimeoutError | New completion observes time at or beyond the fixed execution deadline. |
 | CompletionConflictError | Same owned Attempt was reported with a different result. |
 | StoredCompletionError | Stored ownership, receipt or returned transition is invalid/inconsistent. |
 | RepositoryTransactionError | Missing, ended/replaced or unsupported transaction. |
@@ -102,18 +103,20 @@ an Attempt ended by recovery as LOST/TIMED_OUT. No implicit lease takeover occur
 
 Database errors, connection failures and timeouts propagate without retries. Domain
 storage-error messages do not echo tokens or row values, but raw driver exceptions
-can contain SQL parameters. A later HTTP adapter must use sanitized error logging;
+can contain SQL parameters. The HTTP adapter uses sanitized error logging;
 do not log internal receipt dumps or driver exception messages. Tokens remain in
 the internal receipt for ownership comparison and are hidden from its repr.
 
 Database wall-clock jumps and delayed COMMIT/response delivery remain lease
 trade-offs. accepted_at is an observation timestamp, not a proof that the handler
-finished then. The implementation does not enforce a task execution timeout,
-terminate a process or guarantee exactly-once external effects.
+finished then. A first completion checks the fixed [Attempt timeout](timeouts.md)
+at admission; replay of an existing accepted receipt remains historical confirmation.
+This repository does not terminate a process or guarantee exactly-once external effects.
 
 ## Runnable database example
 
-With PostgreSQL migrated to `0008` and a dedicated application dotenv file:
+With PostgreSQL migrated to the [current head](migrations.md) and a dedicated
+application dotenv file:
 
 ```console
 uv run --locked python examples/complete_attempt.py --env-file .env

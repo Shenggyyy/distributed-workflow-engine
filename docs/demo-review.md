@@ -12,7 +12,7 @@ Both gates are complete. No unrelated V2/V3 functionality was added.
 ## Actual browser runs
 
 Windows host, Docker Desktop Linux containers, PostgreSQL 18.6, Python 3.13 runtime.
-The screenshots in README/demo.md are unmodified viewport captures of live engine
+The original screenshots linked below are unmodified viewport captures of live engine
 data. They show the DAG/Worker/timeline region; the page header and JSON endpoint
 provide the full Run ID. This is a single-machine container demonstration.
 
@@ -21,6 +21,11 @@ provide the full Run ID. This is a single-machine container demonstration.
 | Parallel | `50d26df3-a906-4cfe-9140-1da802be71f5` | One Worker, two slots, measured peak overlap 2; all five Tasks succeeded; 78 samples. |
 | Distribution | `09d055c3-8f34-4e7b-9ce5-40613e877ce0` | Two independent one-slot Worker containers; measured peak overlap 2; all five Tasks succeeded; 78 samples. |
 | Recovery | `fcc17f9d-eecc-41ec-85f3-94b9bd4bd2a9` | Actual RETRY_WAIT screenshot; Attempt 1 LOST without FINISH, Attempt 2 on another Worker succeeded, then Join succeeded; 51 samples. |
+
+Retained phase D captures: [parallel](images/demo-parallel.png),
+[distribution](images/demo-distribution.png), [retry wait](images/demo-retry.png),
+and [final recovery](images/demo-recovery.png). These preserve the original
+acceptance evidence; the current page's layout and language may differ.
 
 For the parallel Run, A's observed interval was
 `[52816858644399, 52825237888920]` ns and B's was

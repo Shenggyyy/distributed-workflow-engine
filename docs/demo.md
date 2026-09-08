@@ -54,7 +54,7 @@ the database volume. Commands never truncate, downgrade, reset, remove volumes o
 operate on development Workers. A failed scenario-creation POST is not retried
 automatically: inspect `http://127.0.0.1:18080/demo/runs` for any created Run.
 
-Evidence semantics and acceptance boundaries: [demo plan](demo-plan.md).
+Evidence semantics and acceptance boundaries: [demo design](demo-design.md).
 
 ## Repeatable evidence checks
 

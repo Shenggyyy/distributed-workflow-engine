@@ -122,9 +122,10 @@ docker compose exec api alembic current
 docker compose exec api alembic check
 ```
 
-Revision `0007` now adds [claim request bindings](claim-requests.md) and a composite
+Revision `0007` added [claim request bindings](claim-requests.md) and a composite
 unique key on `(attempt_id, worker_session_id)` for its owner foreign key.
-Expect `0007 (head)` and `No new upgrade operations detected.` Rebuild the API
+Expect the current head listed in [migrations](migrations.md) and
+`No new upgrade operations detected.` Rebuild the API
 image first so that its packaged migrations include the current head. API startup does not
 automatically upgrade the database. Host-side commands and isolated test database
 configuration are described in [migrations](migrations.md) and

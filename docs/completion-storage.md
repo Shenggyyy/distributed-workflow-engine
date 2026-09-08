@@ -1,10 +1,9 @@
 # Completion receipt storage
 
-M2.3b adds revision `0008` and the `attempt_completions` table. It persists the
-shape defined by the [completion contract](attempt-completion.md). It does not
-implement an application completion transaction, HTTP endpoint or execution loop.
-Existing HTTP APIs continue to register, claim and renew; they do not insert receipts.
-M2.3c.1 now adds the separate Python [completion transaction](completion-transactions.md).
+Revision `0008` introduced the `attempt_completions` table. It persists the shape
+defined by the [completion contract](attempt-completion.md). Storage constraints
+do not replace the separate Python [completion transaction](completion-transactions.md)
+or its [HTTP adapter](completion-api.md), which authorize and commit receipts.
 
 ## Stored identity and result
 
@@ -21,7 +20,7 @@ erDiagram
 | lease_token | Required UUID bound to that exact Attempt/session lease. |
 | outcome | Required, case-sensitive SUCCEEDED or FAILED. |
 | error_code | NULL for success; required for failure, using the domain Identifier format and 64-character limit. |
-| accepted_at | Required finite timestamptz, explicitly supplied by the future transaction. |
+| accepted_at | Required finite timestamptz, explicitly supplied by the completion transaction. |
 
 There are no server defaults, generated request IDs, replacement rows or TTLs.
 The error-code check explicitly tests IS NOT NULL for failure because a SQL CHECK
@@ -63,8 +62,8 @@ established ordered transaction protocol. These constraints do not remove the ne
 to lock and re-read state, and arbitrary SQL writers can still create lock conflicts.
 
 No cross-table custom trigger queries parents in a different lock order. The
-future repository will acquire Run -> stored Worker -> Task -> Attempt -> lease,
-then inspect any receipt before applying first-acceptance rules. A primary-key
+repository acquires Run -> stored Worker -> Task -> Attempt -> lease,
+then inspects any receipt before applying first-acceptance rules. A primary-key
 conflict alone is not successful replay: the repository must compare the retained
 owner and result. Concurrent raw inserts wait for the competing transaction; its
 COMMIT yields a duplicate-key error, while its rollback permits insertion.
@@ -80,7 +79,7 @@ The database verifies identity, terminal outcome, local result shape and finite
 time. It **does not authorize execution completion**: finite accepted_at can be
 outside the lease window, a Worker can be STOPPED, and Task/Run can remain RUNNING
 or disagree with a receipt after raw SQL. Tests explicitly demonstrate this limit.
-The later repository must validate current state and post-lock time, then update
+The repository validates current state and post-lock time, then updates
 Task outcome and receipt atomically with the Attempt. No capacity counter is added;
 capacity remains derived from RUNNING Attempts.
 
@@ -112,11 +111,11 @@ docker compose exec -T api alembic current
 docker compose exec -T api alembic check
 ```
 
-Rebuild the API image first if it still contains revision `0007`. Expect `0008
-(head)` and no new upgrade operations. See [migration instructions](migrations.md)
-for host-based commands and database configuration.
+Rebuild the API image first if its packaged migrations are outdated. Expect the
+current head listed in [migration instructions](migrations.md) and no new upgrade
+operations. That guide also covers host commands and database configuration.
 
-## Verification and next step
+## Verification
 
 ```console
 uv run --locked pytest tests/integration/test_completion_schema.py --database-env-file .env.database-test
@@ -127,8 +126,8 @@ and time constraints, full ownership references, statement-level retention,
 concurrent duplicate insert commit/rollback, authorization limits, and populated
 upgrade/downgrade/re-upgrade. Migration discovery, offline SQL, complete-chain
 rollback and metadata comparison remain part of the existing test suite. CI checks
-the packaged `0008` head inside the runtime image.
+the current packaged migration head inside the runtime image.
 
-M2.3c.1 implements the [atomic completion/replay repository](completion-transactions.md).
-M2.3c.2 verifies extended cross-operation races and lock timeouts. Completion HTTP
-and handler execution remain subsequent steps.
+The [atomic completion/replay repository](completion-transactions.md) has separate
+cross-operation race and lock-timeout tests. [Completion HTTP](completion-api.md)
+and [Worker execution](worker-loop.md) build on that transaction contract.
