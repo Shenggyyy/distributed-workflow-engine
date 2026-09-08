@@ -1,12 +1,14 @@
 """Readiness reconciliation coordinated by the existing per-Run transaction lock."""
 
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Connection, select
+from sqlalchemy import Connection, func, select
 
 from workflow_engine.domain.dag import MAX_TASKS
 from workflow_engine.domain.readiness import ready_transitions
 from workflow_engine.domain.runtime import RunStatus, TaskRun, TaskStatus, WorkflowRun
+from workflow_engine.repositories._retry import due_tasks
 from workflow_engine.repositories.runs import StoredRuntimeError
 from workflow_engine.repositories.workflows import (
     RepositoryTransactionError,
@@ -31,6 +33,12 @@ class SchedulingRepository:
         self._connection = connection
         self._workflows = WorkflowRepository(connection)
         self._transaction = connection.get_transaction()
+
+    def _database_now(self) -> datetime:
+        observed: datetime = self._connection.execute(
+            select(func.clock_timestamp())
+        ).scalar_one()
+        return observed
 
     def reconcile(
         self, run_id: UUID, *, skip_locked: bool = False
@@ -98,6 +106,10 @@ class SchedulingRepository:
                 for task in rows
             )
             ready = ready_transitions(version.definition, run, tasks)
+            if any(task.status is TaskStatus.RETRY_WAIT for task in tasks):
+                ready += due_tasks(
+                    self._connection, version.definition, tasks, self._database_now()
+                )
         except (TypeError, ValueError):
             raise StoredRuntimeError(
                 "Stored scheduling snapshot is inconsistent."
@@ -109,7 +121,9 @@ class SchedulingRepository:
                 task_runs.update()
                 .where(
                     task_runs.c.id.in_([task.id for task in ready]),
-                    task_runs.c.status == TaskStatus.PENDING.value,
+                    task_runs.c.status.in_(
+                        [TaskStatus.PENDING.value, TaskStatus.RETRY_WAIT.value]
+                    ),
                 )
                 .values(status=TaskStatus.READY.value)
                 .returning(task_runs)

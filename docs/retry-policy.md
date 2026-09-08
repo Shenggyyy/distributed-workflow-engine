@@ -34,7 +34,8 @@ external effects still require cooperating business idempotency.
 1. M4.1a: execution policy and bounded backoff helpers (implemented).
 2. M4.1b: immutable Workflow policy publication and compatibility (implemented).
 3. M4.2a: append-only retry schedule schema (implemented); M4.2b: atomic failure
-   settlement (implemented); M4.2c: due-task promotion; M4.2d: HTTP and Worker retry acceptance.
+   settlement (implemented); M4.2c: due-task promotion (implemented);
+   M4.2d: HTTP and Worker retry acceptance.
 4. M4.3: hard Attempt timeout admission and expired ownership recovery.
 5. M4.4: Worker crash scanning, recovery coordination, stale-result races and
    end-to-end failure acceptance, followed by the M4 milestone review.
@@ -68,3 +69,14 @@ All writes share one caller-owned transaction, including deferred COMMIT checks.
 Existing receipt replay returns before policy evaluation or entropy sampling.
 No extra Attempt is allocated here, and retries cannot yet become READY until
 M4.2c installs the due-time reconciler. Default schema 1 failures remain permanent.
+
+## Due-task promotion (M4.2c)
+
+Scheduler reconciliation now samples `clock_timestamp()` after locking the Run
+and its Tasks. RETRY_WAIT Tasks require a matching failure schedule on their latest
+Attempt, within the pinned attempt budget. At `observed_at >= available_at` they
+become READY; old schedules are retained but cannot authorize later Attempts.
+Missing/inconsistent retry history aborts the transaction rather than silently
+losing a Task. The same Run lock serializes simultaneous Scheduler proposals;
+rollback preserves RETRY_WAIT. A new claim allocates the next Attempt, retaining
+the Task's business idempotency key. No timer or cursor must survive a restart.
