@@ -29,8 +29,8 @@ These Python snapshots contain only identity and lifecycle information. M1.6 SQL
 tables additionally store created_at audit metadata. Retry policy, active-attempt
 pointers, lease tokens, outputs and optimistic version counters need their own
 atomic storage/ownership contracts. M2.1a introduces the pure [Worker session
-model](workers.md); its persistence and attempt ownership integration remain
-separate follow-up work.
+model](workers.md), and M2.1b adds [session persistence](worker-storage.md).
+Attempt ownership integration remains separate follow-up work.
 
 ## Explicit transitions
 

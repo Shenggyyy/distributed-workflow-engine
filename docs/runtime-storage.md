@@ -114,9 +114,10 @@ docker compose exec api alembic current
 docker compose exec api alembic check
 ```
 
-Current revision should be `0004 (head)`. Runtime tables originated in 0003;
+Current revision should be `0005 (head)`. Runtime tables originated in 0003;
 0004 adds [request bindings](run-idempotency.md) and a composite reference target
-on workflow_runs. Upgrading preserves published definitions and existing runtime
+on workflow_runs. Revision 0005 adds [Worker sessions](worker-storage.md).
+Upgrading preserves published definitions and existing runtime
 records. Migrations do not create runs automatically.
 
 **Downgrading from 0003 to 0002 deletes all runs, tasks and attempts.** It leaves

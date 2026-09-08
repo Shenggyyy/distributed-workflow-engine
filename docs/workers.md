@@ -1,8 +1,9 @@
 # Worker sessions and registration design
 
 M2.1a implements the pure `WorkerSession` domain model, lifecycle tests and an
-in-memory example. There is no worker table, registration endpoint, heartbeat
-loop, clock evaluation or execution process yet. Database head remains `0004`.
+in-memory example. M2.1b adds [session storage](worker-storage.md) in revision
+`0005`. Registration/heartbeat operations, clock evaluation and execution are
+not implemented yet.
 
 ## Identity: one UUID per process incarnation
 
@@ -30,14 +31,14 @@ protocol later.
 | max_concurrency | Required strict integer, 1–2147483647; declared concurrent task slots for this session. |
 | status | WorkerStatus enum; defaults to ACTIVE. |
 
-The integer bound matches the planned PostgreSQL INTEGER storage. It is a
+The integer bound matches the PostgreSQL INTEGER storage. It is a
 representation limit, not a claim that a worker has those resources. The model
 does not allocate slots or enforce task concurrency. Future claims must combine
 the declared limit with actual free capacity and authoritative ownership checks.
 
 All fields are immutable snapshots. There is no automatic UUID generation or
-registration side effect in model construction. UUID uniqueness and immutable
-registration fields will need database constraints. A UUID is an identifier, not
+registration side effect in model construction. M2.1b storage enforces UUID
+uniqueness and immutable registration fields. A UUID is an identifier, not
 an authentication credential; the existing trusted-worker assumption still applies.
 
 ## Session lifecycle
@@ -72,15 +73,16 @@ WorkerStatus, while JSON uses the uppercase strings.
 Construction supports rehydrating terminal snapshots. Frozen models are not
 database concurrency control. Pydantic validation bypasses are unsupported for
 updates; transitions revalidate their input, but cannot detect a forged snapshot
-whose fields happen to be valid. No persistence guarantee is claimed here.
+whose fields happen to be valid. Persistence guards are documented separately in
+[worker-storage.md](worker-storage.md).
 
 ## Registration and heartbeat protocol to implement next
 
 These are design requirements for the following subtasks, not current behavior:
 
-1. Persist the session UUID, immutable name/capacity, status, registration time,
-   last accepted heartbeat time and heartbeat deadline. Server/database time,
-   not a worker-supplied timestamp, determines liveness deadlines.
+1. Use the M2.1b session table for UUID, immutable name/capacity, status,
+   registration time, last accepted heartbeat time and deadline. Registration
+   must derive those values from server/database time, not a worker timestamp.
 2. First registration reserves that UUID atomically. Retrying identical fields
    returns the existing registration; conflicting fields produce a conflict.
    Registration replay must not extend a heartbeat deadline or reopen a terminal
@@ -127,13 +129,13 @@ prevent arbitrary external side effects. Business idempotency remains necessary
 for at-least-once execution. None of lease expiry, recovery, result fencing or
 execution is implemented by this model.
 
-| Failure or race | Intended behavior | Implemented in M2.1a |
+| Failure or race | Intended behavior | Current implementation |
 | --- | --- | --- |
 | Worker restarts with the same label | New UUID; old identity stays separate. | Model/example only; boot/registration code is later. |
-| Old session already LOST/STOPPED | Never transition back to ACTIVE. | Domain transition enforcement. |
+| Old session already LOST/STOPPED | Never transition back to ACTIVE. | Domain transitions and database update guards. |
 | Registration commits but response is lost | Retry same UUID/fields without creating another session or renewing it. | Protocol design only. |
-| Heartbeat races expiry scan | Serialize and recheck the authoritative deadline. | Protocol design only. |
-| API/scheduler crashes | Durable session/deadline survives; next scan resumes. | Requires future storage and recovery loop. |
+| Heartbeat races expiry scan | Serialize and recheck the authoritative deadline. | Database rejects renewal after a committed terminal update; deadline protocol is later. |
+| API/scheduler crashes | Durable session/deadline survives; next scan resumes. | Storage exists; recovery loop is later. |
 | Worker stops heartbeating while a task lease is valid | Reject new claims after session expiry; use the attempt's lease for its outcome. | Protocol design only. |
 
 ## Example and verification
@@ -162,9 +164,10 @@ JSON round trips, frozen fields and revalidation of bypassed models.
 
 | Subtask | Scope |
 | --- | --- |
-| M2.1a (current) | Session identity, pure lifecycle, tests, example and protocol boundaries. |
-| M2.1b | Session schema/migration, database constraints and PostgreSQL tests. |
-| M2.1c | Transactional registration, replay/conflict, heartbeat and expiry with race tests; split further if needed. |
+| M2.1a (implemented) | Session identity, pure lifecycle, tests, example and protocol boundaries. |
+| M2.1b (current) | Session schema/migration, database constraints and PostgreSQL tests. |
+| M2.1c.1 | Transactional registration and duplicate/conflict handling with race tests. |
+| M2.1c.2 | Heartbeat renewal and expiry transactions with deadline/race tests. |
 | M2.1d | Registration/heartbeat HTTP contracts, validation and real HTTP checks. |
 
 Each requires its own verified commit and owner push before starting the next.

@@ -173,3 +173,43 @@ run_creation_requests = Table(
         initially="DEFERRED",
     ),
 )
+
+
+# Session times are explicit inputs from the future registration/heartbeat
+# transaction. No independent defaults may silently use a stale transaction time.
+worker_sessions = Table(
+    "worker_sessions",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column("worker_name", String(64, collation="C"), nullable=False),
+    Column("max_concurrency", Integer, nullable=False),
+    Column(
+        "status",
+        String(16, collation="C"),
+        nullable=False,
+        server_default=text("'ACTIVE'"),
+    ),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("last_heartbeat_at", DateTime(timezone=True), nullable=False),
+    Column("heartbeat_expires_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(
+        "worker_name ~ '^[A-Za-z][A-Za-z0-9_-]{0,63}$'", name="name_format"
+    ),
+    CheckConstraint("max_concurrency > 0", name="concurrency_positive"),
+    CheckConstraint("status IN ('ACTIVE', 'LOST', 'STOPPED')", name="status_values"),
+    CheckConstraint(
+        "isfinite(created_at) AND isfinite(last_heartbeat_at) "
+        "AND isfinite(heartbeat_expires_at)",
+        name="finite_times",
+    ),
+    CheckConstraint(
+        "created_at <= last_heartbeat_at AND last_heartbeat_at < heartbeat_expires_at",
+        name="heartbeat_order",
+    ),
+)
+Index(
+    "ix_worker_sessions_active_deadline",
+    worker_sessions.c.heartbeat_expires_at,
+    worker_sessions.c.id,
+    postgresql_where=text("status = 'ACTIVE'"),
+)

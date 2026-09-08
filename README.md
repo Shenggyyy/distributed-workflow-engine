@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.1a: Worker session identities and explicit lifecycle contracts.**
+**M2.1b: Persisted Worker sessions with lifecycle and heartbeat-time constraints.**
 
 Available now:
 
@@ -60,7 +60,10 @@ Available now:
 - Immutable WorkerSession models with per-process identity and terminal lifecycle rules.
 - Worker identity/heartbeat/lease design boundaries and an in-memory lifecycle example.
 
-Worker registration, heartbeats, scheduling and execution are **not implemented yet**.
+- Migrated Worker sessions with immutable identities, terminal-state and time guards.
+- PostgreSQL tests for concurrent identities, late renewal and preserved migration data.
+
+Worker registration/heartbeat operations, scheduling and execution are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -403,8 +406,9 @@ uv run --locked alembic check
 
 Revision `0001` records the initial baseline; `0002` adds workflow identity and
 append-only version tables; `0003` adds run/task/attempt storage and lifecycle guards.
-Revision `0004` adds immutable run-creation request bindings.
-Current revision should be `0004 (head)`. See the
+Revision `0004` adds immutable run-creation request bindings; `0005` adds
+[Worker session storage](docs/worker-storage.md) and heartbeat/lifecycle constraints.
+Current revision should be `0005 (head)`. See the
 [runtime storage contract](docs/runtime-storage.md) for guarantees and boundaries.
 Migration commands are explicit and never run on API startup. With Compose,
 `docker compose exec api alembic upgrade head` uses the container's existing
@@ -620,6 +624,7 @@ docs/
     run-api.md
     workflows.md
     workers.md
+    worker-storage.md
     workflow-storage.md
 examples/
     diamond.json
@@ -662,6 +667,7 @@ src/workflow_engine/
             0002_workflow_versions.py
             0003_runtime_storage.py
             0004_run_creation_requests.py
+            0005_worker_sessions.py
     api/
         __init__.py
         app.py
@@ -702,6 +708,7 @@ tests/
         test_run_idempotency.py
         test_run_queries.py
         test_run_http.py
+        test_worker_schema.py
 alembic.ini
 Dockerfile
 compose.yaml
@@ -747,10 +754,12 @@ M1.8b adds atomic keyed creation, receipt replay and conflict handling. M1.9a ad
 Run query storage operations with consistent statement snapshots. M1.9b exposes
 keyed Run creation and queries over HTTP with commit/error contracts and container
 smoke checks. M2.1a adds pure Worker session identities, terminal lifecycle rules,
-and registration/heartbeat/lease design boundaries. After M2.1a is committed,
-pushed, and all three CI jobs pass, continue to M2.1b: Worker session storage and
-migration constraints. Registration/heartbeat repository and HTTP work follow as
-separate subtasks; see [the Worker subtask plan](docs/workers.md#commit-sized-follow-up-steps).
+and registration/heartbeat/lease design boundaries. M2.1b adds Worker session
+storage, database lifecycle/time constraints and migration/concurrency tests.
+After M2.1b is committed, pushed, and all three CI jobs pass, continue to M2.1c.1:
+transactional registration and duplicate/conflict handling. Heartbeat renewal and
+expiry form M2.1c.2, followed by HTTP work; see
+[the Worker subtask plan](docs/workers.md#commit-sized-follow-up-steps).
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any
