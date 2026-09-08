@@ -82,6 +82,9 @@ def main() -> None:
             if started.returncode != 0:
                 raise RuntimeError("Scheduler container could not start.")
         else:
+            creation_flags = 0
+            if sys.platform == "win32":
+                creation_flags = subprocess.CREATE_NO_WINDOW
             scheduler = subprocess.Popen(
                 [
                     sys.executable,
@@ -95,7 +98,7 @@ def main() -> None:
                 ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                creationflags=creation_flags,
             )
         worker = subprocess.run(
             [
