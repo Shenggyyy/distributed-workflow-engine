@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.1d: Worker registration and heartbeat HTTP API with commit/error contracts.**
+**M2.2a: Pure Attempt lease model and task claim protocol.**
 
 Available now:
 
@@ -72,7 +72,11 @@ Available now:
 - Worker registration/replay and heartbeat HTTP endpoints with server-owned timeout policy.
 - Strict request validation, typed error mapping and real Worker HTTP checks in CI.
 
-Background heartbeat/expiry loops, scheduling and execution are **not implemented yet**.
+- Immutable Attempt lease snapshots with explicit ownership and exclusive deadline checks.
+- Pure monotonic renewal, clock/identity boundary tests and a documented claim lock protocol.
+
+Lease persistence, task claims, background heartbeat/expiry loops, scheduling and
+execution are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -273,6 +277,19 @@ process start. Different fields with an existing UUID raise a conflict. This
 example registers a record; it does not start a heartbeat loop or execute tasks.
 See [Worker registration](docs/worker-registration.md) for the transaction,
 advisory lock, clock and failure contracts.
+
+## Explore Attempt leases
+
+```console
+uv run --locked python examples/attempt_lease.py
+uv run --locked pytest tests/test_lease.py
+```
+
+The example renews a lease using explicit times, rejects ownership at its exact
+deadline and rejects a replacement Worker session. This is an in-memory model;
+it does not claim a task or authorize a database update. Docker is not required.
+See [Attempt leases and claim protocol](docs/attempt-leases.md) for the lock order,
+capacity checks, uncertain claim responses and separate persistence milestones.
 
 ## Register and heartbeat over HTTP
 
@@ -689,6 +706,7 @@ docs/
     worker-registration.md
     worker-heartbeat.md
     worker-api.md
+    attempt-leases.md
     workflow-storage.md
 examples/
     diamond.json
@@ -701,6 +719,7 @@ examples/
     worker_lifecycle.py
     register_worker.py
     worker_heartbeat.py
+    attempt_lease.py
 scripts/
     init_dev_secrets.py
     check_workflow_api.py
@@ -717,6 +736,7 @@ src/workflow_engine/
     domain/
         __init__.py
         idempotency.py
+        lease.py
         dag.py
         runtime.py
         workflow.py
@@ -756,6 +776,7 @@ tests/
     test_dev_secrets.py
     test_logging.py
     test_idempotency.py
+    test_lease.py
     test_migrations.py
     test_runtime.py
     test_worker.py
@@ -834,9 +855,11 @@ initialization with concurrency/failure tests. M2.1c.2 adds heartbeat renewal an
 per-session expiry with deadline, clock and race tests. M2.1d adds Worker
 registration/heartbeat HTTP contracts, server policy and real HTTP checks; see
 [the Worker subtask plan](docs/workers.md#commit-sized-follow-up-steps).
-After M2.1d is committed, pushed, and all three CI jobs pass, move to M2.2:
-task claim and attempt lease ownership foundations. Specify the ownership model,
-lock ordering and schema changes before implementing the next bounded subtask.
+M2.2a adds the pure Attempt lease model, ownership/time checks and
+[the claim protocol and subtask plan](docs/attempt-leases.md).
+After M2.2a is committed, pushed, and all three CI jobs pass, continue to M2.2b:
+Attempt lease storage and migration. Explain the schema, historical Attempt
+compatibility and constraint boundaries before implementing that subtask.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

@@ -30,7 +30,9 @@ tables additionally store created_at audit metadata. Retry policy, active-attemp
 pointers, lease tokens, outputs and optimistic version counters need their own
 atomic storage/ownership contracts. M2.1a introduces the pure [Worker session
 model](workers.md), and M2.1b adds [session persistence](worker-storage.md).
-Attempt ownership integration remains separate follow-up work.
+M2.2a adds a separate pure [AttemptLease model](attempt-leases.md) for ownership
+metadata and time checks. Integration with authoritative Task/Attempt state and
+lease persistence remains follow-up work.
 
 ## Explicit transitions
 

@@ -98,8 +98,9 @@ Automatic expiry scanning and claim behavior in step 4 remain future work:
    scan. Expiry checks the same deadline under the same serialization rule.
 4. Claim admission also checks that deadline rather than trusting an ACTIVE
    flag left behind by a delayed recovery scan. No handler runs while a database
-   lock is held. Precise lock ordering with run/attempt ownership will be specified
-   in the claim milestone.
+   lock is held. M2.2a specifies the planned Run -> Worker -> Task -> Attempt
+   ordering in the [claim protocol](attempt-leases.md#planned-transaction-boundaries);
+   database integration and race verification follow in the claim milestone.
 
 Repeated heartbeat requests are liveness observations; they are not registration
 replays. Before expiry, a delayed heartbeat can still be accepted as an observation
@@ -173,7 +174,8 @@ JSON round trips, frozen fields and revalidation of bypassed models.
 | M2.1b (implemented) | Session schema/migration, database constraints and PostgreSQL tests. |
 | M2.1c.1 (implemented) | Transactional registration and duplicate/conflict handling with race tests. |
 | M2.1c.2 (implemented) | Heartbeat renewal and expiry transactions with deadline/race tests. |
-| M2.1d (current) | Registration/heartbeat HTTP contracts, validation and real HTTP checks. |
+| M2.1d (implemented) | Registration/heartbeat HTTP contracts, validation and real HTTP checks. |
 
 Each requires its own verified commit and owner push before starting the next.
-Task claiming, attempt leases and actual worker execution follow these foundations.
+M2.2a adds the pure [Attempt lease model and claim protocol](attempt-leases.md).
+Task claiming, lease persistence and actual Worker execution follow these foundations.
