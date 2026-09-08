@@ -116,3 +116,8 @@ D3a verified: standalone image build, revision 0011 migration, API/Scheduler sta
 and a real two-slot Worker run completed successfully with Handler samples from a
 shared Linux clock domain. The demo PostgreSQL port is not published; API binds
 127.0.0.1:18080. Stock process roles and development Compose are unchanged.
+
+D3b verified: local scenario/fault CLI checks local Docker context and exact Worker
+identity. Real distribution used two sessions; recovery retained LOST Attempt 1
+without FINISH, waited its persisted backoff and succeeded on replacement Attempt
+2. Commands and retained-data shutdown are documented in demo.md.
