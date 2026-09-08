@@ -3,8 +3,9 @@
 M2.3a adds pure completion models, acceptance/replay checks, unit tests and an
 in-memory example. No tables, routes or running tasks change. A constructed
 receipt is a proposal until the later repository commits it with all state changes.
-M2.3b now adds [receipt storage](completion-storage.md) in revision `0008`; application
-completion transactions and HTTP remain unimplemented.
+M2.3b adds [receipt storage](completion-storage.md) in revision `0008`. M2.3c.1
+implements [completion transactions](completion-transactions.md); completion HTTP
+and extended cross-operation race tests remain later work.
 
 ## Why completion needs a retained result
 
@@ -184,7 +185,8 @@ validation bypasses. Real races, rollback and migration tests belong to storage 
 | --- | --- |
 | M2.3a (implemented) | Pure completion results, receipts, acceptance/replay and this protocol. |
 | M2.3b (implemented) | [Completion storage schema](completion-storage.md) and guarded migration with PostgreSQL tests. |
-| M2.3c (next) | Atomic completion/replay repository with state, race and failure tests; split further if needed. |
+| M2.3c.1 (implemented) | [Atomic completion/replay repository](completion-transactions.md), basic concurrency and failure tests. |
+| M2.3c.2 (next) | Controlled completion/renewal/recovery interleavings and lock timeout verification. |
 | M2.3d | Completion HTTP contract, sanitized errors and real HTTP verification. |
 
 Proceed only after each subtask's owner commit/push and CI confirmation. Handler

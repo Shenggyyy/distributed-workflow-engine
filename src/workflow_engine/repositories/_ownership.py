@@ -1,4 +1,4 @@
-"""Shared ordered ownership reads for renewal and claim replay; no clock or writes."""
+"""Ordered ownership reads for renewal, claim replay and completion; no writes."""
 
 from dataclasses import dataclass, field
 from uuid import UUID

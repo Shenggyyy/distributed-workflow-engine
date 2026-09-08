@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.3b: Immutable completion receipt storage and guarded migration.**
+**M2.3c.1: Atomic Attempt/Task completion and historical receipt replay.**
 
 Available now:
 
@@ -102,7 +102,10 @@ Available now:
 - Completion receipt storage bound to exact lease ownership and committed Attempt outcome.
 - PostgreSQL constraint, retention, duplicate-insert and populated migration tests.
 
-Completion transactions/HTTP, background heartbeat/expiry loops, scheduling and handler execution
+- Python completion transactions that settle Attempt/Task and retain a receipt atomically.
+- Historical replay, capacity reuse, conflicting report and rollback tests.
+
+Completion HTTP, background heartbeat/expiry loops, scheduling and handler execution
 are **not implemented yet**.
 The architecture below is the agreed target design.
 
@@ -387,10 +390,18 @@ uv run --locked pytest tests/test_completion.py
 
 This in-memory example accepts success under a valid lease, rejects a new report
 after expiry, replays the original receipt and rejects a conflicting result.
-It needs no Docker or PostgreSQL. Receipt storage is available in revision `0008`,
-but the application completion transaction, Task state changes and capacity release
-are not implemented yet. See [the completion contract and transaction plan](docs/attempt-completion.md)
-and [receipt storage](docs/completion-storage.md).
+It needs no Docker or PostgreSQL. The pure example demonstrates the contract only.
+For an actual database transaction, migrate PostgreSQL to `0008`, configure `.env`,
+then run:
+
+```console
+uv run --locked python examples/complete_attempt.py --env-file .env
+```
+
+This creates disposable work, submits a simulated success, and replays the committed
+receipt. Attempt and Task settle, and capacity is released. No handler executes;
+Run status remains RUNNING until aggregation exists. See [completion transactions](docs/completion-transactions.md)
+for a failure example, retry semantics and remaining concurrency verification.
 
 ## Explore Attempt leases
 
@@ -832,6 +843,7 @@ docs/
     attempt-leases.md
     attempt-completion.md
     completion-storage.md
+    completion-transactions.md
     lease-storage.md
     task-claims.md
     lease-renewal.md
@@ -853,6 +865,7 @@ examples/
     worker_heartbeat.py
     attempt_lease.py
     attempt_completion.py
+    complete_attempt.py
     claim_task.py
     claim_and_renew.py
     claim_idempotent.py
@@ -882,6 +895,7 @@ src/workflow_engine/
         worker.py
     repositories/
         __init__.py
+        completions.py
         claims.py
         claim_requests.py
         _ownership.py
@@ -953,6 +967,7 @@ tests/
         test_worker_schema.py
         test_lease_schema.py
         test_completion_schema.py
+        test_completions.py
         test_claims.py
         test_lease_renewal.py
         test_claim_http.py
@@ -1028,8 +1043,10 @@ claim/renew/replay verification. M2.3a adds pure Attempt completion results,
 receipts and first-acceptance/replay checks, with the [durable completion
 protocol](docs/attempt-completion.md). M2.3b adds immutable completion storage,
 exact-owner and deferred terminal-outcome references, and migration/race tests.
-After M2.3b is committed, pushed, and all three CI jobs pass, continue to M2.3c:
-atomic completion/replay transactions. HTTP and handler execution remain separate steps.
+M2.3c.1 implements atomic Attempt/Task completion, retained receipt replay and
+basic concurrency/failure tests. After this commit is pushed and all three CI jobs
+pass, continue to M2.3c.2: controlled completion/renewal/recovery races and lock
+timeouts. HTTP and handler execution remain separate steps.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

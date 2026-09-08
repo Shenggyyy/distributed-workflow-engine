@@ -3,7 +3,8 @@
 M2.3b adds revision `0008` and the `attempt_completions` table. It persists the
 shape defined by the [completion contract](attempt-completion.md). It does not
 implement an application completion transaction, HTTP endpoint or execution loop.
-Existing APIs continue to register, claim and renew; they do not insert receipts.
+Existing HTTP APIs continue to register, claim and renew; they do not insert receipts.
+M2.3c.1 now adds the separate Python [completion transaction](completion-transactions.md).
 
 ## Stored identity and result
 
@@ -128,5 +129,6 @@ upgrade/downgrade/re-upgrade. Migration discovery, offline SQL, complete-chain
 rollback and metadata comparison remain part of the existing test suite. CI checks
 the packaged `0008` head inside the runtime image.
 
-After owner commit/push and three passing CI jobs, M2.3c will implement the atomic
-completion/replay repository. HTTP and handler execution remain subsequent commits.
+M2.3c.1 implements the [atomic completion/replay repository](completion-transactions.md).
+M2.3c.2 will verify extended cross-operation races and lock timeouts before
+completion HTTP and handler execution.
