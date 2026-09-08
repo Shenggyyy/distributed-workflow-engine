@@ -169,8 +169,9 @@ business idempotency remain separate responsibilities.
 | M2.2c.1 (implemented) | Single-run claim transaction, worker admission/capacity and atomic Task/Attempt/lease creation; concurrency/rollback tests. |
 | M2.2c.2 (current) | Lease renewal against current persisted ownership; post-lock clock and stale-owner tests. |
 | M2.2d.1a | [Durable claim request schema and replay protocol](claim-requests.md), complete. |
-| M2.2d.1b | Keyed claim/replay transactions with uncertain-outcome tests. |
-| M2.2d.2 | Claim/renewal HTTP contracts, commit/error mapping and real HTTP checks. |
+| M2.2d.1b | [Keyed claim/replay transactions](idempotent-claims.md) with uncertain-outcome tests, complete. |
+| M2.2d.2a | Claim HTTP contracts, commit/error mapping and real HTTP checks. |
+| M2.2d.2b | Renewal HTTP contracts, error mapping and real HTTP checks. |
 
 Only proceed after each subtask's tests, owner commit/push and CI confirmation.
 Completion, handler execution, recovery and task retry/timeout each need their own

@@ -151,5 +151,7 @@ of the five lock positions, committed/rolled-back predecessors, write/deferred
 COMMIT failures, explicit abort, corrupted storage and transaction lifetime.
 
 M2.2d.1a now defines [claim request bindings](claim-requests.md), with immutable
-input identity and the replay/outer-lock protocol. M2.2d.1b will implement keyed
-transactions before any claim HTTP exposure. Lease renewal remains independent.
+input identity and the replay/outer-lock protocol. M2.2d.1b implements
+[keyed transactions](idempotent-claims.md). Renewal and replay share the internal
+ordered ownership reader; renewal keeps its existing errors and timestamp rules.
+Claim/renewal HTTP remains future work.

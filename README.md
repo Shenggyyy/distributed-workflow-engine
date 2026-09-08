@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.2d.1a: Durable claim request binding schema and replay protocol.**
+**M2.2d.1b: Idempotent claim transactions and current ownership replay.**
 
 Available now:
 
@@ -87,8 +87,11 @@ Available now:
 - Migrated immutable claim request bindings for granted Attempts and completed no-work polls.
 - PostgreSQL tests for scoped uniqueness, exact lease owners, retention and migration compatibility.
 
-Keyed claim/replay transactions, claim/renewal HTTP endpoints, background
-heartbeat/expiry loops, scheduling and handler execution are **not implemented yet**.
+- Keyed claim transactions with atomic bindings and current valid ownership replay.
+- PostgreSQL tests for uncertain outcomes, sticky no-work, stale grants and advisory-lock races.
+
+Claim/renewal HTTP endpoints, background heartbeat/expiry loops, scheduling and
+handler execution are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -317,6 +320,23 @@ It commits a claim, retains its token in memory, then renews in another transact
 It prints deadlines without exposing the token. No handler executes or completes;
 the demo continues to reserve capacity. See [lease renewal](docs/lease-renewal.md)
 for exact state, clock and Worker-liveness rules.
+
+## Replay a claim request
+
+Using a fresh Run/session from [the claim setup](docs/task-claims.md#local-example),
+replace its final command with:
+
+```powershell
+$requestId = [guid]::NewGuid().ToString()
+uv run --locked python examples/claim_idempotent.py --run-id $run.run_id --session-id $sessionId --request-id $requestId
+```
+
+The example claims once, commits, and replays the same request in a second
+transaction. Expect `Same request replayed the same Attempt: True`. It does not
+execute a handler or renew the lease. Retain the request ID across uncertain
+retries. See [idempotent claims](docs/idempotent-claims.md) for no-work, expiry,
+conflict and commit semantics. The example reserves capacity until future
+completion/recovery; use disposable Runs and sessions.
 
 ## Explore Attempt leases
 
@@ -753,6 +773,7 @@ docs/
     task-claims.md
     lease-renewal.md
     claim-requests.md
+    idempotent-claims.md
     workflow-storage.md
 examples/
     diamond.json
@@ -768,6 +789,7 @@ examples/
     attempt_lease.py
     claim_task.py
     claim_and_renew.py
+    claim_idempotent.py
 scripts/
     init_dev_secrets.py
     check_workflow_api.py
@@ -792,6 +814,8 @@ src/workflow_engine/
     repositories/
         __init__.py
         claims.py
+        claim_requests.py
+        _ownership.py
         leases.py
         workflows.py
         runs.py
@@ -917,9 +941,11 @@ compatibility tests. M2.2c.1 adds single-run task claim transactions with Worker
 admission, capacity checks and atomic Task/Attempt/lease creation.
 M2.2c.2 adds lease renewal against current persisted ownership with state,
 clock and concurrency tests. M2.2d.1a adds immutable claim request storage and
-[the replay protocol](docs/claim-requests.md). After M2.2d.1a is committed, pushed,
-and all three CI jobs pass, continue to M2.2d.1b: keyed claim transactions and
-current-ownership replay, including uncertain outcomes and request-lock races.
+[the replay protocol](docs/claim-requests.md). M2.2d.1b implements keyed claim
+transactions and current-ownership replay, including uncertain outcomes and
+request-lock races. After M2.2d.1b is committed, pushed, and all three CI jobs pass,
+continue to M2.2d.2a: claim HTTP contracts and commit/error mapping. Renewal HTTP
+will follow in M2.2d.2b.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

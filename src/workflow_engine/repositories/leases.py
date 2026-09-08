@@ -3,45 +3,24 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Connection, RowMapping, Table, func, select
+from sqlalchemy import Connection, func, select
 
 from workflow_engine.domain.lease import MAX_LEASE_SECONDS, AttemptLease
-from workflow_engine.domain.runtime import (
-    AttemptStatus,
-    RunStatus,
-    TaskAttempt,
-    TaskRun,
-    TaskStatus,
-    WorkflowRun,
+from workflow_engine.repositories._ownership import (
+    LeaseInactiveError as LeaseInactiveError,
 )
-from workflow_engine.domain.worker import WorkerSession, WorkerStatus
+from workflow_engine.repositories._ownership import (
+    LeaseNotFoundError as LeaseNotFoundError,
+)
+from workflow_engine.repositories._ownership import (
+    StoredLeaseError as StoredLeaseError,
+)
+from workflow_engine.repositories._ownership import (
+    _read_lease,
+    lock_ownership,
+)
 from workflow_engine.repositories.workflows import RepositoryTransactionError
-from workflow_engine.schema import (
-    attempt_leases,
-    task_attempts,
-    task_runs,
-    worker_sessions,
-    workflow_runs,
-)
-
-
-class LeaseNotFoundError(LookupError):
-    """No visible lease exists for the requested Attempt."""
-
-
-class LeaseInactiveError(ValueError):
-    """Execution is no longer running, or the owner has stopped."""
-
-
-class StoredLeaseError(ValueError):
-    """Persisted ownership or its execution references are invalid."""
-
-
-def _read_lease(row: RowMapping) -> AttemptLease:
-    try:
-        return AttemptLease.model_validate(dict(row))
-    except (ValueError, TypeError):
-        raise StoredLeaseError("Stored attempt lease is invalid.") from None
+from workflow_engine.schema import attempt_leases
 
 
 class LeaseRepository:
@@ -86,18 +65,6 @@ class LeaseRepository:
         ).scalar_one()
         return observed
 
-    def _lock(self, table: Table, key: str, identity: UUID) -> RowMapping:
-        row = (
-            self._connection.execute(
-                select(table).where(table.c[key] == identity).with_for_update()
-            )
-            .mappings()
-            .one_or_none()
-        )
-        if row is None:
-            raise StoredLeaseError("Stored lease reference was not found.")
-        return row
-
     def renew(
         self, attempt_id: UUID, *, worker_session_id: UUID, lease_token: UUID
     ) -> AttemptLease:
@@ -110,71 +77,9 @@ class LeaseRepository:
             raise TypeError(
                 "Attempt, Worker session and lease token must be UUID instances."
             )
-        # Discovery is non-locking and identifies only immutable lock targets.
-        # No status, deadline or owner authorization is accepted from this hint.
-        hint = self._connection.execute(
-            select(
-                task_runs.c.run_id,
-                task_attempts.c.task_id,
-                attempt_leases.c.worker_session_id,
-            )
-            .select_from(
-                attempt_leases.join(
-                    task_attempts, attempt_leases.c.attempt_id == task_attempts.c.id
-                ).join(task_runs, task_attempts.c.task_id == task_runs.c.id)
-            )
-            .where(attempt_leases.c.attempt_id == attempt_id)
-        ).one_or_none()
-        if hint is None:
-            raise LeaseNotFoundError("Attempt lease was not found.")
-
-        run_row = self._lock(workflow_runs, "id", hint.run_id)
-        worker_row = self._lock(worker_sessions, "id", hint.worker_session_id)
-        task_row = self._lock(task_runs, "id", hint.task_id)
-        attempt_row = self._lock(task_attempts, "id", attempt_id)
-        lease = _read_lease(self._lock(attempt_leases, "attempt_id", attempt_id))
-        try:
-            run = WorkflowRun(
-                id=run_row["id"],
-                workflow_version_id=run_row["workflow_version_id"],
-                status=RunStatus(run_row["status"]),
-            )
-            worker = WorkerSession(
-                id=worker_row["id"],
-                worker_name=worker_row["worker_name"],
-                max_concurrency=worker_row["max_concurrency"],
-                status=WorkerStatus(worker_row["status"]),
-            )
-            task = TaskRun(
-                id=task_row["id"],
-                run_id=task_row["run_id"],
-                task_key=task_row["task_key"],
-                status=TaskStatus(task_row["status"]),
-            )
-            attempt = TaskAttempt(
-                id=attempt_row["id"],
-                task_id=attempt_row["task_id"],
-                attempt_number=attempt_row["attempt_number"],
-                status=AttemptStatus(attempt_row["status"]),
-            )
-        except (ValueError, TypeError):
-            raise StoredLeaseError("Stored lease execution state is invalid.") from None
-        if (
-            task.run_id != run.id
-            or attempt.task_id != task.id
-            or lease.attempt_id != attempt.id
-            or lease.worker_session_id != worker.id
-        ):
-            raise StoredLeaseError("Stored lease references do not match.")
-        # A RUNNING Attempt is current by the unique RUNNING-attempt-per-task
-        # constraint. Never authorize a terminal Attempt using a replacement's lease.
-        if (
-            run.status is not RunStatus.RUNNING
-            or task.status is not TaskStatus.RUNNING
-            or attempt.status is not AttemptStatus.RUNNING
-            or worker.status is WorkerStatus.STOPPED
-        ):
-            raise LeaseInactiveError("Attempt lease execution is inactive.")
+        owned = lock_ownership(self._connection, attempt_id)
+        owned.require_running()
+        lease = owned.lease
         renewed = lease.renew(
             attempt_id=attempt_id,
             worker_session_id=worker_session_id,

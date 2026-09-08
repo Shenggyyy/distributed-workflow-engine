@@ -105,8 +105,9 @@ Repeated calls are new claim attempts, **not request replays**. If two tasks are
 READY and capacity permits, two calls may allocate different tasks. If a commit
 succeeds but its response is lost, ownership survives; do not blindly retry claim
 over HTTP. M2.2d.1a adds [binding storage and the replay protocol](claim-requests.md);
-the keyed transaction is still pending before the claim HTTP interface.
-At this stage no network delivery guarantee is claimed.
+M2.2d.1b implements [keyed claim transactions](idempotent-claims.md) in a separate
+repository. The primitive on this page remains unkeyed. No network delivery
+guarantee is claimed before the claim HTTP interface.
 
 The returned snapshot can already be expired after a slow commit or delayed
 delivery. Future Worker execution must honor the lease/renewal protocol; a Python
@@ -167,5 +168,5 @@ Test-only state changes simulate successful/failed earlier Attempts; they are no
 an implementation of completion, dependency scheduling or retry backoff.
 
 M2.2c.2 adds [lease renewal](lease-renewal.md) against current persisted ownership,
-with stale-owner and race checks. M2.2d.1a adds binding storage; keyed claims and
-claim HTTP remain later work.
+with stale-owner and race checks. M2.2d.1a adds binding storage; M2.2d.1b adds
+[keyed claims](idempotent-claims.md). Claim HTTP remains later work.

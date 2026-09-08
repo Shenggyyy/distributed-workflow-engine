@@ -1,8 +1,9 @@
 # Durable claim request bindings
 
 M2.2d.1a adds schema revision `0007`. This commit stores completed claim decisions
-and fixes the protocol for the next repository milestone. It does **not** make
-`ClaimRepository.claim_next()` idempotent or expose a new HTTP endpoint.
+and defines the replay protocol. M2.2d.1b now implements it in
+[ClaimRequestRepository](idempotent-claims.md). The older
+`ClaimRepository.claim_next()` remains unkeyed; no claim HTTP endpoint exists yet.
 
 ## Why a claim needs its own request identity
 
@@ -13,7 +14,7 @@ the next keyed repository recognize the original allocation without allocating
 again. It does not deduplicate handler side effects or guarantee exactly-once
 execution.
 
-The Worker will generate a UUID request ID **before** each new poll and retain it
+The caller generates a UUID request ID **before** each new poll and retain it
 across network retries. The identity is `(worker_session_id, request_id)`; the
 input bound to that identity is `run_id`. A different Run under the same identity
 is a conflict. Different sessions can reuse the same request UUID. A process
@@ -52,7 +53,7 @@ foreign keys are immediate and use ON DELETE RESTRICT.
 A statement trigger rejects UPDATE, DELETE and TRUNCATE, including no-op updates
 and empty predicates. No-work cannot be changed into a grant. Request IDs, inputs,
 results and audit times cannot be overwritten. INSERT ... ON CONFLICT DO UPDATE
-is therefore unsuitable. The future keyed path will serialize first and insert
+is therefore unsuitable. The keyed path serializes first and inserts
 one final row. There is no IN_PROGRESS row, expiration field, TTL or purge path.
 
 Run membership (`Attempt -> Task -> Run`), execution status, clock freshness and
@@ -63,9 +64,10 @@ Tests record this boundary explicitly. No cross-row trigger is added to acquire
 locks in reverse order. Table owners can bypass guards; they are integrity checks,
 not protection against database administrators.
 
-## Planned transaction and replay protocol — M2.2d.1b
+## Transaction and replay protocol — M2.2d.1b
 
-The next commit will implement this protocol and its concurrency/failure tests:
+The [keyed repository](idempotent-claims.md) implements this protocol with
+concurrency/failure tests:
 
 1. Validate UUID inputs and the fresh PostgreSQL READ COMMITTED transaction.
 2. Take a transaction-scoped advisory lock derived from the full session/request
@@ -110,7 +112,7 @@ If the claimant aborts, its allocation and binding roll back together and its
 advisory lock is released. A waiting duplicate can then make a fresh decision.
 If COMMIT succeeds but the response is lost, a retry finds the retained binding.
 Admission errors and SQL/lock/commit failures do not create success/no-work rows;
-the caller rolls back. No retry loop or delivery guarantee exists in this commit.
+the caller rolls back. No retry loop or network delivery guarantee is provided.
 
 ## Migration, retention and rollback
 
@@ -125,8 +127,7 @@ the new table/function and composite unique constraint. Re-upgrade recreates an
 empty table, not lost bindings. Retrying old request IDs after such a downgrade
 would be unsafe once keyed claims exist. Downgrade is not failure recovery.
 
-Retention is currently indefinite. Each empty poll also consumes a row once the
-keyed repository exists. Measure poll volume before adding a bounded retention
+Retention is currently indefinite. Each new keyed empty poll also consumes a row. Measure poll volume before adding a bounded retention
 contract: deleting old bindings would allow old requests to allocate again. The
 primary key supports scoped lookup; an index on run_id supports per-Run history.
 Neither index implements a scheduler or promises throughput.
@@ -153,5 +154,5 @@ Tests use private schemas in a dedicated PostgreSQL database. They cover grants
 and no-work, required fields, finite times, exact owner foreign keys, scoped
 request uniqueness, Attempt uniqueness, mutation/history guards, uncommitted
 visibility, waiting duplicates after commit/rollback, metadata comparison, and a
-populated `0006 -> 0007 -> 0006 -> 0007` round trip. Repository replay and HTTP
-tests follow in their own commits. See [migrations](migrations.md) for configuration.
+populated `0006 -> 0007 -> 0006 -> 0007` round trip. M2.2d.1b adds repository replay tests; HTTP
+tests follow with the endpoint. See [migrations](migrations.md) for configuration.
