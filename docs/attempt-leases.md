@@ -168,7 +168,8 @@ business idempotency remain separate responsibilities.
 | M2.2b (implemented) | Attempt lease storage and migration, identity/time/history guards, foreign keys and PostgreSQL tests. Explicitly handle pre-existing Attempts without inventing owners. |
 | M2.2c.1 (implemented) | Single-run claim transaction, worker admission/capacity and atomic Task/Attempt/lease creation; concurrency/rollback tests. |
 | M2.2c.2 (current) | Lease renewal against current persisted ownership; post-lock clock and stale-owner tests. |
-| M2.2d.1 | Durable claim request binding/receipt protocol and persistence with uncertain-outcome tests. |
+| M2.2d.1a | [Durable claim request schema and replay protocol](claim-requests.md), complete. |
+| M2.2d.1b | Keyed claim/replay transactions with uncertain-outcome tests. |
 | M2.2d.2 | Claim/renewal HTTP contracts, commit/error mapping and real HTTP checks. |
 
 Only proceed after each subtask's tests, owner commit/push and CI confirmation.

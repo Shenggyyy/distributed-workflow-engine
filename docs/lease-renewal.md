@@ -150,7 +150,6 @@ Worker LOST/STOPPED, replacement Attempts, concurrent renewals, waiting at each
 of the five lock positions, committed/rolled-back predecessors, write/deferred
 COMMIT failures, explicit abort, corrupted storage and transaction lifetime.
 
-After this verified commit/push and CI confirmation, M2.2d.1 will define and persist
-claim request bindings, including immutable input identity, replay semantics for
-expired grants/no-work and the outer request lock order. That larger subtask may
-be split into schema and repository commits before any HTTP exposure.
+M2.2d.1a now defines [claim request bindings](claim-requests.md), with immutable
+input identity and the replay/outer-lock protocol. M2.2d.1b will implement keyed
+transactions before any claim HTTP exposure. Lease renewal remains independent.

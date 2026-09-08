@@ -250,7 +250,9 @@ def test_times_advance_and_noop_but_never_regress(
     [
         "DELETE FROM attempt_leases",
         "DELETE FROM attempt_leases WHERE false",
-        "TRUNCATE attempt_leases",
+        # 0007 references leases. CASCADE reaches the history guard instead of
+        # PostgreSQL rejecting the referencing table before firing triggers.
+        "TRUNCATE attempt_leases CASCADE",
     ],
 )
 @pytest.mark.parametrize("populated", [False, True])

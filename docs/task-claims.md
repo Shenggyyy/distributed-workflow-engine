@@ -104,8 +104,9 @@ timeouts propagate; no partial allocation should be used as a result.
 Repeated calls are new claim attempts, **not request replays**. If two tasks are
 READY and capacity permits, two calls may allocate different tasks. If a commit
 succeeds but its response is lost, ownership survives; do not blindly retry claim
-over HTTP. Durable request binding/receipt replay is planned for M2.2d before the
-claim HTTP interface. At this stage no network delivery guarantee is claimed.
+over HTTP. M2.2d.1a adds [binding storage and the replay protocol](claim-requests.md);
+the keyed transaction is still pending before the claim HTTP interface.
+At this stage no network delivery guarantee is claimed.
 
 The returned snapshot can already be expired after a slow commit or delayed
 delivery. Future Worker execution must honor the lease/renewal protocol; a Python
@@ -121,8 +122,9 @@ concurrently outside those short transactions.
 
 ## Local example
 
-With API/PostgreSQL running on the existing development ports and schema 0006,
-run the following together so registration is followed promptly by the claim:
+With API/PostgreSQL running on the existing development ports and migrations at
+the current head, run the following together so registration is followed promptly
+by the claim:
 
 ```powershell
 $env:DWE_DATABASE_PORT = "15432"
@@ -165,4 +167,5 @@ Test-only state changes simulate successful/failed earlier Attempts; they are no
 an implementation of completion, dependency scheduling or retry backoff.
 
 M2.2c.2 adds [lease renewal](lease-renewal.md) against current persisted ownership,
-with stale-owner and race checks. Claim HTTP and request bindings remain later work.
+with stale-owner and race checks. M2.2d.1a adds binding storage; keyed claims and
+claim HTTP remain later work.

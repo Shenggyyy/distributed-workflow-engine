@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.2c.2: Lease renewal against current persisted execution ownership.**
+**M2.2d.1a: Durable claim request binding schema and replay protocol.**
 
 Available now:
 
@@ -84,8 +84,11 @@ Available now:
 - Transactional lease renewal with current-state checks and post-lock database time.
 - PostgreSQL tests for stale owners, terminal execution, concurrent renewal and rollback.
 
-Claim/renewal HTTP endpoints, background heartbeat/expiry loops, scheduling and
-handler execution are **not implemented yet**.
+- Migrated immutable claim request bindings for granted Attempts and completed no-work polls.
+- PostgreSQL tests for scoped uniqueness, exact lease owners, retention and migration compatibility.
+
+Keyed claim/replay transactions, claim/renewal HTTP endpoints, background
+heartbeat/expiry loops, scheduling and handler execution are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -520,7 +523,8 @@ append-only version tables; `0003` adds run/task/attempt storage and lifecycle g
 Revision `0004` adds immutable run-creation request bindings; `0005` adds
 [Worker session storage](docs/worker-storage.md) and heartbeat/lifecycle constraints.
 Revision `0006` adds [Attempt lease storage](docs/lease-storage.md).
-Current revision should be `0006 (head)`. See the
+Revision `0007` adds [claim request bindings](docs/claim-requests.md).
+Current revision should be `0007 (head)`. See the
 [runtime storage contract](docs/runtime-storage.md) for guarantees and boundaries.
 Migration commands are explicit and never run on API startup. With Compose,
 `docker compose exec api alembic upgrade head` uses the container's existing
@@ -748,6 +752,7 @@ docs/
     lease-storage.md
     task-claims.md
     lease-renewal.md
+    claim-requests.md
     workflow-storage.md
 examples/
     diamond.json
@@ -802,6 +807,7 @@ src/workflow_engine/
             0004_run_creation_requests.py
             0005_worker_sessions.py
             0006_attempt_leases.py
+            0007_claim_requests.py
     api/
         __init__.py
         app.py
@@ -910,9 +916,10 @@ M2.2b adds lease storage, identity/time/history constraints and populated migrat
 compatibility tests. M2.2c.1 adds single-run task claim transactions with Worker
 admission, capacity checks and atomic Task/Attempt/lease creation.
 M2.2c.2 adds lease renewal against current persisted ownership with state,
-clock and concurrency tests. After M2.2c.2 is committed, pushed, and all three
-CI jobs pass, continue to M2.2d.1: durable claim request binding design and
-persistence, splitting schema and transaction implementation if needed.
+clock and concurrency tests. M2.2d.1a adds immutable claim request storage and
+[the replay protocol](docs/claim-requests.md). After M2.2d.1a is committed, pushed,
+and all three CI jobs pass, continue to M2.2d.1b: keyed claim transactions and
+current-ownership replay, including uncertain outcomes and request-lock races.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

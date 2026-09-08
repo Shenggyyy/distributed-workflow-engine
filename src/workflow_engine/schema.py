@@ -237,6 +237,7 @@ attempt_leases = Table(
     Column("last_renewed_at", DateTime(timezone=True), nullable=False),
     Column("lease_expires_at", DateTime(timezone=True), nullable=False),
     UniqueConstraint("lease_token"),
+    UniqueConstraint("attempt_id", "worker_session_id"),
     CheckConstraint(
         "isfinite(acquired_at) AND isfinite(last_renewed_at) "
         "AND isfinite(lease_expires_at)",
@@ -257,3 +258,34 @@ Index(
     attempt_leases.c.lease_expires_at,
     attempt_leases.c.attempt_id,
 )
+
+
+# A completed allocation decision, never an in-progress reservation. NULL attempt
+# means a durable no-work result; only the future ordered repository authorizes it.
+claim_requests = Table(
+    "claim_requests",
+    metadata,
+    Column(
+        "worker_session_id",
+        Uuid,
+        ForeignKey("worker_sessions.id", ondelete="RESTRICT"),
+        primary_key=True,
+    ),
+    Column("request_id", Uuid, primary_key=True),
+    Column(
+        "run_id",
+        Uuid,
+        ForeignKey("workflow_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("attempt_id", Uuid, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("attempt_id"),
+    ForeignKeyConstraint(
+        ["attempt_id", "worker_session_id"],
+        ["attempt_leases.attempt_id", "attempt_leases.worker_session_id"],
+        ondelete="RESTRICT",
+    ),
+    CheckConstraint("isfinite(created_at)", name="finite_time"),
+)
+Index("ix_claim_requests_run_id", claim_requests.c.run_id)

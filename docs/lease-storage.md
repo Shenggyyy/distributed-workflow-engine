@@ -122,8 +122,10 @@ docker compose exec api alembic current
 docker compose exec api alembic check
 ```
 
-Expect `0006 (head)` and `No new upgrade operations detected.` Rebuild the API
-image first so that its packaged migration includes 0006. API startup does not
+Revision `0007` now adds [claim request bindings](claim-requests.md) and a composite
+unique key on `(attempt_id, worker_session_id)` for its owner foreign key.
+Expect `0007 (head)` and `No new upgrade operations detected.` Rebuild the API
+image first so that its packaged migrations include the current head. API startup does not
 automatically upgrade the database. Host-side commands and isolated test database
 configuration are described in [migrations](migrations.md) and
 [local development](local-development.md).
