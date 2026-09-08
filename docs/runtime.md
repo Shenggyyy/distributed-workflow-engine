@@ -31,8 +31,9 @@ pointers, lease tokens, outputs and optimistic version counters need their own
 atomic storage/ownership contracts. M2.1a introduces the pure [Worker session
 model](workers.md), and M2.1b adds [session persistence](worker-storage.md).
 M2.2a adds a separate pure [AttemptLease model](attempt-leases.md) for ownership
-metadata and time checks. Integration with authoritative Task/Attempt state and
-lease persistence remains follow-up work.
+metadata and time checks. M2.2b adds [lease persistence](lease-storage.md) in
+revision `0006`. Integration with authoritative Task/Attempt state remains
+follow-up work.
 
 ## Explicit transitions
 

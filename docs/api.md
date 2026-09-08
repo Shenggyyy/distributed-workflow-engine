@@ -6,8 +6,8 @@ M1.4 publishes and retrieves workflow definitions. M1.9b adds a separate
 execute tasks.
 OpenAPI is at `/openapi.json`; interactive documentation is at
 `/docs`. These routes use the definition tables introduced in revision `0002`.
-The current head is `0005`, adding runtime, request-binding and Worker storage without
-changing these workflow routes. Workflow publication remains unkeyed; Run
+Later migrations add runtime, request-binding, Worker and lease storage without
+changing these workflow routes. See [migrations](migrations.md) for the current head. Workflow publication remains unkeyed; Run
 creation requires an idempotency key.
 
 ## Endpoints

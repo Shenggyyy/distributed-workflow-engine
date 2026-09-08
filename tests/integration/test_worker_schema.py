@@ -269,22 +269,25 @@ def test_heartbeat_cannot_change_with_or_after_terminal_transition(
 
 
 @pytest.mark.parametrize(
-    "statement",
+    ("statement", "sqlstate"),
     [
-        "DELETE FROM worker_sessions",
-        "DELETE FROM worker_sessions WHERE false",
-        "TRUNCATE worker_sessions",
+        ("DELETE FROM worker_sessions", "55000"),
+        ("DELETE FROM worker_sessions WHERE false", "55000"),
+        # 0006 adds a referencing lease table. PostgreSQL rejects single-table
+        # TRUNCATE before triggers; CASCADE still encounters history protection.
+        ("TRUNCATE worker_sessions", "0A000"),
+        ("TRUNCATE worker_sessions CASCADE", "55000"),
     ],
 )
 def test_history_deletion_is_rejected(
-    engine: Engine, worker_schema: str, statement: str
+    engine: Engine, worker_schema: str, statement: str, sqlstate: str
 ) -> None:
     with transaction(engine, worker_schema) as connection:
         connection.execute(worker_sessions.insert().values(**values()))
         with pytest.raises(DBAPIError) as error:
             with connection.begin_nested():
                 connection.execute(text(statement))
-        assert getattr(error.value.orig, "sqlstate", None) == "55000"
+        assert getattr(error.value.orig, "sqlstate", None) == sqlstate
         assert (
             connection.execute(
                 select(func.count()).select_from(worker_sessions)

@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M2.2a: Pure Attempt lease model and task claim protocol.**
+**M2.2b: Attempt lease storage and migration with ownership/history guards.**
 
 Available now:
 
@@ -75,8 +75,11 @@ Available now:
 - Immutable Attempt lease snapshots with explicit ownership and exclusive deadline checks.
 - Pure monotonic renewal, clock/identity boundary tests and a documented claim lock protocol.
 
-Lease persistence, task claims, background heartbeat/expiry loops, scheduling and
-execution are **not implemented yet**.
+- Migrated Attempt lease records with immutable ownership, monotonic times and history guards.
+- PostgreSQL tests for lease uniqueness, concurrent updates and preserved migration data.
+
+Task claims, lease renewal transactions, background heartbeat/expiry loops,
+scheduling and execution are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -482,7 +485,8 @@ Revision `0001` records the initial baseline; `0002` adds workflow identity and
 append-only version tables; `0003` adds run/task/attempt storage and lifecycle guards.
 Revision `0004` adds immutable run-creation request bindings; `0005` adds
 [Worker session storage](docs/worker-storage.md) and heartbeat/lifecycle constraints.
-Current revision should be `0005 (head)`. See the
+Revision `0006` adds [Attempt lease storage](docs/lease-storage.md).
+Current revision should be `0006 (head)`. See the
 [runtime storage contract](docs/runtime-storage.md) for guarantees and boundaries.
 Migration commands are explicit and never run on API startup. With Compose,
 `docker compose exec api alembic upgrade head` uses the container's existing
@@ -707,6 +711,7 @@ docs/
     worker-heartbeat.md
     worker-api.md
     attempt-leases.md
+    lease-storage.md
     workflow-storage.md
 examples/
     diamond.json
@@ -756,6 +761,7 @@ src/workflow_engine/
             0003_runtime_storage.py
             0004_run_creation_requests.py
             0005_worker_sessions.py
+            0006_attempt_leases.py
     api/
         __init__.py
         app.py
@@ -800,6 +806,7 @@ tests/
         test_run_queries.py
         test_run_http.py
         test_worker_schema.py
+        test_lease_schema.py
         test_worker_registration.py
         test_worker_heartbeat.py
         test_worker_http.py
@@ -857,9 +864,10 @@ registration/heartbeat HTTP contracts, server policy and real HTTP checks; see
 [the Worker subtask plan](docs/workers.md#commit-sized-follow-up-steps).
 M2.2a adds the pure Attempt lease model, ownership/time checks and
 [the claim protocol and subtask plan](docs/attempt-leases.md).
-After M2.2a is committed, pushed, and all three CI jobs pass, continue to M2.2b:
-Attempt lease storage and migration. Explain the schema, historical Attempt
-compatibility and constraint boundaries before implementing that subtask.
+M2.2b adds lease storage, identity/time/history constraints and populated migration
+compatibility tests. After M2.2b is committed, pushed, and all three CI jobs pass,
+continue to M2.2c.1: single-run task claim transactions with Worker admission,
+capacity checks and atomic Task/Attempt/lease creation.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

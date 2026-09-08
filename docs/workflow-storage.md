@@ -6,8 +6,9 @@ version allocation, and retrieval through a Python repository. M1.4 exposes
 [HTTP endpoints](api.md); request idempotency remains future work. Definition
 tables remain defined by `0002`; revision `0003` adds
 [runtime storage](runtime-storage.md); `0004` adds
-[run-creation request bindings](run-idempotency.md). The current head `0005`
-also includes [Worker session storage](worker-storage.md).
+[run-creation request bindings](run-idempotency.md); `0005` adds
+[Worker session storage](worker-storage.md) and `0006` adds
+[Attempt leases](lease-storage.md).
 
 ```mermaid
 erDiagram
@@ -121,7 +122,7 @@ uv run --locked alembic current
 uv run --locked alembic check
 ```
 
-Current revision should be `0005 (head)`. This supports a fresh database or an
+See [migrations](migrations.md) for the current head. This supports a fresh database or an
 existing `0001`/`0002`/`0003` database. No published revision was rewritten.
 The existing migration transaction and advisory lock also cover the trigger DDL.
 

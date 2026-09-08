@@ -1,8 +1,8 @@
 # Run queries and statement snapshots
 
 M1.9a adds read operations to RunRepository. M1.9b exposes them through the
-[Run HTTP API](run-api.md). Neither adds a migration; Worker session storage later
-advances the current database head to 0005.
+[Run HTTP API](run-api.md). Neither adds a migration; later revisions add Worker
+and lease storage. See [migrations](migrations.md) for the current database head.
 
 ## Read contracts
 

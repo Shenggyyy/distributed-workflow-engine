@@ -213,3 +213,47 @@ Index(
     worker_sessions.c.id,
     postgresql_where=text("status = 'ACTIVE'"),
 )
+
+
+# Optional for historical Attempts; future claim transactions create both rows.
+# Current attempt status and clock checks belong in the ordered transaction.
+attempt_leases = Table(
+    "attempt_leases",
+    metadata,
+    Column(
+        "attempt_id",
+        Uuid,
+        ForeignKey("task_attempts.id", ondelete="RESTRICT"),
+        primary_key=True,
+    ),
+    Column(
+        "worker_session_id",
+        Uuid,
+        ForeignKey("worker_sessions.id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("lease_token", Uuid, nullable=False),
+    Column("acquired_at", DateTime(timezone=True), nullable=False),
+    Column("last_renewed_at", DateTime(timezone=True), nullable=False),
+    Column("lease_expires_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("lease_token"),
+    CheckConstraint(
+        "isfinite(acquired_at) AND isfinite(last_renewed_at) "
+        "AND isfinite(lease_expires_at)",
+        name="finite_times",
+    ),
+    CheckConstraint(
+        "acquired_at <= last_renewed_at AND last_renewed_at < lease_expires_at",
+        name="lease_order",
+    ),
+)
+Index(
+    "ix_attempt_leases_worker_attempt",
+    attempt_leases.c.worker_session_id,
+    attempt_leases.c.attempt_id,
+)
+Index(
+    "ix_attempt_leases_deadline",
+    attempt_leases.c.lease_expires_at,
+    attempt_leases.c.attempt_id,
+)

@@ -2,7 +2,8 @@
 
 M2.1d exposes the existing [registration](worker-registration.md) and
 [heartbeat](worker-heartbeat.md) transactions through the API process. Schema
-head stays `0005`. No worker process, heartbeat loop, expiry scanner, task claim
+requirement is `0005` or later; see [migrations](migrations.md) for the current head.
+No worker process, heartbeat loop, expiry scanner, task claim
 or execution starts as a result of registration.
 
 ## Endpoints and bodies

@@ -9,8 +9,9 @@ M1.8 is split into two independently verifiable changes:
 RunRepository.create_idempotent() now creates or replays a durable receipt.
 RunRepository.create() and examples/create_run.py remain unkeyed and create a new
 run per call. M1.9b exposes [keyed Run creation over HTTP](run-api.md).
-The current schema head is 0005; [Worker storage](worker-storage.md) adds no
-changes to the Run-creation protocol.
+Later [Worker storage](worker-storage.md) and [lease storage](lease-storage.md)
+add no changes to the Run-creation protocol. See [migrations](migrations.md)
+for the current head.
 
 ## Request identity and result
 
@@ -122,8 +123,9 @@ docker compose exec api alembic current
 docker compose exec api alembic check
 ```
 
-Expected head: `0005 (head)`. Revision 0004 introduced this binding table;
-0005 adds Worker sessions. Upgrade preserves existing versions, runs and tasks.
+See [migrations](migrations.md) for the expected head. Revision 0004 introduced
+this binding table; 0005 adds Worker sessions and 0006 adds Attempt leases.
+Upgrade preserves existing versions, runs and tasks.
 Adding the unique constraint builds an index and takes database DDL locks; review
 migration duration before applying to large production tables. Existing migration
 locking/transaction behavior still applies.

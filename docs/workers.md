@@ -178,4 +178,5 @@ JSON round trips, frozen fields and revalidation of bypassed models.
 
 Each requires its own verified commit and owner push before starting the next.
 M2.2a adds the pure [Attempt lease model and claim protocol](attempt-leases.md).
-Task claiming, lease persistence and actual Worker execution follow these foundations.
+M2.2b adds [Attempt lease persistence](lease-storage.md). Task claiming and actual
+Worker execution follow these foundations.

@@ -121,7 +121,8 @@ docker compose exec api alembic check
 ```
 
 Rebuild the image before running its migration commands so it contains revision
-0005. Expect `0005 (head)` and `No new upgrade operations detected.`
+0005 or later. See [migrations](migrations.md) for the current head;
+expect `No new upgrade operations detected.`
 The upgrade creates only the new table, index and guard functions/triggers.
 Existing definitions, runs, tasks, attempts and request bindings are preserved.
 

@@ -1,7 +1,7 @@
 # Run creation and query HTTP API
 
 M1.9b exposes the existing keyed creation protocol and Run queries. It requires
-schema revision `0004` or later; current head `0005` also stores Worker sessions.
+schema revision `0004` or later. See [migrations](migrations.md) for the current head.
 The HTTP milestone introduced no migration. OpenAPI at
 `/openapi.json` and Swagger UI at `/docs` describe these routes.
 

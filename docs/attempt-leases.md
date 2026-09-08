@@ -1,8 +1,9 @@
 # Attempt leases and task claim protocol
 
 M2.2a implements a pure `AttemptLease` snapshot, ownership/time checks, monotonic
-renewal, unit tests and an in-memory example. The database remains at `0005`;
-no claim, lease persistence, renewal HTTP endpoint or execution loop is installed.
+renewal, unit tests and an in-memory example. M2.2b adds
+[lease storage](lease-storage.md) in revision `0006`. No claim/renewal repository,
+renewal HTTP endpoint or execution loop is installed.
 The transaction protocol below is the design for subsequent commit-sized steps.
 
 ## Implemented model
@@ -159,8 +160,8 @@ business idempotency remain separate responsibilities.
 
 | Subtask | Scope and verification |
 | --- | --- |
-| M2.2a (current) | Pure lease snapshot, owner/time/renewal boundaries, example and this protocol. |
-| M2.2b | Attempt lease storage and migration, identity/time/history guards, foreign keys and PostgreSQL tests. Explicitly handle pre-existing Attempts without inventing owners. |
+| M2.2a (implemented) | Pure lease snapshot, owner/time/renewal boundaries, example and this protocol. |
+| M2.2b (current) | Attempt lease storage and migration, identity/time/history guards, foreign keys and PostgreSQL tests. Explicitly handle pre-existing Attempts without inventing owners. |
 | M2.2c.1 | Single-run claim transaction, worker admission/capacity and atomic Task/Attempt/lease creation; concurrency/rollback tests. |
 | M2.2c.2 | Lease renewal against current persisted ownership; post-lock clock and stale-owner tests. |
 | M2.2d.1 | Durable claim request binding/receipt protocol and persistence with uncertain-outcome tests. |
@@ -192,4 +193,5 @@ No Docker or PostgreSQL is needed. Tests use explicit times rather than sleeping
 exact deadline and one microsecond on either side, ownership mismatch, backwards
 time, duration limits/coercion, shortened policy, UTC normalization, datetime
 overflow, frozen required fields, JSON round trips and bypass revalidation.
-Database races are deliberately deferred until the persistence transactions exist.
+Storage constraint/concurrent-write tests are now covered in M2.2b.
+Claim/renewal protocol races remain deferred until those transactions exist.

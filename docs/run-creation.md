@@ -2,9 +2,10 @@
 
 M1.7 introduces `RunRepository.create(workflow_version_id)` in
 `repositories/runs.py`. It initializes one run from an existing immutable
-version. Its original schema requirement is revision `0003`; the current head
-is `0005`; `0004` added [request-binding storage](run-idempotency.md), and `0005`
-adds Worker sessions. The create method here remains unkeyed. M1.9b exposes [Run HTTP creation](run-api.md) through the separate
+version. Its original schema requirement is revision `0003`; `0004` added
+[request-binding storage](run-idempotency.md), `0005` adds Worker sessions and
+`0006` adds [Attempt leases](lease-storage.md). See [migrations](migrations.md)
+for the current head. The create method here remains unkeyed. M1.9b exposes [Run HTTP creation](run-api.md) through the separate
 keyed repository method.
 
 ## Contract and transaction ownership
