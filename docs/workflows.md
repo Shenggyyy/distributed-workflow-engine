@@ -190,4 +190,5 @@ edge must respect the resulting order.
 M1.2 adds the [workflow/version database schema](workflow-storage.md).
 M1.3/M1.4 implement transactional publication and its HTTP API; M1.5 adds
 [runtime identity/state models](runtime.md). M1.6/M1.7 implement runtime storage
-and transactional run creation. Request idempotency follows separately.
+and transactional run creation. M1.8 implements keyed run-creation idempotency;
+workflow publication remains unkeyed.

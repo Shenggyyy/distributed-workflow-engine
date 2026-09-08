@@ -183,5 +183,6 @@ limit, request admission control, or rate limit is implemented yet. The existing
 thread pool and database pool are not a complete backpressure design. Production
 deployment needs those controls and separate runtime/migration database roles.
 
-No readiness endpoint, run submission, task scheduling, cancellation, event log,
-or idempotency key persistence is introduced in this commit.
+No readiness endpoint, Run HTTP submission, task scheduling, cancellation or
+event log is exposed. M1.8 implements [keyed Run creation](run-idempotency.md)
+through the Python repository; workflow publication through this API remains unkeyed.

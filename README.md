@@ -10,7 +10,7 @@ at-least-once; business side effects require cooperating idempotent handlers.
 
 ## Current status
 
-**M1.8a: Durable run-creation request binding schema and constraints.**
+**M1.8b: Idempotent run creation, replay and concurrent conflict handling.**
 
 Available now:
 
@@ -48,8 +48,10 @@ Available now:
 
 - Durable request-binding storage with immutable keys and deferred Run/Version validation.
 
-Application request deduplication, scheduling and workers are **not implemented yet**.
-M1.8b will connect the [idempotency storage](docs/run-idempotency.md) to run creation.
+- Keyed run creation with stable receipt replay and different-input conflict handling.
+- PostgreSQL tests for concurrent duplicates, owner rollback, timeouts and commit failure.
+
+Run HTTP endpoints, scheduling and workers are **not implemented yet**.
 The architecture below is the agreed target design.
 
 ## Validate a workflow
@@ -162,6 +164,21 @@ and B/C/D are PENDING. There are no attempts and no execution yet. Each call
 creates a new run, including repeated calls for the same version. See the
 [run creation contract](docs/run-creation.md) for a complete example, transaction
 ownership, initialization guarantees and uncertain-commit behavior.
+
+## Create a run with an idempotency key
+
+```powershell
+$versionId = "<published Version ID>"
+$requestKey = [guid]::NewGuid().ToString()
+uv run --locked python examples/create_idempotent_run.py --version-id $versionId --idempotency-key $requestKey
+uv run --locked python examples/create_idempotent_run.py --version-id $versionId --idempotency-key $requestKey
+```
+
+With PostgreSQL configured as above, both invocations return the same Run ID.
+Keep the same key/version for retries. Different input with that key is rejected;
+a new key creates a distinct run. This does not execute tasks. See
+[run-creation idempotency](docs/run-idempotency.md) for the transaction, concurrency,
+failure and receipt contracts.
 
 ## Planned architecture
 
@@ -541,6 +558,7 @@ examples/
     validate_workflow.py
     publish_workflow.py
     create_run.py
+    create_idempotent_run.py
     runtime_lifecycle.py
 scripts/
     init_dev_secrets.py
@@ -555,6 +573,7 @@ src/workflow_engine/
     schema.py
     domain/
         __init__.py
+        idempotency.py
         dag.py
         runtime.py
         workflow.py
@@ -588,6 +607,7 @@ tests/
     test_database.py
     test_dev_secrets.py
     test_logging.py
+    test_idempotency.py
     test_migrations.py
     test_runtime.py
     test_workflow.py
@@ -604,6 +624,7 @@ tests/
         test_runtime_schema.py
         test_run_repository.py
         test_run_request_schema.py
+        test_run_idempotency.py
 alembic.ini
 Dockerfile
 compose.yaml
@@ -645,9 +666,9 @@ M1.5 defines runtime identities and explicit legal state transitions for
 runs/tasks/attempts. M1.6 adds runtime storage, database lifecycle constraints and
 migration verification. M1.7 implements transactional run creation and DAG-node/root
 initialization. M1.8a adds durable request-binding storage and migration tests.
-After M1.8a is committed, pushed, and all three CI jobs pass, continue to M1.8b:
-atomic keyed creation, duplicate replay and conflict handling. Run HTTP endpoints
-follow after that contract is implemented and verified.
+M1.8b adds atomic keyed creation, receipt replay and conflict handling. After M1.8b
+is committed, pushed, and all three CI jobs pass, continue to M1.9a: Run query
+storage operations. M1.9b will expose keyed creation and queries over HTTP.
 
 V2 will add resource controls, routing, cancellation, scheduled jobs, and
 observability. V3 will focus on measured scaling, storage lifecycle, and any

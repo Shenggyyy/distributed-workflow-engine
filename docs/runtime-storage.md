@@ -137,5 +137,5 @@ concurrent attempt insertion through separate connections, and a populated
 0002 upgrade/downgrade round trip that preserves definitions.
 
 M1.7 implements [transactional run creation](run-creation.md) and DAG-node/root
-initialization using this schema. M1.8a adds request-binding storage; M1.8b will
-implement the idempotent creation protocol before exposing run creation over HTTP.
+initialization using this schema. M1.8a adds request-binding storage; M1.8b
+implements the idempotent creation protocol. Run HTTP endpoints remain later work.

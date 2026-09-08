@@ -183,5 +183,6 @@ duplicate transitions, strict fields, JSON round trips, frozen fields, invalid
 event types, and revalidation of bypassed models.
 
 M1.6 implements runtime table constraints and migrations. M1.7 adds transactional
-run creation and root readiness. Request idempotency and scheduler integration
-follow as separate commit-sized subtasks.
+run creation and root readiness. M1.8 implements [run-creation request
+idempotency](run-idempotency.md); execution-event idempotency and scheduler
+integration remain later work.

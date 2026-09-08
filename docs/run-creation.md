@@ -24,8 +24,8 @@ timestamps remain stored in the tables.
 
 Use PostgreSQL READ COMMITTED with DBAPI autocommit disabled. The repository
 composes WorkflowRepository for validated version reads and its transaction
-guard. Every create starts with that guarded read; an ended or replaced original
-transaction is rejected before runtime writes. Do not share repositories or
+guard. RunRepository also checks its own original transaction before keyed or
+unkeyed operations; an ended or replaced transaction is rejected before writes. Do not share repositories or
 connections between threads.
 
 There is no internal commit, rollback, savepoint or retry. Let failures escape
@@ -98,9 +98,10 @@ records inserted by unsupported direct SQL writers, enforce handler capability,
 or prove worker availability. Creation does not implement dispatch, leases,
 retries, runtime dependency resolution after completion, or status aggregation.
 
-**Do not retry an uncertain creation as if it were idempotent.** M1.8a adds
-request-binding storage; M1.8b will connect durable request-key/result handling
-before run creation is exposed over HTTP. Business side-effect idempotency remains a separate concern.
+**Do not retry an uncertain unkeyed creation as if it were idempotent.** M1.8b
+adds create_idempotent() and a [separate keyed example](run-idempotency.md) for
+safe same-key/version retries. The create() method described here remains
+unkeyed. Business side-effect idempotency remains a separate concern.
 
 ## Runnable example
 
