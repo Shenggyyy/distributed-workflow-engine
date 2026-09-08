@@ -11,7 +11,7 @@ uv run python scripts/demo.py up
 
 This builds the image, creates an ignored password only if missing, starts the
 dedicated PostgreSQL database, applies additive migrations and starts API/Scheduler.
-The default address is `http://127.0.0.1:18080/demo/` (Web page added in D4).
+The default address is `http://127.0.0.1:18080/demo/`.
 If needed set `$env:DWE_DEMO_PORT = "18081"` before **all** demo commands; the
 printed address reflects it. The database port is not exposed to the host.
 

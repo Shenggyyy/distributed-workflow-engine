@@ -129,3 +129,9 @@ Browser inspection found separate Docker time namespaces. The clock comparison f
 uses equal boot IDs and monotonic offsets (frozen after namespace entry), rather
 than namespace inode equality. Old evidence retains its original domains and is
 not retroactively combined. New scenarios verify the revised contract.
+
+D4 verified: packaged vanilla page renders real DAG states, Worker identities and
+heartbeats, per-invocation sampled timelines, claim/completion/retry timestamps and
+raw UUIDs. Browser inspection observed two real Worker execution intervals overlap
+(peak 2); no JavaScript errors. Three Node evidence tests and six database/API
+tests pass; CI runs the evidence tests. No frontend build step is required.

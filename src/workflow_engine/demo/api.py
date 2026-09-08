@@ -1,9 +1,11 @@
 """Opt-in fixed scenarios and coherent, scoped demonstration snapshots."""
 
+from pathlib import Path
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, FastAPI
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import Engine, String, cast, func, select, text
 
@@ -208,4 +210,9 @@ def snapshot(run_id: UUID, engine: Database) -> dict[str, Any]:
 def create_demo_app(settings: Settings, *, engine: Engine | None = None) -> FastAPI:
     app = create_app(settings, engine=engine)
     app.include_router(router)
+    app.mount(
+        "/demo",
+        StaticFiles(directory=Path(__file__).with_name("static"), html=True),
+        name="demo-page",
+    )
     return app
