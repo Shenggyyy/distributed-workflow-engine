@@ -119,3 +119,20 @@ recovery loop. Polling can miss brief states. There is no complete network trace
 physical slot ID, Docker stop event or READY transition history; only confirmed
 allocation and current conditions are displayed. History and evidence remain in
 PostgreSQL; storage lifecycle and multi-machine performance are outside this demo.
+
+## Presentation language
+
+`static/messages.js` owns the English and Simplified Chinese text, including
+dynamic explanations. `static/i18n.js` selects the primary browser language
+(Chinese tags use zh-CN; other or missing tags use English). A valid explicit
+choice in `dwe.demo.language` takes precedence. Storage access, including the
+localStorage getter itself, is optional and guarded; failure keeps the in-memory
+choice usable. Translation inserts parameters as text, never HTML.
+
+The page integration redraws the existing snapshot in the chosen language. It
+must not create/restart Runs, change the selected Run, trigger additional polling,
+or modify evidence. Raw names, identifiers, JSON, status codes and UTC/monotonic
+clock meanings stay intact. Static details elements retain their expanded state;
+the visible section's offset is preserved where text reflow permits. Matching
+catalog keys and parameters, preference precedence and blocked storage are covered
+by Node tests without a browser or frontend build dependency.

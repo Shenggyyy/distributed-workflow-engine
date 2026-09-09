@@ -54,8 +54,8 @@ jobs:
       - name: Test
         run: uv run --locked pytest
 
-      - name: Test browser evidence calculations (runner Node.js)
-        run: node --test tests/demo-evidence.test.mjs
+      - name: Test browser evidence and language behavior (runner Node.js)
+        run: node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs
 
       - name: Check local documentation links and anchors
         run: uv run --locked python scripts/check_docs.py
