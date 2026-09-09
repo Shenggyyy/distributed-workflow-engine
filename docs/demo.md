@@ -146,7 +146,7 @@ must cover their trusted waits. [Full evidence checks](demo-design.md#acceptance
 For one scenario use `--scenario recovery`; for a different port use `--port 18081`.
 This script checks engine evidence; browser inspection remains a separate gate.
 Pure timeline calculations can be tested with Node.js 22+:
-`node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs`. Node.js is not needed to run the demo.
+`node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs tests/demo-dag.test.mjs`. Node.js is not needed to run the demo.
 
 ## Three-minute walkthrough
 

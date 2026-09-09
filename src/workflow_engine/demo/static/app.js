@@ -6,7 +6,6 @@ import {
   workerView,
   leaseView,
   recoveryView,
-  dagRows,
   latestAttempt,
   isDiamond,
   timedDiamondScenario,
@@ -16,6 +15,7 @@ import {
   intervals,
   peakOverlap
 } from './evidence.js';
+import {drawDefinitionDag} from './dag.js';
 const $ = id => document.getElementById(id);
 const language = createI18n({
   languages: navigator.languages?.length ? navigator.languages : [navigator.language],
@@ -50,12 +50,6 @@ function badge(status) {
   return el('span', status, 'badge state-' + status);
 }
 
-function svg(tag, attrs, text) {
-  const n = document.createElementNS('http://www.w3.org/2000/svg', tag);
-  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
-  if (text !== undefined) n.textContent = text;
-  return n;
-}
 let selected = new URLSearchParams(location.search).get('run');
 $('follow').checked = !selected;
 $('runs').addEventListener('change', () => {
@@ -65,65 +59,40 @@ $('runs').addEventListener('change', () => {
 });
 
 function drawDag(data, workerLabel) {
-  const target = $('dag');
-  target.replaceChildren();
-  const defs = data.run.definition.tasks;
-  const rows = dagRows(defs);
-  const width = Math.max(660, Math.max(...rows.map(row => row.length)) * 165);
-  const height = rows.length * 100 + 20;
-  target.setAttribute('viewBox', `0 0 ${width} ${height}`);
-  target.style.height = height + 'px';
-  const points = new Map();
-  rows.forEach((keys, row) => keys.forEach((key, i) => points.set(key, {
-    x: (i + 0.5) * width / keys.length - 70,
-    y: 12 + row * 100
-  })));
-  for (const task of defs)
-    for (const parent of task.depends_on) {
-      const a = points.get(parent),
-        b = points.get(task.task_id);
-      target.append(svg('path', {
-        d: `M ${a.x+70} ${a.y+36} L ${b.x+70} ${b.y-6}`,
-        fill: 'none',
-        stroke: '#99aabd',
-        'stroke-width': 1.7
-      }));
-      target.append(svg('path', {
-        d: `M ${b.x+66} ${b.y-12} L ${b.x+70} ${b.y-6} L ${b.x+74} ${b.y-12}`,
-        fill: 'none',
-        stroke: '#99aabd'
-      }));
-    }
-  for (const task of data.tasks) {
-    const p = points.get(task.task_key);
-    const latest = latestAttempt(data, task.id);
-    target.append(svg('rect', {
-      x: p.x,
-      y: p.y,
-      width: 140,
-      height: 36,
-      rx: 6,
-      fill: stateColors[task.status] || '#eee'
-    }));
-    target.append(svg('text', {
-      x: p.x + 7,
-      y: p.y + 13,
-      'font-size': 12,
-      'font-weight': 600
-    }, task.task_key + ' · ' + task.status));
-    if (latest) target.append(svg('text', {
-      x: p.x + 7,
-      y: p.y + 25,
-      'font-size': 9
-    }, `#${latest.attempt_number} · ${workerLabel(latest.worker_session_id)}`));
-  }
+  drawDefinitionDag($('dag'), data.run.definition, {
+    describeNode: key => {
+      const task = data.tasks.find(task => task.task_key === key);
+      const attempt = task && latestAttempt(data, task.id);
+      return {
+        status: task?.status,
+        detail: attempt ? `#${attempt.attempt_number} · ${workerLabel(attempt.worker_session_id)}` : undefined
+      };
+    },
+    colorForStatus: status => stateColors[status] || '#e9edf1'
+  });
+}
+
+function renderResources(data) {
+  const terminal = ['SUCCEEDED', 'FAILED'].includes(data.run.status);
+  const custom = data.run.scenario === 'custom' && !terminal;
+  const untouched = custom && !data.workers.length && !data.attempts.length;
+  const fresh = data.workers.filter(worker => workerView(data, worker).heartbeat === 'fresh').length;
+  const reason = untouched ? 'initial' : !data.attempts.length && data.workers.length < 2 ? 'cohort' :
+    fresh === 0 ? 'unavailable' : 'active';
+  $('resource-guidance').hidden = !custom;
+  $('resource-guidance').textContent = custom ? t('custom.resources.' + reason, {count: fresh}) : '';
+  const validId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.run.id);
+  $('worker-command').hidden = !untouched || !validId;
+  const port = location.port || (location.protocol === 'https:' ? '443' : '80');
+  $('worker-command').textContent = untouched && validId ?
+    `uv run python scripts/demo.py --port ${port} workers --run-id ${data.run.id}` : '';
 }
 
 function renderFlow(data, values, workerLabel, color) {
   const taskName = attempt => data.tasks.find(t => t.id === attempt.task_id)?.task_key || t('common.unknown');
   const diamond = timedDiamondScenario(data.run.definition, data.run.scenario);
   $('scenario-purpose').textContent = diamond ? t('scenario.diamond.' + diamond) :
-    t('scenario.purpose.' + (['parallel', 'distribution', 'recovery'].includes(data.run.scenario) ? data.run.scenario : 'unknown'));
+    t('scenario.purpose.' + (['parallel', 'distribution', 'recovery', 'custom'].includes(data.run.scenario) ? data.run.scenario : 'unknown'));
   const definitionText = JSON.stringify(data.run.definition, null, 2);
   if ($('definition').textContent !== definitionText) $('definition').textContent = definitionText;
   $('ready-tasks').replaceChildren();
@@ -217,6 +186,7 @@ function renderFlow(data, values, workerLabel, color) {
     summary.style.setProperty('--worker', color(worker.id));
     $('owner-summary').append(summary);
   }
+  renderResources(data);
   if (!data.workers.length) $('workers').append(el('p', t('worker.noWorkers'), 'muted'));
   $('results').replaceChildren();
   for (const task of data.tasks.filter(t => t.status === 'SUCCEEDED')) {
@@ -397,7 +367,7 @@ function render(data) {
 }
 
 function scenarioText(kind, scenario) {
-  return ['parallel', 'distribution', 'recovery'].includes(scenario) ? t(`scenario.${kind}.${scenario}`) : scenario;
+  return ['parallel', 'distribution', 'recovery', 'custom'].includes(scenario) ? t(`scenario.${kind}.${scenario}`) : scenario;
 }
 
 function translateStatic() {

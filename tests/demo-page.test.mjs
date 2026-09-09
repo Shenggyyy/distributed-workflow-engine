@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import * as flow from '../src/workflow_engine/demo/static/flow.js';
+import * as dag from '../src/workflow_engine/demo/static/dag.js';
 import * as evidence from '../src/workflow_engine/demo/static/evidence.js';
 import * as i18n from '../src/workflow_engine/demo/static/i18n.js';
 import {messages} from '../src/workflow_engine/demo/static/messages.js';
@@ -88,13 +89,14 @@ function documentFixture() {
   const document = {
     root,
     getElementById(id) { return descendants(root).find(node => node.id === id); },
-    createElement(tag) { return new Node(tag); },
-    createElementNS(_namespace, tag) { return new Node(tag); },
+    createElement(tag) { return Object.assign(new Node(tag), {ownerDocument: this}); },
+    createElementNS(_namespace, tag) { return this.createElement(tag); },
     querySelectorAll(selector) { return descendants(root).filter(node => matches(node, selector)); },
     querySelector(selector) { return this.querySelectorAll(selector)[0] || null; },
     get documentElement() { return this.querySelector('html'); },
     get body() { return this.querySelector('body'); },
   };
+  for (const node of descendants(root)) node.ownerDocument = document;
   return document;
 }
 
@@ -160,7 +162,30 @@ function diamondSnapshot({scenario = 'recovery', retried = false} = {}) {
   };
 }
 
-async function controller({snapshot = runningSnapshot(), selected = true, historySnapshots = []} = {}) {
+function customSnapshot({serial = false} = {}) {
+  const longName = 'Fetch_' + 'x'.repeat(58);
+  const definitions = serial ? Array.from({length: 12}, (_, index) => ({
+    task_id: index ? `Stage_${index}` : longName,
+    task_type: 'demo.observe',
+    depends_on: index ? [index === 1 ? longName : `Stage_${index - 1}`] : [],
+  })) : [
+    {task_id: 'Publish', task_type: 'demo.join', depends_on: ['Validate', 'Summarize']},
+    {task_id: 'Summarize', task_type: 'demo.observe', depends_on: [longName]},
+    {task_id: longName, task_type: 'demo.observe', depends_on: []},
+    {task_id: 'Validate', task_type: 'demo.observe', depends_on: [longName, 'Fetch_aux']},
+    {task_id: 'Fetch_aux', task_type: 'demo.observe', depends_on: []},
+  ];
+  return {
+    snapshot_at: at(6),
+    run: {id: 'b15e128f-9c67-426c-9034-11ea915d3654', scenario: 'custom', status: 'RUNNING',
+      definition: {schema_version: 2, name: 'Custom_raw_name', tasks: definitions}},
+    tasks: definitions.map((definition, index) => ({id: `custom-task-${index}`,
+      task_key: definition.task_id, status: definition.depends_on.length ? 'PENDING' : 'READY'})),
+    attempts: [], workers: [], samples: [],
+  };
+}
+
+async function controller({snapshot = runningSnapshot(), selected = true, historySnapshots = [], port = '18080'} = {}) {
   const document = documentFixture();
   const requests = [], timers = [], historyCalls = [], stored = new Map();
   let failure = null;
@@ -168,9 +193,9 @@ async function controller({snapshot = runningSnapshot(), selected = true, histor
     localStorage: {getItem(key) { return stored.get(key) ?? null; }, setItem(key, value) { stored.set(key, value); }},
     scrollTo(x, y) { this.scrollY = typeof x === 'object' ? x.top : y; }};
   const context = vm.createContext({
-    ...flow, ...evidence, ...i18n, document, window,
+    ...flow, ...dag, ...evidence, ...i18n, document, window,
     navigator: {languages: ['en-GB'], language: 'en-GB'},
-    location: {search: selected && snapshot ? '?run=' + snapshot.run.id : ''},
+    location: {search: selected && snapshot ? '?run=' + snapshot.run.id : '', port, protocol: 'http:'},
     history: {replaceState(...args) { historyCalls.push(args); }},
     URLSearchParams, AbortSignal, TypeError, Error,
     setTimeout(callback) { timers.push(callback); },
@@ -346,8 +371,12 @@ test('diamond recovery explains persisted sibling success and join waiting in bo
   assert.doesNotMatch(page.node('results').textContent, /Confirmed C Attempt #2/);
   assert.match(page.node('replacement-note').textContent, /starts no replacement Worker/);
   assert.doesNotMatch(page.node('replacement-note').textContent, /Historical/);
-  const rectangles = page.node('dag').children.filter(node => node.tagName === 'RECT');
-  assert.deepEqual(rectangles.map(node => node.getAttribute('y')), ['12','112','112','212']);
+  const groups = descendants(page.node('dag')).filter(node => node.getAttribute('data-task-key'));
+  const row = key => Number(descendants(groups.find(node => node.getAttribute('data-task-key') === key))
+    .find(node => node.tagName === 'RECT').getAttribute('y'));
+  assert.ok(row('A') < row('B'));
+  assert.equal(row('B'), row('C'));
+  assert.ok(row('C') < row('D'));
   const raw = page.node('identities').textContent;
   page.switchTo('zh-CN');
   assert.match(page.node('results').textContent, /B 在 Attempt #1 保持 SUCCEEDED/);
@@ -376,8 +405,9 @@ test('selecting a historical Run keeps its saved DAG and legacy explanation with
   page.node('runs').dispatch('change');
   await page.nextPoll();
   assert.equal(page.node('definition').textContent, legacyJson);
-  assert.match(page.node('dag').textContent, /Join · PENDING/);
-  assert.doesNotMatch(page.node('dag').textContent, /D ·/);
+  const legacyNodes = descendants(page.node('dag')).filter(node => node.getAttribute('data-task-key'));
+  assert.deepEqual(legacyNodes.map(node => node.getAttribute('data-task-key')).sort(), ['A', 'Join']);
+  assert.match(legacyNodes.find(node => node.getAttribute('data-task-key') === 'Join').textContent, /PENDING/);
   assert.match(page.node('replacement-note').textContent, /Historical A → Join/);
   assert.doesNotMatch(page.node('scenario-purpose').textContent, /C 20s/);
   const requests = page.requests.length, historyCount = page.historyCalls.length;
@@ -396,4 +426,97 @@ test('selecting a historical Run keeps its saved DAG and legacy explanation with
   assert.match(page.node('scenario-purpose').textContent, /C 14s/);
   assert.equal(page.node('replacement-note').hidden, true);
   assert.ok(page.requests.every(request => !request.options.method || request.options.method === 'GET'));
+});
+
+test('custom saved topology and full 64-character names survive bilingual rendering and waiting guidance', async () => {
+  const snapshot = customSnapshot(), original = JSON.stringify(snapshot);
+  const page = await controller({snapshot, port: '18081'});
+  assert.equal(page.node('error').hidden, true);
+  assert.match(page.node('scenario').textContent, /Custom/);
+  assert.equal(page.node('replacement-note').hidden, true);
+  assert.equal(page.node('resource-guidance').hidden, false);
+  assert.equal(page.node('worker-command').hidden, false);
+  const command = `uv run python scripts/demo.py --port 18081 workers --run-id ${snapshot.run.id}`;
+  assert.equal(page.node('worker-command').textContent, command);
+  assert.doesNotMatch(page.node('scenario-purpose').textContent, /A → B\/C → D|C 20s|C's actual owner/);
+  assert.equal(page.node('overlap').textContent, '0');
+  assert.equal(page.node('owners').textContent, '0');
+  const groups = () => descendants(page.node('dag')).filter(node => node.getAttribute('data-task-key'));
+  const keys = snapshot.run.definition.tasks.map(task => task.task_id).sort();
+  assert.deepEqual(groups().map(node => node.getAttribute('data-task-key')).sort(), keys);
+  const longName = keys.find(key => key.length === 64);
+  assert.ok(longName);
+  const visibleNames = () => groups().map(group => descendants(group)
+    .filter(node => node.getAttribute('data-node-line') === 'name').map(node => node.textContent).join('')).sort();
+  assert.deepEqual(visibleNames(), keys, 'Full raw names remain visible, not just in tooltips');
+  const edges = () => descendants(page.node('dag')).filter(node => node.getAttribute('data-from'))
+    .map(node => `${node.getAttribute('data-from')}->${node.getAttribute('data-to')}`).sort();
+  const expectedEdges = snapshot.run.definition.tasks.flatMap(task => task.depends_on.map(parent => `${parent}->${task.task_id}`)).sort();
+  assert.deepEqual(edges(), expectedEdges);
+  assert.ok(page.node('waiting-tasks').textContent.includes(`${longName} (READY)`));
+  assert.match(page.node('waiting-tasks').textContent, /Fetch_aux \(READY\)/);
+  const before = {requests: page.requests.length, definition: page.node('definition').textContent,
+    guidance: page.node('resource-guidance').textContent, edges: edges(), run: page.node('runs').value};
+  page.node('attempt-details').open = false;
+  page.switchTo('zh-CN');
+  assert.match(page.node('scenario').textContent, /自定义/);
+  assert.notEqual(page.node('resource-guidance').textContent, before.guidance);
+  assert.match(page.node('resource-guidance').textContent, /[\u4e00-\u9fff]/);
+  assert.equal(page.node('worker-command').textContent, command);
+  assert.equal(page.node('runs').value, before.run);
+  assert.equal(page.node('follow').checked, false);
+  assert.equal(page.node('attempt-details').open, false);
+  assert.equal(page.node('definition').textContent, before.definition);
+  assert.deepEqual(groups().map(node => node.getAttribute('data-task-key')).sort(), keys);
+  assert.deepEqual(visibleNames(), keys);
+  assert.deepEqual(edges(), before.edges);
+  assert.ok(page.node('waiting-tasks').textContent.includes(`${longName} (READY)`));
+  page.switchTo('en');
+  assert.equal(page.requests.length, before.requests);
+  assert.equal(JSON.stringify(snapshot), original);
+  assert.ok(page.requests.every(request => !request.options.method || request.options.method === 'GET'));
+});
+
+test('serial custom DAG retains twelve actual layers without claiming observed parallelism', async () => {
+  const snapshot = customSnapshot({serial: true});
+  const page = await controller({snapshot});
+  assert.equal(page.node('error').hidden, true);
+  const groups = descendants(page.node('dag')).filter(node => node.getAttribute('data-task-key'));
+  assert.equal(groups.length, 12);
+  const positions = groups.map(group => Number(descendants(group).find(node => node.tagName === 'RECT').getAttribute('y')));
+  assert.equal(new Set(positions).size, 12);
+  assert.ok(Math.max(...positions) > 420);
+  assert.equal(page.node('overlap').textContent, '0');
+  assert.match(page.node('waiting-tasks').textContent, /Stage_10 \(PENDING\)/);
+  assert.equal(page.node('replacement-note').hidden, true);
+  page.switchTo('zh-CN');
+  assert.equal(page.node('overlap').textContent, '0');
+  assert.match(page.node('waiting-tasks').textContent, /Stage_10 \(PENDING\)/);
+});
+
+test('custom Worker startup command disappears after membership or a terminal result', async () => {
+  const snapshot = customSnapshot();
+  const page = await controller({snapshot});
+  const command = page.node('worker-command').textContent;
+  assert.equal(page.node('worker-command').hidden, false);
+  snapshot.workers.push({id: 'registered-custom-worker-a', worker_name: 'actual-custom-worker-a',
+    max_concurrency: 1, status: 'ACTIVE', last_heartbeat_at: at(5), heartbeat_expires_at: at(11)});
+  await page.nextPoll();
+  assert.equal(page.node('worker-command').hidden, true);
+  assert.equal(page.node('resource-guidance').hidden, false);
+  const partial = page.node('resource-guidance').textContent;
+  page.switchTo('zh-CN');
+  assert.notEqual(page.node('resource-guidance').textContent, partial);
+  assert.equal(page.node('worker-command').hidden, true);
+  snapshot.workers.push({...snapshot.workers[0], id: 'registered-custom-worker-b', worker_name: 'actual-custom-worker-b'});
+  await page.nextPoll();
+  assert.equal(page.node('worker-command').hidden, true);
+  assert.equal(page.node('resource-guidance').hidden, false);
+  assert.match(page.node('resource-guidance').textContent, /2 个心跳有效的 Worker/);
+  snapshot.workers = [];
+  snapshot.run.status = 'FAILED';
+  await page.nextPoll();
+  assert.equal(page.node('worker-command').hidden, true);
+  assert.equal(page.node('resource-guidance').hidden, true);
+  assert.ok(command.includes(snapshot.run.id));
 });

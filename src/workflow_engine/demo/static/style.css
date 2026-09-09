@@ -193,11 +193,6 @@ pre {
   margin-top: 5px
 }
 
-#dag {
-  width: 100%;
-  height: 220px
-}
-
 .worker {
   border-left: 4px solid var(--worker);
   padding: 8px 12px;
@@ -465,13 +460,24 @@ h3 {
 }
 
 .dag-wrap {
-  overflow-x: auto
+  overflow-x: auto;
+  max-width: 100%
 }
 
-#dag {
-  min-width: 620px;
+.dag-wrap svg {
   display: block;
-  max-height: 420px
+  margin-inline: auto;
+  max-width: none;
+  max-height: none
+}
+
+.worker-command {
+  display: block;
+  padding: 10px 12px;
+  background: #e8f3f1;
+  border: 1px solid #b5d8d1;
+  border-radius: 6px;
+  margin-bottom: 14px
 }
 
 .queue-columns {

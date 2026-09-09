@@ -132,6 +132,15 @@ network/database latency adds to that interval. Brief states may be missed, whil
 Attempt/retry history remains. Queries are scoped to bounded demo DAGs; this
 read model is not a global operational event log or high-volume monitoring API.
 
+The observation page recognizes `custom` membership without assuming node names
+or a diamond topology. A shared definition-driven SVG renderer preserves every
+saved node/edge, wraps full task identifiers, and uses local horizontal scrolling
+for wide layers instead of shrinking text. Long chains retain their natural height.
+It supplies no synthetic states to structural previews. Dependency, Worker, retry
+and timeline evidence still come from the same scoped snapshot. For an untouched
+custom Run, the page shows the exact local `workers --run-id` command; no Worker
+registration, claim request or container launch is invented by the page.
+
 Phase E adds only the existing nullable lease renewal timestamp to this snapshot.
 No migration or write transaction changes. The six-step page derives current
 dependency blockers from the pinned definition and Task rows in the same snapshot.

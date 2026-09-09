@@ -134,6 +134,7 @@ def test_stock_api_and_non_demo_run_not_exposed(http_engine: Engine) -> None:
         assert client.get("/demo/").status_code == 200
         for asset in (
             "app.js",
+            "dag.js",
             "evidence.js",
             "flow.js",
             "i18n.js",

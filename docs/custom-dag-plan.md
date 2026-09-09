@@ -5,10 +5,12 @@ predefined scenarios remain the repeatable baseline; custom input adds a second
 entry to the same engine. No core execution semantics or historical definitions
 are changed. Implementation proceeds through the small gates below.
 
-H0–H3 are complete: the opt-in demo app serves its trusted catalog, bounded
+H0–H4 are complete: the opt-in demo app serves its trusted catalog, bounded
 read-only preview and atomic idempotent submission API. Revision 0012 stores
 explicit custom membership and immutable receipts. The local `workers --run-id`
-command starts a bounded two-Worker cohort for an existing custom Run. The browser
+command starts a bounded two-Worker cohort for an existing custom Run. The shared
+DAG renderer handles saved definitions and the observer explains custom resource
+waiting in both languages. The browser
 editor remains a later gate below. Predefined demonstrations work unchanged during
 this preparation.
 
@@ -134,6 +136,14 @@ exited with code 0. Creation first showed no Workers/Attempts. Repeat startup wa
 refused. All 31 pre-upgrade terminal snapshots retained identical Run/Task/Attempt,
 Worker and sample data. This is CLI/runtime verification; browser input acceptance
 remains H7.
+
+H4 observer browser check (2026-09-09): the above custom Run retained its three
+actual nodes, two owners and sampled overlap when switching between English and
+Chinese. The graph stayed readable at desktop and narrow viewport widths; the
+startup command was hidden for this completed Run. Historical recovery Run
+`e69d9250-3c05-4f04-8984-f48c3a83ad55` still rendered its saved `A → Join` edge,
+without renaming it or imposing a diamond. Long-name, skip-edge and 12-node serial
+layouts additionally have renderer tests; new editor browser acceptance remains H7.
 
 Use the actual browser to enter a non-diamond DAG with different names and topology,
 validate, preview, create a real Run, observe it waiting with no Worker, start the
