@@ -2,8 +2,10 @@
 
 # 本地演示指南
 
-当前场景采用 `A → B/C → D`。三个场景均已通过真实运行与双语浏览器验收，
+三个预定义场景采用 `A → B/C → D`。三个场景均已通过真实运行与双语浏览器验收，
 见注明日期的[菱形场景验收（英文）](diamond-review.md)。
+自定义编辑器也可在同一引擎上使用自己的受限定义；[自定义验收记录（英文）](custom-dag-review.md)
+记录了实际从浏览器创建的 Run。
 
 ## 启动并打开页面
 
@@ -21,8 +23,10 @@ uv run python scripts/demo.py up
 `http://127.0.0.1:18080/demo/`。
 已有安装同样执行 `up`，重建最新页面后刷新浏览器。文档和页面文案修改无需重置数据库。
 运行或观看场景时保持 Docker Desktop 开启。
-如需其他端口，在**所有**演示命令之前设置 `$env:DWE_DEMO_PORT = "18081"`；
-命令输出的地址会反映该端口。演示数据库不向宿主机公开端口。
+如需其他端口，为 `scripts/demo.py` 命令设置 `$env:DWE_DEMO_PORT = "18081"`，
+其输出地址会反映该端口。两个验收模块独立默认使用 18080，因此还必须给
+`scripts.demo_acceptance` 与 `scripts.custom_demo_acceptance` 显式传入 `--port 18081`。
+演示数据库不向宿主机公开端口。
 
 ## 选择页面语言
 
@@ -77,14 +81,94 @@ START/PULSE 区间至少重叠一秒。它确定 **C Attempt #1 的实际执行�
 修改内容会使旧预览失效。检查真实连线与规范化 JSON 后，再点击 **确认创建 Run**。
 页面会选中返回的真实 Run，显示六步快照。尚无 Worker 时，根任务为 READY，后续任务等待依赖。
 
-仅接受目录中可信的计时 Handler：1–12 个任务、16 KiB UTF-8 请求体，每任务最多两个
-Attempt、90 秒超时和固定 5–10 秒重试退避。名称遵守核心 ASCII 标识规则。这些是演示入口
-限制；给节点命名不会实现业务处理，依赖也不会传递输出。菱形副本提交后是由两个单槽位
-Worker 执行的自定义 Run，不继承预定义场景的启动行为与故障注入。
+可粘贴以下六节点、非菱形示例。名称只标识节点，不表示业务功能；每个节点执行所选的可信计时 Handler：
+
+```json
+{
+  "name": "CustomBranches",
+  "tasks": [
+    {"task_id": "Seed", "task_type": "demo.observe"},
+    {"task_id": "SideLane", "task_type": "demo.recover"},
+    {"task_id": "SlowLane", "task_type": "demo.recover", "depends_on": ["Seed"]},
+    {"task_id": "QuickLane", "task_type": "demo.diamond.c", "depends_on": ["Seed"]},
+    {"task_id": "Merge", "task_type": "demo.join", "depends_on": ["SideLane", "SlowLane"]},
+    {"task_id": "End", "task_type": "demo.join", "depends_on": ["QuickLane", "Merge"]}
+  ]
+}
+```
+
+`Seed` 与 `SideLane` 是独立根任务。`Seed` 成功后解锁 `SlowLane` 与 `QuickLane`；
+它们仍可能等待空闲 Worker 槽位。`Merge` 必须等待 `SideLane` 和 `SlowLane`，
+`End` 必须等待 `QuickLane` 和 `Merge`。DAG 不预先指定 Worker，也不保证所有 READY
+任务同时开始；之后应对比真实 START/FINISH 样本，判断实际重叠。
+
+如需串行对照，在确认前一次创建结果后，明确点击 **新建空白草稿**，粘贴并创建另一个 Run：
+
+```json
+{
+  "name": "CustomSerial",
+  "tasks": [
+    {"task_id": "OnlyOne", "task_type": "demo.observe"},
+    {"task_id": "ThenNext", "task_type": "demo.observe", "depends_on": ["OnlyOne"]},
+    {"task_id": "Finally", "task_type": "demo.diamond.d", "depends_on": ["ThenNext"]}
+  ]
+}
+```
+
+即使注册了两个 Worker，后一个节点也不能在前驱成功前领取。串行 Run 可以使用一个或两个
+Worker，但实测执行峰值必须为一。名称与拓扑来自保存的定义，不是固定的 A/B/C/D 布局。
+原有 parallel/distribution/recovery 命令仍可使用；载入模板只把副本放进编辑器，
+提交后成为使用两个单槽位 Worker 的自定义 Run，不继承预定义启动与故障行为。
+
+实际 `CustomBranches` 浏览器演示已完成：六个成功 Attempt 分布在两个 Worker，采样执行峰值为二。
+以下真实中文截图是创建前的**已校验预览**，不包含任务状态：
+
+![尚未创建 Run 的 CustomBranches 后端校验结构预览](images/custom-dag-preview-zh.jpg)
+
+[两个 Worker 的最终结果](images/custom-dag-result-zh.jpg)、
+[启动前等待状态](images/custom-dag-waiting-zh.jpg)与[执行中画面（英文）](images/custom-dag-live-en.jpg)
+展示同一 Run 的不同阶段。串行对照也已完成：注册两个 Worker，其中一个实际执行三个任务，
+实测执行峰值为一，没有重叠。真实身份、时间顺序检查与边界见[自定义验收记录（英文）](custom-dag-review.md)；
+仅凭结构预览不能证明发生过执行。
+
+### 支持的定义与错误
+
+Workflow 和任务名为 **1–64 个 ASCII 字符**：以字母开头，后续可用字母、数字、`_` 或 `-`。
+页面展示当前 Handler 目录：
+
+| 可信 Handler | 计时等待 |
+| --- | --- |
+| `demo.observe` | 8 秒 |
+| `demo.recover` | 20 秒 |
+| `demo.join` | 2 秒 |
+| `demo.diamond.a` | 6 秒 |
+| `demo.diamond.b` | 8 秒 |
+| `demo.diamond.c` | 14 秒 |
+| `demo.diamond.recover` | 20 秒 |
+| `demo.diamond.d` | 3 秒 |
+
+每份自定义定义支持 1–12 个任务，请求实际 UTF-8 大小最多 16 KiB。可使用不带 `execution`
+的 schema 1（如上例），或 schema 2。后端返回显式 schema 2 与固定策略：最多两个 Attempt、
+90 秒超时、初始与最大退避均为 10000 毫秒（现有等抖动算法产生 5–10 秒等待）。
+省略的策略会补齐，显式不同的策略会被拒绝。这些限制仅适用于演示入口，不接受代码、
+模块导入、路径、URL 或容器参数；依赖不传递输出，给节点改名也不会添加业务逻辑。
+
+| 拒绝原因 | 如何修正 |
+| --- | --- |
+| `duplicate_task_id`、`unknown_dependency`、`self_dependency`、`cycle_detected` | 保证名称唯一，依赖引用实际存在的节点，并且图中没有环。 |
+| `demo_handler_not_allowed`、`demo_task_limit`、`demo_execution_policy` | 使用目录与固定演示限制；省略 `execution` 或使用规范化策略。 |
+| `json_invalid`、`string_pattern_mismatch` | 修正 JSON 或 ASCII 标识；重复 JSON 字段与过深嵌套也会被拒绝。 |
+| 413 `demo_body_too_large`；415 `demo_json_required` | 缩小 UTF-8 请求体；API 客户端必须使用 `application/json`。 |
+| 409 `demo_submission_conflict` | 键已属于另一份定义，应保留原操作，不要替换键绕过冲突。 |
+
+双语界面说明字段位置与稳定错误码，不修改原始标识。修改草稿后必须重新通过后端校验；
+校验与载入模板不会发布 Workflow 或启动执行。
 
 创建响应丢失时，点击 **用相同键与定义确认结果**。编辑器保留固定提交身份并锁定编辑，
 不会自动重试。刷新后恢复可用的本地记录，但不会发送 POST；本地存储不可用时，离开页面
-前请复制显示的键与定义。语言切换保留草稿、预览和选中的 Run。
+前请复制显示的键与定义。保存记录格式错误或与另一提交冲突时，会阻止新提交；应保留显示
+的恢复内容，不要生成新键绕过未知结果。恢复的已确认回执可以通过 **观察已确认的 Run** 打开。
+语言切换保留草稿、预览和选中的 Run。
 [API 与错误契约（英文）](demo-api.md#custom-submission)。
 
 ## 为已有自定义 Run 启动 Worker
@@ -114,12 +198,20 @@ Attempt 历史或预期名称的已有容器，再启动两个专用的单槽位
 uv run python -m scripts.custom_demo_acceptance --run-id "CUSTOM_RUN_ID" --expect parallel --start-workers
 ```
 
-它只调用一次相同的受限启动流程，记录已经创建的 Run。纯串行 DAG 使用 `--expect serial`；
+非默认 API 端口需要附加 `--port 18081`；该模块不读取 `DWE_DEMO_PORT`。
+它只调用一次相同的受限启动流程，记录已经创建的 Run。上面的分支示例使用 `--expect parallel`；
+`CustomSerial` 示例或其他纯串行 DAG 使用 `--expect serial`；
 只想记录实际执行而不要求重叠时使用 `--expect any`。省略 `--start-workers` 则仅采集，
 需要在另一个终端启动 Worker。等待快照、实际观测检查点、最终快照、专用容器身份和报告
 保存在 `.uv-cache/custom-acceptance/CUSTOM_RUN_ID/`。已有目录会被拒绝，不覆盖证据、不自动
-重试。观察时限为十分钟；失败时保留诊断证据，不会停止或删除 Worker。该命令不会创建 Run，
-也不注入故障；脚本断言不能替代浏览器验收。
+重试。采集必须在没有任何 Worker/Attempt 历史时开始。观察预算为十分钟，之后最多等待
+15 秒让容器正常退出；有界 I/O 可能使报告稍晚。采集开始后失败会保留诊断证据，不会停止或
+删除 Worker。该命令不会创建 Run，也不注入故障；脚本断言不能替代浏览器验收。
+
+简短的自定义演示流程：先预览真实连线；创建后指出 READY 根任务与尚不存在的 Attempt；
+只执行一次采集命令；然后在 03/04 观察空闲槽位与实际执行者，在 05 观察依赖逐个满足，
+在 06 对比完整采样区间，并打开 Attempt 明细与原始 JSON。新建串行 Run 进行对照，说明
+两个可用 Worker 不等于实际并行执行。自定义验收不注入故障，恢复仍由前面的预定义场景演示。
 
 ## 停止并保留证据
 

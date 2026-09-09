@@ -5,7 +5,7 @@ predefined scenarios remain the repeatable baseline; custom input adds a second
 entry to the same engine. No core execution semantics or historical definitions
 are changed. Implementation proceeds through the small gates below.
 
-H0–H6b are complete: the opt-in demo app serves its trusted catalog, bounded
+H0–H7 are complete: the opt-in demo app serves its trusted catalog, bounded
 read-only preview and atomic idempotent submission API. Revision 0012 stores
 explicit custom membership and immutable receipts. The local `workers --run-id`
 command starts a bounded two-Worker cohort for an existing custom Run. The shared
@@ -14,8 +14,10 @@ waiting in both languages. The bilingual editor protects preview revisions and
 pending submission identity, loads template copies and selects confirmed Runs.
 The generic evidence validator checks fault-free parallel/serial custom Runs.
 The local capture command retains exclusive per-Run evidence and only starts
-Workers when explicitly requested. The complete browser walkthrough remains H7.
-Predefined demonstrations remain available.
+Workers when explicitly requested. Real browser-created branching and serial Runs,
+all three predefined regressions and the complete validation suite passed; see the
+dated [acceptance record](custom-dag-review.md). Predefined demonstrations remain
+available.
 
 ## Read-only findings
 
@@ -163,6 +165,9 @@ custom Run's retained waiting/final snapshots and verified container identities.
 It confirmed three tasks, two dependency edges, 42 samples, two owners, peak two
 and 8,339,558,932 ns of distinct-owner overlap. This rechecks existing real evidence;
 it is not a new browser walkthrough or proof from a synthetic fixture.
+
+H7 completed this acceptance procedure; its actual Run IDs, screenshots and results
+are retained in the [custom review](custom-dag-review.md).
 
 Use the actual browser to enter a non-diamond DAG with different names and topology,
 validate, preview, create a real Run, observe it waiting with no Worker, start the

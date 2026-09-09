@@ -2,8 +2,10 @@
 
 # Local demonstration
 
-The current scenarios use `A → B/C → D`. All three passed real execution and
+The three predefined scenarios use `A → B/C → D`. All three passed real execution and
 bilingual browser acceptance; see the dated [diamond review](diamond-review.md).
+The custom editor also supports your own constrained definitions on the same engine;
+[custom acceptance](custom-dag-review.md) records actual browser-created Runs.
 
 ## Start and open the page
 
@@ -22,8 +24,10 @@ The default address is `http://127.0.0.1:18080/demo/`.
 Existing installations use the same `up` command to rebuild the latest page, then
 refresh the browser. Documentation and page-text changes do not require resetting
 the database. Keep Docker Desktop running while viewing/running scenarios.
-If needed set `$env:DWE_DEMO_PORT = "18081"` before **all** demo commands; the
-printed address reflects it. The database port is not exposed to the host.
+For another port, set `$env:DWE_DEMO_PORT = "18081"` for `scripts/demo.py` commands;
+its printed address reflects it. Both acceptance modules default independently to
+18080, so also pass `--port 18081` explicitly to `scripts.demo_acceptance` and
+`scripts.custom_demo_acceptance`. The database port is not exposed to the host.
 
 ## Choose the page language
 
@@ -89,18 +93,108 @@ invalidates the preview. Inspect its real edges and canonical JSON, then choose
 **Confirm and create Run**. The page selects the returned Run and shows its actual
 six-step snapshot. Without Workers, roots are READY and dependent tasks wait.
 
-Only the catalog's trusted timed Handlers are accepted: 1–12 tasks, 16 KiB UTF-8
-body, at most two Attempts per task, 90s timeout and fixed 5–10s retry backoff.
-Names follow the core ASCII identifier rules. These are demo-entry limits; naming
-a node does not implement business processing and dependencies do not pass outputs.
-A copied diamond becomes a custom Run with two one-slot Workers; predefined
-scenario launch behavior and fault injection do not carry over.
+Paste this six-node, non-diamond example. The names identify nodes, not business
+operations; every node executes its chosen trusted timed Handler:
+
+```json
+{
+  "name": "CustomBranches",
+  "tasks": [
+    {"task_id": "Seed", "task_type": "demo.observe"},
+    {"task_id": "SideLane", "task_type": "demo.recover"},
+    {"task_id": "SlowLane", "task_type": "demo.recover", "depends_on": ["Seed"]},
+    {"task_id": "QuickLane", "task_type": "demo.diamond.c", "depends_on": ["Seed"]},
+    {"task_id": "Merge", "task_type": "demo.join", "depends_on": ["SideLane", "SlowLane"]},
+    {"task_id": "End", "task_type": "demo.join", "depends_on": ["QuickLane", "Merge"]}
+  ]
+}
+```
+
+`Seed` and `SideLane` are independent roots. `Seed` success unlocks `SlowLane` and
+`QuickLane`; either may wait for a free Worker slot. `Merge` requires both
+`SideLane` and `SlowLane`, and `End` requires both `QuickLane` and `Merge`.
+The DAG does not assign Workers in advance or promise simultaneous starts for all
+READY tasks. Later compare actual START/FINISH samples to establish overlap.
+
+For a serial comparison, explicitly choose **New empty draft** after resolving the
+previous creation, then paste and create this separate Run:
+
+```json
+{
+  "name": "CustomSerial",
+  "tasks": [
+    {"task_id": "OnlyOne", "task_type": "demo.observe"},
+    {"task_id": "ThenNext", "task_type": "demo.observe", "depends_on": ["OnlyOne"]},
+    {"task_id": "Finally", "task_type": "demo.diamond.d", "depends_on": ["ThenNext"]}
+  ]
+}
+```
+
+Even with two registered Workers, the next node cannot be claimed before its
+parent's success. A serial Run may use one or both Workers; peak sampled execution
+must remain one. Names and topology come from the saved definition, not a fixed
+A/B/C/D layout. Original parallel/distribution/recovery commands still work;
+loading a template only copies it into the editor. That copy becomes a custom Run
+with two one-slot Workers, without the predefined launch or fault behavior.
+
+The actual `CustomBranches` browser walkthrough completed with six successful
+Attempts on two Workers and peak sampled execution of two. This genuine English
+capture is the **validated preview**, before creation; it contains no task state:
+
+![Backend-validated CustomBranches structure, before any Run is created](images/custom-dag-preview-en.jpg)
+
+The [final two-Worker result](images/custom-dag-result-en.jpg),
+[startup waiting state](images/custom-dag-waiting-zh.jpg) and
+[live execution view](images/custom-dag-live-en.jpg) show different stages of the
+same Run. The serial comparison also completed: two Workers were registered, one
+actually ran its three tasks, and measured peak execution was one with no overlap.
+Exact identities, timing checks and limitations are in the
+[custom acceptance record](custom-dag-review.md); a preview alone proves no execution.
+
+### Supported definitions and errors
+
+Workflow and task names are **1–64 ASCII characters**: start with a letter, then
+use letters, digits, `_` or `-`. The page lists the current Handler catalog:
+
+| Trusted Handler | Timed wait |
+| --- | --- |
+| `demo.observe` | 8s |
+| `demo.recover` | 20s |
+| `demo.join` | 2s |
+| `demo.diamond.a` | 6s |
+| `demo.diamond.b` | 8s |
+| `demo.diamond.c` | 14s |
+| `demo.diamond.recover` | 20s |
+| `demo.diamond.d` | 3s |
+
+Each custom definition allows 1–12 tasks and at most 16 KiB of actual UTF-8 request
+bytes. Schema 1 without `execution` (as above) or schema 2 is supported. The backend
+returns explicit schema 2 with a fixed policy: at most two Attempts, 90s timeout,
+and 10000 ms initial/max backoff (existing equal jitter gives 5–10s). Omitted policies
+are filled; explicitly different policies are refused. These limits apply only to
+the demo entry. No code, imports, paths, URLs or container options are accepted;
+dependencies do not pass outputs and renaming a node does not add business logic.
+
+| Rejection | What to correct |
+| --- | --- |
+| `duplicate_task_id`, `unknown_dependency`, `self_dependency`, `cycle_detected` | Make names unique and dependencies reference existing nodes in an acyclic graph. |
+| `demo_handler_not_allowed`, `demo_task_limit`, `demo_execution_policy` | Use the catalog and fixed demo limits; omit `execution` or use the canonical policy. |
+| `json_invalid`, `string_pattern_mismatch` | Correct JSON or ASCII identifiers; duplicate JSON fields and excessive nesting are also rejected. |
+| 413 `demo_body_too_large`; 415 `demo_json_required` | Reduce the UTF-8 body size; API clients must send `application/json`. |
+| 409 `demo_submission_conflict` | The key already belongs to another definition; retain the original operation instead of replacing its key. |
+
+The bilingual UI explains field locations and stable error codes without changing
+raw identifiers. Correcting the draft requires fresh backend validation. Validation
+and template loading do not publish a Workflow or start execution.
 
 If creation loses its response, use **Resolve with the same key and body**. The
 editor retains the frozen operation, disables edits, and never sends an automatic
 retry. A reload restores available local recovery data without POSTing. When local
-storage fails, copy the displayed key/body before leaving the page. Language changes
-preserve the draft, preview and selected Run. [API and error contracts](demo-api.md#custom-submission).
+storage fails, copy the displayed key/body before leaving the page. A malformed or
+conflicting saved operation blocks a new submission; preserve the shown recovery
+record rather than bypassing uncertainty with a new key. A restored confirmed
+receipt can be opened with **Observe the confirmed Run**. Language changes preserve
+the draft, preview and selected Run. [API and error contracts](demo-api.md#custom-submission).
 
 ## Workers for an existing custom Run
 
@@ -135,16 +229,28 @@ of the simple Worker command above:
 uv run python -m scripts.custom_demo_acceptance --run-id "CUSTOM_RUN_ID" --expect parallel --start-workers
 ```
 
-This calls the same scoped startup once and records the already-created Run. Use
-`--expect serial` for a totally ordered DAG, or `--expect any` to report observed
-behavior without requiring overlap. Omit `--start-workers` to capture while you
+For a non-default API port, append `--port 18081`; this module does not read
+`DWE_DEMO_PORT`. This calls the same scoped startup once and records the
+already-created Run. The branching example uses `--expect parallel`; use
+`--expect serial` for `CustomSerial` or another totally ordered DAG, or
+`--expect any` to report behavior without requiring overlap. Omit `--start-workers` to capture while you
 start Workers in another terminal. It retains the waiting snapshot, observed
 checkpoints, final snapshot, scoped container identities and report in
 `.uv-cache/custom-acceptance/CUSTOM_RUN_ID/`. Existing evidence directories are
-refused; nothing is overwritten or automatically retried. The observation budget
-is ten minutes; failures retain diagnostic evidence and do not stop/delete Workers.
+refused; nothing is overwritten or automatically retried. Capture must begin before
+any Worker/Attempt history exists. Its ten-minute observation budget is followed by
+up to 15 seconds for normal container exit; bounded I/O may delay reporting. Failures
+after capture starts retain diagnostic evidence and do not stop/delete Workers.
 This command has no Run-creation or fault-injection operation. Browser acceptance
 remains separate from its assertions.
+
+For a short custom walkthrough: preview the exact edges first; create and point out
+READY roots with no Attempts; run the capture command once; then watch 03/04 for
+slot availability and actual owners, 05 for each dependency becoming satisfied,
+and 06 for finished sample intervals. Inspect Attempt rows and the raw JSON link.
+Repeat with a new serial Run to distinguish two available Workers from actual
+parallel execution. This custom check is fault-free; recovery remains the separate
+predefined scenario above.
 
 ## Stop and keep the evidence
 

@@ -8,6 +8,8 @@ their counts and revisions are not claims about the current checkout.
 ## Quick start and local development
 
 - Demo startup and three-minute walkthrough: [English](demo.md) | [简体中文](demo.zh-CN.md); the fastest way to see the engine.
+- Paste your own DAG, preview and create it, then start scoped Workers:
+  [English examples](demo.md#custom-dag-editor) | [中文示例](demo.zh-CN.md#自定义-dag-编辑器).
 - [Container development](local-development.md): credentials, ports and persistence.
 - [Configuration and structured logging](configuration.md): precedence, validation and diagnostics.
 - [Database connections](database.md) and [migrations](migrations.md).
@@ -41,6 +43,10 @@ their counts and revisions are not claims about the current checkout.
 
 ## Demonstration
 
+- [Custom DAG design and bounded phases](custom-dag-plan.md),
+  [submission API and idempotency](demo-api.md#custom-submission), and
+  [real custom browser acceptance](custom-dag-review.md). The guides above include
+  branching/serial JSON, supported Handlers, error handling and evidence commands.
 - [Diamond scenario transition](diamond-plan.md): the current A -> B/C -> D
   scenarios and their bounded implementation phases.
 - [Diamond execution and browser acceptance](diamond-review.md): actual Run IDs,

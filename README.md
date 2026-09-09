@@ -19,6 +19,10 @@ use a diamond DAG, `A → B/C → D`, to make dependency, parallelism and recove
 visible. **All three diamond scenarios passed real execution and bilingual browser
 acceptance**: sampled B/C overlap, distinct ownership and sibling-preserving
 recovery are recorded in the [diamond review](docs/diamond-review.md).
+The **custom DAG editor** adds backend validation, structural preview and explicit
+idempotent creation; its Runs use the same core engine and two scoped Workers.
+A non-diamond six-node Run passed browser input-to-completion acceptance; see the
+[custom review](docs/custom-dag-review.md) for its measured evidence.
 Core completion has its own [review](docs/mvp-review.md).
 This is a trusted-deployment first version;
 no production SLA, multi-machine validation or throughput claim is implied.
@@ -28,7 +32,7 @@ no production SLA, multi-machine validation or throughput claim is implied.
 ```mermaid
 flowchart TD
     Client -->|publish / submit / query| API[API Server]
-    UI[Local demo page] -->|read scoped snapshots| API
+    UI[Local demo page] -->|validate / create custom Run / observe| API
     Workers[Independent Workers] -->|pull / heartbeat / renew / complete| API
     API --> Engine[Domain + transaction modules]
     Engine --> PG[(PostgreSQL: durable task state)]
@@ -42,7 +46,7 @@ flowchart TD
 | Scheduler | Discover Runs, resolve dependencies, promote retries, recover expired Attempts and aggregate outcomes. |
 | Worker | Pull with free capacity, maintain heartbeat/Lease and supervise concurrent Handler processes. |
 | PostgreSQL | Store immutable workflow versions, Runs, Tasks, Attempts, ownership, receipts and retry schedules. |
-| Optional demo | Read a coherent snapshot and genuine Handler observations; it does not authorize execution. |
+| Optional demo | Validate/create constrained custom Runs; display coherent snapshots and genuine Handler observations. Workers still start through the local CLI. |
 
 One Python package, three process roles: **FastAPI, SQLAlchemy Core/psycopg,
 PostgreSQL and Alembic**. Vanilla HTML/CSS/JavaScript serves the demo without a
@@ -124,6 +128,39 @@ evidence, not performance guarantees. New Runs receive new identities.
 Earlier [fan-in/root-recovery screenshots](docs/release-review.md#browser-captures)
 remain historical evidence. Existing Runs retain their saved DAGs.
 
+## Try your own DAG
+
+Open **Custom DAG — validate, preview and create** on the same page. Paste the
+[copyable branching or serial JSON](docs/demo.md#custom-dag-editor), or load a
+copy of an existing template. **Validate and preview** has no execution state or
+side effects; **Confirm and create Run** publishes separately. The actual Run
+initially has READY roots, waiting dependencies and no Workers or Attempts.
+
+Start its two independent one-slot Workers explicitly, using the returned UUID:
+
+```console
+uv run python scripts/demo.py workers --run-id "CUSTOM_RUN_ID"
+```
+
+The engine decides task ownership. Watch dependencies unlock, compare actual
+Worker IDs and inspect sampled overlap in the same six-step view. For a recorded
+walkthrough, use the [custom evidence command](docs/demo.md#workers-for-an-existing-custom-run)
+**instead of** starting Workers above.
+
+The editor accepts 1–12 tasks, at most 16 KiB of JSON, ASCII names and eight trusted
+2–20 second timed Handlers. These names do not implement business processing or
+output transfer. Invalid DAGs show field-specific errors. Unknown creation results
+lock the draft for **manual same-key/body resolution**; no publication is retried
+automatically. Existing templates, Runs and core execution contracts are preserved.
+[Custom API and limits](docs/demo-api.md#custom-definition-preview).
+
+Real browser result for the six-node `CustomBranches` example: two actual Workers,
+completed dependency joins and peak sampled overlap of two. The dated
+[custom acceptance record](docs/custom-dag-review.md) retains the Run identity,
+waiting evidence and paired previews/results.
+
+![CustomBranches completes on two Workers with real sampled execution intervals](docs/images/custom-dag-result-en.jpg)
+
 ## Test and verify
 
 ```console
@@ -131,7 +168,7 @@ uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked mypy
 uv run --locked pytest
-node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs
+node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs tests/demo-dag.test.mjs tests/demo-composer.test.mjs
 uv run --locked python scripts/check_docs.py
 uv build
 ```

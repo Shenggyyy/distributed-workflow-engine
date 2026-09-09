@@ -12,6 +12,8 @@
 **中英双语六步演示层已完成**。当前场景采用菱形 DAG `A → B/C → D`，展示依赖、并行与故障恢复。
 **三个菱形场景均已通过真实运行与双语浏览器验收**：B/C 采样重叠、不同执行归属以及保留兄弟任务成功结果的恢复，
 见[菱形场景验收（英文）](docs/diamond-review.md)。
+**自定义 DAG 编辑器**补充后端校验、结构预览与显式幂等创建；其 Run 使用同一核心引擎与两个专用 Worker。
+六节点非菱形 Run 已通过从浏览器输入到完成的验收；实测证据见[自定义验收记录（英文）](docs/custom-dag-review.md)。
 核心完成情况有独立的[验收记录（英文）](docs/mvp-review.md)。
 当前第一版面向可信部署环境，不代表生产 SLA、多机验证或已测得的吞吐量。
 
@@ -20,7 +22,7 @@
 ```mermaid
 flowchart TD
     Client[客户端] -->|发布 / 提交 / 查询| API[API Server]
-    UI[本地演示页面] -->|读取专用快照| API
+    UI[本地演示页面] -->|校验 / 创建自定义 Run / 观察| API
     Workers[独立 Workers] -->|pull / 心跳 / 续租 / 完成回报| API
     API --> Engine[领域模型与事务模块]
     Engine --> PG[(PostgreSQL: 持久化任务状态)]
@@ -34,7 +36,7 @@ flowchart TD
 | Scheduler | 发现 Run、解析依赖、推进重试、恢复失效 Attempt、聚合结果。 |
 | Worker | 有空位时拉取任务，维持心跳和 Lease，监督并发 Handler 子进程。 |
 | PostgreSQL | 保存不可变 Workflow 版本、Run、Task、Attempt、归属、回执和重试计划。 |
-| 可选演示层 | 读取一致快照与真实 Handler 采样，不参与执行授权。 |
+| 可选演示层 | 校验、创建受限自定义 Run，展示一致快照与真实 Handler 采样；Worker 仍通过本地 CLI 启动。 |
 
 一个 Python 包、三个进程角色，采用 **FastAPI、SQLAlchemy Core/psycopg、PostgreSQL 和 Alembic**。
 演示页面使用原生 HTML/CSS/JavaScript，无前端构建流程或额外服务。[架构与取舍（英文）](docs/architecture.md)。
@@ -102,6 +104,32 @@ uv run python scripts/demo.py down
 旧版[多根汇合与根任务恢复截图（英文索引）](docs/release-review.md#browser-captures)仍作为历史证据保留。
 已有 Run 继续显示其保存的 DAG。
 
+## 运行自己的 DAG
+
+在同一页面打开 **自定义 DAG — 校验、预览与创建**，粘贴[可复制的分支或串行 JSON](docs/demo.zh-CN.md#自定义-dag-编辑器)，
+也可载入已有模板的副本。**校验并预览**没有执行状态或副作用，**确认创建 Run**才单独发布。
+真实 Run 最初只有 READY 根任务与等待依赖的后续任务，没有 Worker 或 Attempt。
+
+使用返回的 UUID，显式启动两个独立、单槽位的 Worker：
+
+```console
+uv run python scripts/demo.py workers --run-id "CUSTOM_RUN_ID"
+```
+
+引擎决定任务归属。在同一六步页面中观察依赖解锁、对比真实 Worker ID 和采样重叠。
+如需记录演示证据，使用[自定义验收采集命令](docs/demo.zh-CN.md#为已有自定义-run-启动-worker)**替代**上面的启动命令。
+
+编辑器接受 1–12 个任务、最多 16 KiB JSON、ASCII 名称，以及八种持续 2–20 秒的可信计时 Handler。
+命名不会实现业务处理或产物传递。非法 DAG 会显示具体字段错误；创建结果未知时锁定草稿，
+仅允许**用原键与定义手动确认结果**，不会自动重试发布。已有模板、Run 和核心执行契约均保留。
+[自定义 API 与限制（英文）](docs/demo-api.md#custom-definition-preview)。
+
+以下是六节点 `CustomBranches` 示例的真实浏览器结果：两个实际 Worker 完成依赖汇合，
+采样执行峰值为二。带日期的[自定义验收记录（英文）](docs/custom-dag-review.md)保留 Run 身份、
+启动前等待证据以及双语预览与结果。
+
+![CustomBranches 在两个 Worker 上完成，并展示实际采样执行区间](docs/images/custom-dag-result-zh.jpg)
+
 ## 测试与验证
 
 ```console
@@ -109,7 +137,7 @@ uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked mypy
 uv run --locked pytest
-node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs
+node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs tests/demo-dag.test.mjs tests/demo-composer.test.mjs
 uv run --locked python scripts/check_docs.py
 uv build
 ```
