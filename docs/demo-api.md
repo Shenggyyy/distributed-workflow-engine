@@ -11,10 +11,46 @@ authentication, not a public dashboard. No Docker socket is mounted into the API
 | `GET /demo/runs` | Latest 50 registered demo Runs, newest first. Ordinary Runs are excluded. |
 | `GET /demo/runs/{uuid}` | Coherent snapshot of one registered demo Run; 404 for ordinary/unknown Runs, 422 for invalid UUIDs. |
 | `GET /demo/` | Packaged HTML/CSS/JavaScript; no frontend build or separate UI service. |
+| `GET /demo/custom/catalog` | Read-only trusted Handler keys/durations, limits and editable copies of current diamond templates. No publication or Run creation. |
+| `POST /demo/custom/validate` | A Workflow JSON body; returns canonical `definition`, dependency `layers` and demo `limits`. No database access, writes or execution. |
 
 Creation publishes the fixed definition, creates all Tasks and inserts demo Run
 membership in one core READ COMMITTED transaction. Success follows COMMIT. HTTP
 requests do not start containers: the local CLI creates labelled Run-scoped Workers.
+
+## Custom definition preview
+
+The [custom phase](custom-dag-plan.md) begins with read-only validation. Submission
+and the editor arrive in later gates; the existing three scenarios remain usable.
+Send `Content-Type: application/json` with the core definition shape, for example:
+
+```json
+{
+  "name": "my_preview",
+  "tasks": [
+    {"task_id": "Read", "task_type": "demo.join"},
+    {"task_id": "Inspect", "task_type": "demo.observe", "depends_on": ["Read"]}
+  ]
+}
+```
+
+The backend uses the core identifier and DAG validation rules. Demo-only limits
+are 12 tasks, a 16 KiB actual UTF-8 body, registered catalog Handlers (2–20 seconds),
+and the fixed execution policy shown in the normalized response: at most two
+Attempts, 90-second timeout, 10000 ms backoff bounds. Omitted policies are filled;
+explicitly different policies are rejected. The response is schema 2 even for
+schema 1 input. Names and array order are preserved. Validation has no side effects.
+
+Malformed, duplicate-field or non-finite JSON and core DAG errors return 422.
+JSON nesting is limited to 16 container levels, above the supported shape's needs;
+constraint details contain only `location` and stable `type`. Additional types are
+`demo_task_limit`, `demo_handler_not_allowed` and `demo_execution_policy`.
+Oversized bodies return 413 `demo_body_too_large`, including streamed input without
+a length header; unsupported content types return 415 `demo_json_required`.
+Never interpret a node name as implemented business behavior or dependency edges
+as automatic output transfer. The public core API retains its broader contracts.
+
+## Observation snapshots
 
 Snapshot fields:
 

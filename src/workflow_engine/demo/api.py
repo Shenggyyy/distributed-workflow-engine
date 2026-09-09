@@ -13,6 +13,7 @@ from workflow_engine.api.app import create_app
 from workflow_engine.api.dependencies import get_engine
 from workflow_engine.api.errors import APIError
 from workflow_engine.config import Settings
+from workflow_engine.demo.custom_api import router as custom_router
 from workflow_engine.demo.scenarios import Scenario, diamond_definition
 from workflow_engine.repositories.runs import RunRepository
 from workflow_engine.repositories.workflows import WorkflowRepository
@@ -181,6 +182,7 @@ def snapshot(run_id: UUID, engine: Database) -> dict[str, Any]:
 def create_demo_app(settings: Settings, *, engine: Engine | None = None) -> FastAPI:
     app = create_app(settings, engine=engine)
     app.include_router(router)
+    app.include_router(custom_router)
     app.mount(
         "/demo",
         StaticFiles(directory=Path(__file__).with_name("static"), html=True),

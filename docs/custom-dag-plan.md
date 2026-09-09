@@ -5,6 +5,11 @@ predefined scenarios remain the repeatable baseline; custom input adds a second
 entry to the same engine. No core execution semantics or historical definitions
 are changed. Implementation proceeds through the small gates below.
 
+H0–H1 are complete: the opt-in demo app serves its trusted catalog and bounded,
+read-only validation/preview endpoint. Custom persistence, Worker startup and the
+browser editor remain the later gates below; the predefined demonstrations work
+unchanged during this preparation.
+
 ## Read-only findings
 
 `WorkflowDefinition` already validates identifiers, duplicate nodes/dependencies,
@@ -25,6 +30,8 @@ fixed-width DAG nodes need improvement for arbitrary valid names and topologies.
 
 Accept the existing Workflow JSON format and exact ASCII identifier rules. A
 demo-only normalizer enforces 1–12 tasks and a 16 KiB request-body byte limit. The
+JSON reader also rejects non-finite numbers, duplicate fields and nesting beyond
+16 container levels (valid Workflow definitions are much shallower). The
 whitelist is the eight currently registered timed demo keys: `demo.observe` (8s),
 `demo.recover` (20s), `demo.join` (2s), `demo.diamond.a` (6s), `.b` (8s), `.c` (14s),
 `.recover` (20s), and `.d` (3s), with the `demo.diamond` prefix on the abbreviated
@@ -95,8 +102,9 @@ output transfer or generic fault action. Keep raw identifiers and clock semantic
 1. H0: this inspected design and bounded plan.
 2. H1: constrained definition normalization and read-only validation/preview API,
    request-size enforcement and tests.
-3. H2: additive receipt/membership migration and atomic idempotent custom submission,
-   with migration, rollback, conflict and concurrent replay tests.
+3. H2a: additive receipt/membership migration, preservation/downgrade tests and
+   migration-head checks. H2b: atomic idempotent custom submission, with rollback,
+   conflict and concurrent replay tests. These are separate schema and API commits.
 4. H3: scoped two-Worker startup for an existing custom Run, safety guards and tests.
 5. H4: shared definition-driven DAG rendering and generic custom observation,
    including long identifiers, different topology and bilingual waiting guidance.
