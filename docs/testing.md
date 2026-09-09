@@ -71,6 +71,17 @@ passing that command does not replace browser acceptance. See dated
 [six-step review](demo-flow-review.md) for observations and limits at those commits.
 Test counts in those records are historical, not a live badge.
 
+Custom acceptance uses the separate [definition-driven evidence validator](../scripts/custom_demo_evidence.py).
+Its fault-free baseline requires a retained no-Worker snapshot, the same pinned
+custom definition, one successful Attempt per node, complete common-clock Handler
+samples covering each trusted wait, and two scoped one-slot Worker registrations.
+Every dependency must precede its child's claim and observed execution. Per-Worker
+claim ownership and sampled execution cannot overlap. A parallel expectation needs
+positive overlap across distinct owners; a serial expectation needs an actually
+totally ordered DAG and peak overlap one. Optional container records must match
+the scoped identities and normal exit. These checks do not infer execution from
+READY/RUNNING or reinterpret expired post-exit heartbeats as Handler failures.
+
 ## Build the package
 
 ```console

@@ -5,14 +5,15 @@ predefined scenarios remain the repeatable baseline; custom input adds a second
 entry to the same engine. No core execution semantics or historical definitions
 are changed. Implementation proceeds through the small gates below.
 
-H0–H5b are complete: the opt-in demo app serves its trusted catalog, bounded
+H0–H6a are complete: the opt-in demo app serves its trusted catalog, bounded
 read-only preview and atomic idempotent submission API. Revision 0012 stores
 explicit custom membership and immutable receipts. The local `workers --run-id`
 command starts a bounded two-Worker cohort for an existing custom Run. The shared
 DAG renderer handles saved definitions and the observer explains custom resource
 waiting in both languages. The bilingual editor protects preview revisions and
 pending submission identity, loads template copies and selects confirmed Runs.
-Execution acceptance and the complete browser walkthrough remain H6/H7 below.
+The generic evidence validator checks fault-free parallel/serial custom Runs.
+Capture orchestration and the complete browser walkthrough remain H6b/H7 below.
 Predefined demonstrations remain available.
 
 ## Read-only findings
@@ -116,8 +117,11 @@ output transfer or generic fault action. Keep raw identifiers and clock semantic
 6. H5a: isolated editor/submission state machine and asynchronous/replay tests.
 7. H5b: bilingual editor, template loading, preview and explicit creation UI wired
    to real APIs, with page integration tests.
-8. H6: generic custom execution acceptance evidence for parallel and serial DAGs;
-   retain the strict predefined diamond/fault baseline.
+8. H6a: pure generic custom execution evidence validation for parallel and serial
+   DAGs, including negative evidence tests. H6b: local capture/start/watch commands
+   for an existing browser-created Run, retaining snapshots and verified container
+   identities. These are separate validation and orchestration commits. Retain the
+   strict predefined diamond/fault baseline.
 9. H7: real browser input-to-completion acceptance, predefined regression, screenshots,
    concise bilingual guides/README updates, full review and final CI verification.
 
@@ -152,6 +156,12 @@ immediately hid that preview and disabled creation. A real backend 422
 `self_dependency` response displayed an English and Chinese explanation while
 preserving the JSON draft, Run selection and scroll position. The full
 input-to-execution walkthrough remains H7; this smoke did not create a Run.
+
+H6a archived-evidence smoke (2026-09-09): the generic validator accepted the H3
+custom Run's retained waiting/final snapshots and verified container identities.
+It confirmed three tasks, two dependency edges, 42 samples, two owners, peak two
+and 8,339,558,932 ns of distinct-owner overlap. This rechecks existing real evidence;
+it is not a new browser walkthrough or proof from a synthetic fixture.
 
 Use the actual browser to enter a non-diamond DAG with different names and topology,
 validate, preview, create a real Run, observe it waiting with no Worker, start the
