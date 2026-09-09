@@ -5,7 +5,7 @@ predefined scenarios remain the repeatable baseline; custom input adds a second
 entry to the same engine. No core execution semantics or historical definitions
 are changed. Implementation proceeds through the small gates below.
 
-H0–H6a are complete: the opt-in demo app serves its trusted catalog, bounded
+H0–H6b are complete: the opt-in demo app serves its trusted catalog, bounded
 read-only preview and atomic idempotent submission API. Revision 0012 stores
 explicit custom membership and immutable receipts. The local `workers --run-id`
 command starts a bounded two-Worker cohort for an existing custom Run. The shared
@@ -13,7 +13,8 @@ DAG renderer handles saved definitions and the observer explains custom resource
 waiting in both languages. The bilingual editor protects preview revisions and
 pending submission identity, loads template copies and selects confirmed Runs.
 The generic evidence validator checks fault-free parallel/serial custom Runs.
-Capture orchestration and the complete browser walkthrough remain H6b/H7 below.
+The local capture command retains exclusive per-Run evidence and only starts
+Workers when explicitly requested. The complete browser walkthrough remains H7.
 Predefined demonstrations remain available.
 
 ## Read-only findings

@@ -108,6 +108,19 @@ Attempt 历史或预期名称的已有容器，再启动两个专用的单槽位
 日志，不要盲目重试。如需重复演示，应明确创建新的 Run。这是本地资源限制，不是自动
 扩容或租户隔离。`fail` 仍只支持预定义恢复场景，即使自定义定义复制了恢复菱形也不能注入。
 
+如需保留验收证据，请在启动该 Run 的 Worker **之前**使用下列命令，替代上面的简单启动命令：
+
+```powershell
+uv run python -m scripts.custom_demo_acceptance --run-id "CUSTOM_RUN_ID" --expect parallel --start-workers
+```
+
+它只调用一次相同的受限启动流程，记录已经创建的 Run。纯串行 DAG 使用 `--expect serial`；
+只想记录实际执行而不要求重叠时使用 `--expect any`。省略 `--start-workers` 则仅采集，
+需要在另一个终端启动 Worker。等待快照、实际观测检查点、最终快照、专用容器身份和报告
+保存在 `.uv-cache/custom-acceptance/CUSTOM_RUN_ID/`。已有目录会被拒绝，不覆盖证据、不自动
+重试。观察时限为十分钟；失败时保留诊断证据，不会停止或删除 Worker。该命令不会创建 Run，
+也不注入故障；脚本断言不能替代浏览器验收。
+
 ## 停止并保留证据
 
 ```powershell

@@ -128,6 +128,24 @@ explicitly create a new Run. This is a local resource bound, not autoscaling or
 tenant isolation. `fail` remains exclusive to the predefined recovery scenario,
 even if a custom definition copies the recovery diamond.
 
+To retain acceptance evidence, run this **before** starting its Workers, in place
+of the simple Worker command above:
+
+```powershell
+uv run python -m scripts.custom_demo_acceptance --run-id "CUSTOM_RUN_ID" --expect parallel --start-workers
+```
+
+This calls the same scoped startup once and records the already-created Run. Use
+`--expect serial` for a totally ordered DAG, or `--expect any` to report observed
+behavior without requiring overlap. Omit `--start-workers` to capture while you
+start Workers in another terminal. It retains the waiting snapshot, observed
+checkpoints, final snapshot, scoped container identities and report in
+`.uv-cache/custom-acceptance/CUSTOM_RUN_ID/`. Existing evidence directories are
+refused; nothing is overwritten or automatically retried. The observation budget
+is ten minutes; failures retain diagnostic evidence and do not stop/delete Workers.
+This command has no Run-creation or fault-injection operation. Browser acceptance
+remains separate from its assertions.
+
 ## Stop and keep the evidence
 
 ```powershell
