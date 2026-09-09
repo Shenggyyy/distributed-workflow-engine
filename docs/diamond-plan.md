@@ -42,6 +42,19 @@ and Docker cannot form one atomic transaction. Preserve pre-fault evidence and
 strictly verify the result; do not hide a race by relaxing assertions or rerunning
 until lucky. No HTTP shell interface is introduced.
 
+The prepared `scripts/demo_fault.py` helper requires at least one second of observed
+B/C overlap, branch sample receipts no older than two database-clock seconds, and
+C's last observed elapsed duration at most 15 seconds (the Handler's planned wait
+is 20 seconds). These are conservative fault-window checks, not an extrapolated
+Handler end time. It preserves an exclusive `RUN_ID-fault-before.json` snapshot
+before attempting one SIGKILL and writes `RUN_ID-fault.json` only after Docker
+acknowledges the command. Existing records are never overwritten. The receipt is
+local command evidence, not a database event or an atomic ordering guarantee.
+The final snapshot request, container reinspection and evidence write must remain
+within a two-second monotonic freshness budget, rechecked immediately before KILL.
+Fault-specific Docker calls have five-second timeouts; an uncertain command result
+never creates an acknowledged receipt or triggers an automatic retry.
+
 Execution proof uses matching-domain monotonic START/PULSE/FINISH intervals,
 specifically B/C overlap. DB claim/admission/retry timestamps prove dependency and
 retry ordering. Lease expiry is never a Handler end. The validator also checks D
