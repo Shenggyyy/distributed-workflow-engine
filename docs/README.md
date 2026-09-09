@@ -45,6 +45,8 @@ their counts and revisions are not claims about the current checkout.
   [scoped query API](demo-api.md).
 - [Original real execution evidence](demo-review.md) and
   [six-step flow evidence](demo-flow-review.md), including retained screenshots.
+- [First-version cleanup and bilingual browser acceptance](release-review.md):
+  current paired screenshots, repository decisions and dated validation.
 
 ## Tests, failures and acceptance
 

@@ -16,8 +16,9 @@ recovery, failed-dependency propagation and Run aggregation.
 
 The **local demonstration is complete** under a separate acceptance gate: a real
 six-step page shows dependencies, confirmed ownership, sampled execution overlap
-and recovery. See the dated [core review](docs/mvp-review.md) and
-[demo review](docs/demo-flow-review.md). This is a trusted-deployment first version;
+and recovery, with complete English/Chinese presentation. See the dated
+[core review](docs/mvp-review.md) and [bilingual demo acceptance](docs/release-review.md).
+This is a trusted-deployment first version;
 no production SLA, multi-machine validation or throughput claim is implied.
 
 ## Architecture
@@ -109,12 +110,13 @@ Claim time, Handler samples and completion admission are distinct. RUNNING and
 Missing FINISH stays unknown. Timed demo Handlers do not pretend to process sales
 reports or transfer outputs along DAG edges. [Evidence contracts](docs/demo-design.md).
 
-Real browser captures from the six-step acceptance, with Run IDs in the
-[dated review](docs/demo-flow-review.md); new Runs receive new identities:
+Real English browser captures: one Worker's overlapping Handler intervals, then
+two Workers executing the same Run. Run IDs and paired Chinese captures are in the
+[dated review](docs/release-review.md); new Runs receive new identities:
 
-![Real DAG and dependency waiting conditions](docs/images/flow-dependencies.png)
+![One Worker with measured overlap of two Handler lifetimes](docs/images/release-parallel-en.png)
 
-![Persisted retry and a replacement Attempt](docs/images/flow-replacement.png)
+![Two independent Workers executing C and D from the same Run](docs/images/release-distribution-en.png)
 
 ## Test and verify
 

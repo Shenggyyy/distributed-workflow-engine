@@ -64,3 +64,7 @@ All timestamp formatting, UTC markings, clocks, leases and evidence remain uncha
 Each subtask is separately validated, reviewed, committed, pushed and verified.
 Final acceptance includes browser operation and exact final CI/remote verification,
 not just passing tests or a claim of production/multi-machine/exactly-once readiness.
+
+R0–R5 are complete. The [dated acceptance record](release-review.md) records the
+retained information, real scenario identities, bilingual browser checks and
+validation boundaries. Commit history preserves the individual implementation steps.

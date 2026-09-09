@@ -128,23 +128,26 @@ freezes the last view and displays a stale-data warning.
 
 Unmodified browser screenshots of the six-step page, captured on
 2026-09-09 (Australia/Sydney; database timestamps displayed in UTC). Run IDs and
-checks are recorded in [flow acceptance](demo-flow-review.md). Fresh runs get new
+checks are recorded in [bilingual acceptance](release-review.md). Fresh runs get new
 identities; no screenshot state is replayed into the page.
 
 Dependencies and current PostgreSQL waiting conditions:
 
-![Vertical DAG and waiting reasons](images/flow-dependencies.png)
+![Vertical DAG and waiting reasons in English](images/release-dag-en.png)
 
-Recovery in the same Run: the retry loop and a new confirmed allocation:
+Recovery outcome: the old Attempt has no FINISH; a new Attempt executes to completion:
 
-![Rescheduling loop and new confirmed allocation](images/flow-replacement.png)
+![Successful recovery with distinct old and new execution intervals in English](images/release-recovery-en.png)
 
-The other retained captures show [one Worker with two allocations](images/flow-parallel.png),
-[measured overlap](images/flow-overlap.png), [two Workers](images/flow-distribution.png),
-[RETRY_WAIT](images/flow-retry.png), [replacement execution](images/flow-recovery-workers.png),
-and [final recovery with sampled intervals](images/flow-recovery-result.png).
+Also see [one Worker's measured overlap](images/release-parallel-en.png),
+[two independent Workers](images/release-distribution-en.png), and
+[the recovery wait before replacement allocation](images/release-recovery-wait-en.png).
+The [acceptance record](release-review.md#browser-captures) links every new capture,
+including the corresponding Chinese views. Paired live views were captured
+sequentially; execution continued while the language changed.
 
-The original phase D screenshots/acceptance remain in [historical review](demo-review.md).
+All earlier screenshots remain in the [original demo review](demo-review.md) and
+[six-step flow review](demo-flow-review.md).
 These captures are dated evidence; the page's wording may change independently.
 
 ## Read the evidence accurately

@@ -115,23 +115,25 @@ Worker 在所选 Run 结束后正常退出。即使 Run 成功，其注册心跳
 ## 真实截图
 
 以下为六步页面的原始浏览器截图，拍摄于 2026-09-09（Australia/Sydney；数据库时间显示为 UTC）。
-Run ID 和检查记录见[流程验收（英文）](demo-flow-review.md)。新的运行产生新的身份，
+Run ID 和检查记录见[双语验收（英文）](release-review.md)。新的运行产生新的身份，
 页面不会回放截图中的状态。
 
 依赖关系和当前 PostgreSQL 等待条件：
 
-![纵向 DAG 与等待原因](images/flow-dependencies.png)
+![中文纵向 DAG 与等待原因](images/release-dag-zh-CN.png)
 
-同一恢复 Run 中的重试回路与已确认的新领取结果：
+恢复结果：旧 Attempt 没有 FINISH，新的 Attempt 重新执行并完成：
 
-![重试调度回路与新的执行归属](images/flow-replacement.png)
+![中文恢复结果与旧、新 Attempt 的独立执行区间](images/release-recovery-zh-CN.png)
 
-其他保留截图：[单 Worker 双领取](images/flow-parallel.png)、
-[实际执行重叠](images/flow-overlap.png)、[两个 Worker](images/flow-distribution.png)、
-[RETRY_WAIT](images/flow-retry.png)、[替代 Worker 执行](images/flow-recovery-workers.png)、
-[恢复完成及采样区间](images/flow-recovery-result.png)。
+还可查看[单 Worker 的实际重叠](images/release-parallel-zh-CN.png)、
+[两个独立 Worker](images/release-distribution-zh-CN.png)和
+[替代 Attempt 已领取的重试回路](images/release-replacement-zh-CN.png)。
+[验收记录（英文）](release-review.md#browser-captures)链接了全部新增截图及对应英文画面。
+同组运行中截图依次拍摄，语言切换时任务仍在继续，不代表同一个时间点。
 
-最初阶段 D 的截图与验收仍保留在[历史记录（英文）](demo-review.md)。
+全部早期截图仍保留在[最初演示验收（英文）](demo-review.md)和
+[六步流程验收（英文）](demo-flow-review.md)。
 这些截图是带日期的运行证据；页面文案可能随后更新。
 
 ## 正确理解证据

@@ -18,10 +18,15 @@ JSON preserve full identities even where a scrolled screenshot omits the header.
 | Distribution | `7b28ac8c-5b7a-4177-992f-35e6d7efb43b` | Two one-slot Worker containers claimed from the same Run; measured overlap 2, 78 samples, all five Tasks succeeded. |
 | Recovery | `1441744a-8c79-4f59-9023-d87c9ea58596` | Live RETRY_WAIT, old Attempt LOST, different Worker executing Attempt 2, final success; 51 samples. |
 
-Parallel captures: `flow-dependencies.png`, `flow-parallel.png`, `flow-overlap.png`.
-Distribution: `flow-distribution.png`. The four recovery captures `flow-retry.png`,
-`flow-recovery-workers.png`, `flow-replacement.png`, `flow-recovery-result.png` all
-belong to the same recovery Run above. They appear in [the walkthrough](demo.md).
+Parallel captures: [dependencies](images/flow-dependencies.png),
+[two allocations](images/flow-parallel.png), [measured overlap](images/flow-overlap.png).
+Distribution: [two Workers](images/flow-distribution.png). The four recovery captures
+show [RETRY_WAIT](images/flow-retry.png),
+[replacement execution](images/flow-recovery-workers.png),
+[new allocation](images/flow-replacement.png) and
+[final result](images/flow-recovery-result.png); all belong to the same recovery Run
+above. These historical captures remain here; the [walkthrough](demo.md) now uses
+the current bilingual page captures.
 
 The recovery Run's old session last heartbeat was `22:48:13.928Z`, with heartbeat
 deadline `22:48:19.928Z`. Last lease renewal was `22:48:14.032Z`, lease deadline
