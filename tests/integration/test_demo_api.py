@@ -66,7 +66,14 @@ def test_stock_api_and_non_demo_run_not_exposed(http_engine: Engine) -> None:
         assert client.get(f"/demo/runs/{context.run_id}").status_code == 404
         assert client.get("/demo/runs").json() == []
         assert client.get("/demo/").status_code == 200
-        for asset in ("app.js", "evidence.js", "flow.js", "style.css"):
+        for asset in (
+            "app.js",
+            "evidence.js",
+            "flow.js",
+            "i18n.js",
+            "messages.js",
+            "style.css",
+        ):
             assert client.get("/demo/" + asset).status_code == 200
     with TestClient(create_app(Settings(), engine=http_engine)) as client:
         assert client.get("/demo/runs").status_code == 404

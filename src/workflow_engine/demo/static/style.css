@@ -63,7 +63,8 @@ h2 {
 }
 
 label {
-  font-weight: 600
+  font-weight: 600;
+  min-width: 0
 }
 
 select {
@@ -139,7 +140,7 @@ pre {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 15px;
   margin-bottom: 18px
 }
@@ -175,7 +176,9 @@ pre {
   border: 1px solid #dce4ec;
   border-radius: 8px;
   padding: 18px;
-  margin-bottom: 18px
+  margin-bottom: 18px;
+  min-width: 0;
+  overflow-wrap: anywhere
 }
 
 .muted {
@@ -258,7 +261,7 @@ pre {
 
 .lane {
   display: grid;
-  grid-template-columns: 155px 1fr;
+  grid-template-columns: 155px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   margin: 9px 0;
@@ -300,11 +303,13 @@ pre {
 }
 
 .table-wrap {
-  overflow-x: auto
+  overflow-x: auto;
+  max-width: 100%
 }
 
 table {
   width: 100%;
+  min-width: 760px;
   border-collapse: collapse;
   font-size: 11px;
   text-align: left
@@ -335,6 +340,7 @@ td .badge {
 }
 
 pre {
+  max-width: 100%;
   max-height: 260px;
   overflow: auto;
   white-space: pre-wrap
@@ -381,7 +387,7 @@ footer {
   }
 
   .lane {
-    grid-template-columns: 105px 1fr
+    grid-template-columns: 105px minmax(0, 1fr)
   }
 
   .axis {
@@ -403,6 +409,7 @@ footer {
   top: 0;
   z-index: 2;
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
   padding: 10px 0;
@@ -421,7 +428,7 @@ footer {
 }
 
 .step {
-  scroll-margin-top: 100px;
+  scroll-margin-top: 130px;
   position: relative;
   border-top: 3px solid #168a80;
   padding: 22px
@@ -469,7 +476,7 @@ h3 {
 
 .queue-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 24px
 }
 
@@ -560,7 +567,7 @@ h3 {
 
 .recovery-stages {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px
 }
 
@@ -586,6 +593,56 @@ h3 {
   margin-bottom: 10px
 }
 
+.language-switch {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  padding: 3px;
+  border: 1px solid #afc9c5;
+  border-radius: 8px;
+  background: #fff;
+  white-space: nowrap
+}
+
+.language-switch button {
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 5px 9px;
+  color: #214d67;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer
+}
+
+.language-switch button[aria-pressed="true"] {
+  background: #126b67;
+  color: #fff;
+  font-weight: 700
+}
+
+.language-switch button:hover {
+  border-color: #126b67
+}
+
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #168a80;
+  outline-offset: 3px
+}
+
+.run-heading>div,
+.stats>div,
+.queue-columns>div,
+.recovery-stages>p,
+.lane>div {
+  min-width: 0
+}
+
 @media(max-width:700px) {
 
   .queue-columns,
@@ -602,7 +659,8 @@ h3 {
   }
 
   .step {
-    padding: 15px
+    padding: 15px;
+    scroll-margin-top: 170px
   }
 
   .flow-nav {
@@ -611,6 +669,10 @@ h3 {
 
   .flow-nav a {
     padding: 5px 8px
+  }
+
+  .language-switch {
+    margin-left: 0
   }
 
   .scope {

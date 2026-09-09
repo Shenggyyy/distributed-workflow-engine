@@ -79,6 +79,9 @@ Open **[http://127.0.0.1:18080/demo/](http://127.0.0.1:18080/demo/)**. Keep
 uv run python -m scripts.demo_acceptance
 ```
 
+Switch **中文 / English** in the page navigation. Browser language is the initial
+default; your manual preference is remembered without restarting or changing the Run.
+
 The first command builds the image and starts a dedicated demo database/API/Scheduler;
 the second creates three real Runs and injects one scoped Worker failure.
 Initial downloads/builds take additional time. The development database is separate.
@@ -120,7 +123,7 @@ uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked mypy
 uv run --locked pytest
-node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs
+node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs
 uv run --locked python scripts/check_docs.py
 uv build
 ```

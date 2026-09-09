@@ -1,84 +1,96 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Workflow Engine · 看懂一次分布式执行</title>
+  <title data-i18n="page.title"></title>
   <link rel="stylesheet" href="/demo/style.css">
   <script type="module" src="/demo/app.js"></script>
 </head>
 <body>
-<header><div class="eyebrow">DISTRIBUTED WORKFLOW ENGINE / LOCAL LAB</div>
-  <h1>一份工作，怎样被共同完成？</h1>
-  <p>沿着真实数据，观察依赖、领取、并发与失败后的重新执行。</p>
-  <span class="scope">单机 · 多个独立 Linux 容器 · 真实引擎快照</span>
+<header><div class="eyebrow" data-i18n="page.eyebrow"></div>
+  <h1 data-i18n="page.heading"></h1>
+  <p data-i18n="page.intro"></p>
+  <span class="scope" data-i18n="page.scope"></span>
 </header>
 <main>
   <section class="controls">
-    <label>演示 Run <select id="runs" aria-label="演示 Run"><option>尚无 Run</option></select></label>
-    <label class="follow"><input type="checkbox" id="follow" checked> 跟随最新 Run / Follow newest Run</label>
-    <span id="freshness">连接中…</span>
+    <label><span data-i18n="controls.run"></span> <select id="runs" data-i18n-aria-label="controls.run"><option data-i18n="controls.noRuns"></option></select></label>
+    <label class="follow"><input type="checkbox" id="follow" checked> <span data-i18n="controls.follow"></span></label>
+    <span id="freshness" data-i18n="freshness.connecting"></span>
   </section>
   <p id="error" role="alert" hidden></p>
-  <details class="commands"><summary>启动演示：在本地终端执行</summary>
-    <p>保持页面打开，在项目目录执行。下方命令依次运行三个真实场景，并仅停止专用演示 Worker。</p>
+  <details class="commands"><summary data-i18n="commands.summary"></summary>
+    <p data-i18n="commands.intro"></p>
     <code>uv run python -m scripts.demo_acceptance</code>
-    <p>也可以手动逐个执行：</p>
+    <p data-i18n="commands.manual"></p>
     <code>uv run python scripts/demo.py run parallel</code>
     <code>uv run python scripts/demo.py run distribution</code>
     <code>uv run python scripts/demo.py run recovery</code>
-    <p>恢复场景：立即执行 CLI 打印的 fail 命令。脚本停止 Worker A 并启动替代 Worker B；不是系统自动扩容。</p>
+    <p data-i18n="commands.recovery"></p>
   </details>
-  <nav class="flow-nav" aria-label="执行流程"><a href="#submission">01 提交</a><a href="#dependencies">02 依赖</a><a href="#claimable">03 可领取</a><a href="#execution">04 Worker pull</a><a href="#reschedule">05 再调度 ↺</a><a href="#completion">06 结果</a></nav>
-  <div id="empty">等待演示 Run。展开上方命令开始。</div>
+  <nav class="flow-nav" data-i18n-aria-label="nav.label">
+    <a href="#submission" data-i18n="nav.submission"></a>
+    <a href="#dependencies" data-i18n="nav.dependencies"></a>
+    <a href="#claimable" data-i18n="nav.claimable"></a>
+    <a href="#execution" data-i18n="nav.execution"></a>
+    <a href="#reschedule" data-i18n="nav.reschedule"></a>
+    <a href="#completion" data-i18n="nav.completion"></a>
+    <div class="language-switch" role="group" data-i18n-aria-label="language.label">
+      <button type="button" data-language="zh-CN" lang="zh-CN" aria-pressed="false" data-i18n="language.zh-CN"></button>
+      <span aria-hidden="true">/</span>
+      <button type="button" data-language="en" lang="en" aria-pressed="false" data-i18n="language.en"></button>
+    </div>
+  </nav>
+  <div id="empty" data-i18n="controls.empty"></div>
   <div id="content" hidden>
     <section class="panel step" id="submission">
-      <div class="step-label">01 / SUBMIT</div><h2>提交工作流</h2>
+      <div class="step-label" data-i18n="step1.label"></div><h2 data-i18n="step1.title"></h2>
       <div class="run-heading"><div><h3 id="scenario"></h3><code id="run-id"></code></div><span id="run-status" class="badge"></span></div>
       <p id="scenario-purpose" class="explanation"></p>
-      <p class="muted">API 保存定义与 Run；以下为已提交的数据。演示使用可信定时 Handler，执行内容包括等待与真实采样；不生成业务报告，DAG 边不自动传递任务数据。</p>
-      <details><summary>查看本次 Workflow 定义</summary><pre id="definition"></pre></details>
+      <p class="muted" data-i18n="step1.description"></p>
+      <details><summary data-i18n="step1.definition"></summary><pre id="definition"></pre></details>
     </section>
     <section class="panel step graph" id="dependencies">
-      <div class="step-label">02 / DEPENDENCIES</div><h2>先看依赖，才知道谁可以执行</h2>
-      <p class="muted">箭头向下表示真实 depends_on。同一层允许并行；只有所有直接依赖 SUCCEEDED，后续任务才具备就绪条件。</p>
-      <div class="dag-wrap"><svg id="dag" role="img" aria-label="从上到下的真实工作流 DAG"></svg></div>
-      <div class="legend">状态来自 PostgreSQL · READY 可领取 · RUNNING 已分配 · PENDING 等待 · RETRY_WAIT 等重试</div>
+      <div class="step-label" data-i18n="step2.label"></div><h2 data-i18n="step2.title"></h2>
+      <p class="muted" data-i18n="step2.description"></p>
+      <div class="dag-wrap"><svg id="dag" role="img" data-i18n-aria-label="step2.dagLabel"></svg></div>
+      <div class="legend" data-i18n="step2.legend"></div>
     </section>
     <section class="panel step" id="claimable">
-      <div class="step-label">03 / POSTGRESQL READY VIEW</div><h2>当前哪些任务可领取？</h2>
-      <p class="explanation">这是 PostgreSQL 中 Task 状态的视图，不是另一个消息队列。Scheduler 更新依赖与就绪状态；Worker 再来申请领取。</p>
-      <div class="queue-columns"><div><h3>READY · 可申请领取</h3><div id="ready-tasks"></div></div><div><h3>仍需等待</h3><div id="waiting-tasks"></div></div></div>
-      <p class="muted">以下原因由同一个数据库快照推导，是当前条件，不是 READY 转换事件历史；短暂状态可能落在两次轮询之间。</p>
+      <div class="step-label" data-i18n="step3.label"></div><h2 data-i18n="step3.title"></h2>
+      <p class="explanation" data-i18n="step3.description"></p>
+      <div class="queue-columns"><div><h3 data-i18n="step3.ready"></h3><div id="ready-tasks"></div></div><div><h3 data-i18n="step3.waiting"></h3><div id="waiting-tasks"></div></div></div>
+      <p class="muted" data-i18n="step3.note"></p>
     </section>
     <section class="panel step" id="execution">
-      <div class="step-label">04 / WORKER PULL</div><h2>Worker 有空位，就申请领取</h2>
-      <p class="explanation">Worker pull → 引擎事务校验容量与 READY 状态 → 创建 Attempt 和 Lease → Worker 执行 Handler。</p>
-      <p class="muted">这是协议说明，不是网络消息动画。卡片展示已确认的领取结果；任务归属由领取事务决定，未预先分配给指定 Worker。</p>
+      <div class="step-label" data-i18n="step4.label"></div><h2 data-i18n="step4.title"></h2>
+      <p class="explanation" data-i18n="step4.protocol"></p>
+      <p class="muted" data-i18n="step4.description"></p>
       <div id="workers"></div>
-      <p class="muted">槽位显示配置容量和数据库中的 RUNNING 归属数量，不代表可观测的物理槽位编号。心跳新鲜度不等于连接探测；Run 结束后 Worker 正常退出，随后心跳过期本身不说明任务失败。</p>
+      <p class="muted" data-i18n="step4.note"></p>
     </section>
     <section class="panel step" id="reschedule">
-      <div class="step-label">05 / RECONCILE & RETRY</div><h2>结果返回，开始下一轮调度</h2>
-      <div class="loop"><span>成功 → 依赖满足 → 调度为 READY</span><a href="#claimable">↺ 回到 03 可领取</a><span>失效且允许重试 → RETRY_WAIT → 到期后 READY → 新 Attempt</span><a href="#execution">↺ 回到 04 Worker pull</a></div>
-      <p class="muted">回路表示引擎规则；下方才是本 Run 已保存的证据。成功回报不会让页面自行修改下游状态。</p>
+      <div class="step-label" data-i18n="step5.label"></div><h2 data-i18n="step5.title"></h2>
+      <div class="loop"><span data-i18n="step5.successLoop"></span><a href="#claimable" data-i18n="step5.backToReady"></a><span data-i18n="step5.retryLoop"></span><a href="#execution" data-i18n="step5.backToWorkers"></a></div>
+      <p class="muted" data-i18n="step5.note"></p>
       <div id="results"></div>
       <div id="recovery"></div>
-      <p class="explanation">恢复判断：心跳截止用于判断 Worker 会话失联；Attempt 的 Lease 到期由引擎恢复事务确认。Lease 到期不是 Handler 结束时间。新 Attempt 从头执行，不是旧 Worker 转交，也不是断点续跑。</p>
-      <p id="replacement-note" class="muted" hidden>演示脚本在 fail 命令中启动替代 Worker B；这不是自动扩容。页面没有 Docker 停止事件，不能仅凭心跳过期证明发生了 SIGKILL。终端输出保留故障注入动作。</p>
+      <p class="explanation" data-i18n="step5.recoveryExplanation"></p>
+      <p id="replacement-note" class="muted" data-i18n="step5.replacementNote" hidden></p>
     </section>
     <section class="panel step" id="completion">
-      <div class="step-label">06 / OUTCOME & EVIDENCE</div><h2>工作流结果与真实执行证据</h2>
+      <div class="step-label" data-i18n="step6.label"></div><h2 data-i18n="step6.title"></h2>
       <p id="outcome" class="explanation"></p><div id="owner-summary"></div>
-      <div class="stats"><div><strong id="overlap">0</strong><span>采样证明的最大执行重叠</span></div><div><strong id="owners">0</strong><span>拥有 Attempt 的 Worker</span></div><div><strong id="sample-count">0</strong><span>已持久化执行采样</span></div></div>
-      <h3>Handler 实际执行时间线</h3><p class="muted">只随 START / PULSE / FINISH 采样增长。虚线末端表示未观测到结束；READY / RUNNING 本身不能证明重叠。</p><div id="timeline"></div>
-      <p class="muted">横轴为同一时钟域内的单调时间。只比较相同 Linux boot ID 和 monotonic offset；定时等待也属于 Handler 生命周期，不是 CPU 并行或多机性能证明。</p>
-      <details id="attempt-details" open><summary>Attempt 明细：领取 ≠ Handler 执行 ≠ 回报被接受</summary>
-        <p class="muted">领取、续约、完成接纳和重试使用数据库时间；不是精确 COMMIT 时间。created_at 不作为执行时间。</p>
-        <div class="table-wrap"><table><thead><tr><th>Task / Attempt</th><th>Worker</th><th>引擎状态</th><th>领取 (DB UTC)</th><th>Handler 采样</th><th>回报接纳 (DB UTC)</th><th>恢复 / 重试 (DB UTC)</th></tr></thead><tbody id="attempts"></tbody></table></div>
+      <div class="stats"><div><strong id="overlap">0</strong><span data-i18n="step6.overlap"></span></div><div><strong id="owners">0</strong><span data-i18n="step6.owners"></span></div><div><strong id="sample-count">0</strong><span data-i18n="step6.samples"></span></div></div>
+      <h3 data-i18n="step6.timeline"></h3><p class="muted" data-i18n="step6.timelineNote"></p><div id="timeline"></div>
+      <p class="muted" data-i18n="step6.clockNote"></p>
+      <details id="attempt-details" open><summary data-i18n="step6.attempts"></summary>
+        <p class="muted" data-i18n="step6.attemptNote"></p>
+        <div class="table-wrap"><table><thead><tr><th data-i18n="table.taskAttempt"></th><th data-i18n="table.worker"></th><th data-i18n="table.state"></th><th data-i18n="table.claim"></th><th data-i18n="table.samples"></th><th data-i18n="table.acceptance"></th><th data-i18n="table.retry"></th></tr></thead><tbody id="attempts"></tbody></table></div>
       </details>
-      <details><summary>完整身份与原始数据</summary><p>包括 Task、Attempt、Worker UUID；不返回 Lease token。</p><a id="raw" target="_blank" rel="noopener">打开真实 JSON 快照</a><pre id="identities"></pre></details>
+      <details><summary data-i18n="step6.identities"></summary><p data-i18n="step6.identitiesNote"></p><a id="raw" target="_blank" rel="noopener" data-i18n="step6.raw"></a><pre id="identities"></pre></details>
     </section>
   </div>
 </main>
-<footer>核心引擎与演示表达分别验收 · At-least-once，业务副作用仍需幂等 · 未声称 exactly-once 或已验证多机部署</footer>
+<footer data-i18n="page.footer"></footer>
 </body></html>

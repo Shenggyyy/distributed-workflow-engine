@@ -62,6 +62,9 @@ uv run python scripts/demo.py up
 uv run python -m scripts.demo_acceptance
 ```
 
+页面导航中可切换 **中文 / English**。首次按浏览器语言选择，手动偏好会被记住，
+切换不会重启或改变当前 Run。
+
 前一条演示命令构建镜像，启动专用数据库、API 和 Scheduler；后一条创建三个真实 Run，并对专用 Worker 注入一次故障。
 首次下载、构建需要额外时间。开发数据库与演示环境独立。
 [完整启动步骤、单独场景命令与三分钟指南](docs/demo.zh-CN.md)。
@@ -99,7 +102,7 @@ uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked mypy
 uv run --locked pytest
-node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs
+node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs
 uv run --locked python scripts/check_docs.py
 uv build
 ```

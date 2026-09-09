@@ -22,6 +22,17 @@ the database. Keep Docker Desktop running while viewing/running scenarios.
 If needed set `$env:DWE_DEMO_PORT = "18081"` before **all** demo commands; the
 printed address reflects it. The database port is not exposed to the host.
 
+## Choose the page language
+
+Use **中文 / English** in the sticky flow navigation. The first visit follows the
+browser's primary language (Chinese -> Simplified Chinese; otherwise English).
+A manual choice is saved locally and wins on later visits. If local storage is
+unavailable, switching still works for the current page. Switching does not create
+or restart a Run, change its selection or make extra engine requests. Expanded
+details remain open; the page preserves the current section's position where text
+reflow permits. IDs, raw task names, protocol states, JSON and clock semantics do
+not change. This is display translation, not translation of API data.
+
 ## Run individual scenarios
 
 ```powershell
@@ -79,7 +90,7 @@ observe RETRY_WAIT before accepting recovery success. It retains raw snapshots
 For one scenario use `--scenario recovery`; for a different port use `--port 18081`.
 This script checks engine evidence; browser inspection remains a separate gate.
 Pure timeline calculations can be tested with Node.js 22+:
-`node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs`. Node.js is not needed to run the demo.
+`node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs`. Node.js is not needed to run the demo.
 
 ## Three-minute walkthrough
 

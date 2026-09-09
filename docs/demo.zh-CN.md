@@ -21,6 +21,14 @@ uv run python scripts/demo.py up
 如需其他端口，在**所有**演示命令之前设置 `$env:DWE_DEMO_PORT = "18081"`；
 命令输出的地址会反映该端口。演示数据库不向宿主机公开端口。
 
+## 选择页面语言
+
+使用固定流程导航中的 **中文 / English**。首次访问按浏览器首选语言选择：中文使用简体中文，
+其他语言回退英文。手动选择会在本地保存，后续访问优先使用该选择；本地存储不可用时，
+当前页面仍可切换。切换不会创建或重启 Run、改变当前选择，也不会额外请求引擎。
+已展开的详情保持展开；文字换行允许时，页面保留当前阅读区域的位置。
+ID、任务原始名称、协议状态、JSON 和时钟含义均不改变。这是界面翻译，不是 API 数据翻译。
+
 ## 单独运行场景
 
 ```powershell
@@ -73,7 +81,7 @@ uv run python -m scripts.demo_acceptance
 仅运行一个场景时使用 `--scenario recovery`；改变端口时使用 `--port 18081`。
 脚本检查引擎证据，浏览器中的实际观察仍是独立验收步骤。
 可用 Node.js 22+ 运行时间线计算测试：
-`node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs`。运行演示本身不需要 Node.js。
+`node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs`。运行演示本身不需要 Node.js。
 
 ## 三分钟演示流程
 
