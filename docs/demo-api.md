@@ -13,6 +13,7 @@ authentication, not a public dashboard. No Docker socket is mounted into the API
 | `GET /demo/` | Packaged HTML/CSS/JavaScript; no frontend build or separate UI service. |
 | `GET /demo/custom/catalog` | Read-only trusted Handler keys/durations, limits and editable copies of current diamond templates. No publication or Run creation. |
 | `POST /demo/custom/validate` | A Workflow JSON body; returns canonical `definition`, dependency `layers` and demo `limits`. No database access, writes or execution. |
+| `POST /demo/custom/runs` | The same bounded Workflow JSON plus one `Idempotency-Key`. Atomically publishes and creates a custom demo Run, or replays its committed receipt. Does not start Workers. |
 
 Creation publishes the fixed definition, creates all Tasks and inserts demo Run
 membership in one core READ COMMITTED transaction. Success follows COMMIT. HTTP
@@ -20,8 +21,9 @@ requests do not start containers: the local CLI creates labelled Run-scoped Work
 
 ## Custom definition preview
 
-The [custom phase](custom-dag-plan.md) begins with read-only validation. Submission
-and the editor arrive in later gates; the existing three scenarios remain usable.
+The [custom phase](custom-dag-plan.md) separates read-only validation from explicit
+submission. The editor and custom Worker command arrive in later gates; the
+existing three scenarios remain usable.
 Send `Content-Type: application/json` with the core definition shape, for example:
 
 ```json
@@ -49,6 +51,50 @@ Oversized bodies return 413 `demo_body_too_large`, including streamed input with
 a length header; unsupported content types return 415 `demo_json_required`.
 Never interpret a node name as implemented business behavior or dependency edges
 as automatic output transfer. The public core API retains its broader contracts.
+
+## Custom submission
+
+After preview, explicitly POST its canonical `definition` to `/demo/custom/runs`
+with one case-sensitive `Idempotency-Key`: 1–128 ASCII characters, starting with
+a letter/digit, followed by letters, digits, `.`, `_`, `:` or `-`. Reuse the core
+key validator, including rejection of duplicate headers. Invalid input returns
+422 `invalid_request`; no submitted values appear in the error details.
+
+Both first creation and replay return HTTP 201 and the same receipt:
+
+```json
+{"run_id":"<real UUID>","workflow_version_id":"<real UUID>","scenario":"custom"}
+```
+
+`Location` points to `/demo/runs/{run_id}`. The receipt identifies a committed
+operation; it does not claim execution has started. Query that scoped snapshot
+for current state. Initially roots are READY, dependent Tasks are PENDING, and
+there are no Attempts or Workers. Creation never invokes Docker or a Handler.
+
+The demo owns one fresh READ COMMITTED transaction. A two-int advisory gate in
+namespace `DWED` (`0x44574544`) serializes each key before any core row locks;
+its second value is a signed BLAKE2s 32-bit digest. Hash collisions only serialize
+unrelated submissions: the full key and normalized JSON are compared in the
+immutable receipt. The existing publication and Run repositories then create
+the version and Tasks, followed by `custom` membership and the receipt, within
+that transaction. Success follows commit. A rejected statement or rejected COMMIT
+rolls back all writes. If the connection disappears during COMMIT, the client
+cannot infer whether it committed; resolve that unknown outcome with the same key.
+No core transaction, ownership, retry or completion contract changes.
+
+Same key plus the same canonical definition returns the original version and Run
+without republishing, even after execution progresses. Object-key order and
+omitted defaults normalize identically; task/dependency array order remains
+significant. Same key with different content returns 409
+`demo_submission_conflict`. A different key deliberately creates a new Run/version.
+
+Freeze the key and canonical body before sending. If a response is lost, the
+outcome is unknown: explicitly retry **that same key and body** to obtain the
+receipt; never silently generate a new key. There is no automatic database retry.
+The receipt key namespace is demo-local and separate from `/runs`. The existing
+`/workflows` publication and predefined `POST /demo/runs` remain non-idempotent.
+Migration [0012](migrations.md) preserves all earlier data and refuses downgrade
+when custom membership or receipts exist.
 
 ## Observation snapshots
 
@@ -83,7 +129,7 @@ rewritten. Old clock-domain evidence remains separate. See [design](demo-design.
 
 The page polls sequentially with a 500 ms delay between completed fetch cycles;
 network/database latency adds to that interval. Brief states may be missed, while
-Attempt/retry history remains. Queries are scoped to small fixed demo DAGs; this
+Attempt/retry history remains. Queries are scoped to bounded demo DAGs; this
 read model is not a global operational event log or high-volume monitoring API.
 
 Phase E adds only the existing nullable lease renewal timestamp to this snapshot.

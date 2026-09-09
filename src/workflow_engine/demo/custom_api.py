@@ -2,13 +2,17 @@
 
 import json
 import math
-from typing import Annotated, Any, NoReturn
+from typing import Annotated, Any, Literal, NoReturn
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.exceptions import RequestValidationError
-from pydantic import ValidationError
+from pydantic import BaseModel, BeforeValidator, ConfigDict, ValidationError
+from sqlalchemy import Engine
 
+from workflow_engine.api.dependencies import get_engine
 from workflow_engine.api.errors import APIError, ErrorResponse
+from workflow_engine.api.runs import get_idempotency_key
 from workflow_engine.demo.custom_definitions import (
     CUSTOM_BODY_LIMIT,
     CUSTOM_HANDLERS,
@@ -18,7 +22,12 @@ from workflow_engine.demo.custom_definitions import (
     definition_layers,
     normalize_custom,
 )
+from workflow_engine.demo.custom_submissions import (
+    CustomSubmissionConflictError,
+    submit_custom,
+)
 from workflow_engine.demo.scenarios import Scenario, diamond_tasks
+from workflow_engine.domain.idempotency import validate_idempotency_key
 from workflow_engine.domain.workflow import WorkflowDefinition
 
 router = APIRouter(prefix="/demo/custom", tags=["custom local demonstration"])
@@ -119,6 +128,36 @@ async def read_definition(request: Request) -> WorkflowDefinition:
 
 
 CustomDefinition = Annotated[WorkflowDefinition, Depends(read_definition)]
+Database = Annotated[Engine, Depends(get_engine)]
+
+
+async def get_custom_key(
+    request: Request,
+    key: Annotated[
+        str,
+        Header(
+            alias="Idempotency-Key",
+            min_length=1,
+            max_length=128,
+            pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            description=(
+                "One case-sensitive key; reuse with the same canonical definition."
+            ),
+        ),
+        BeforeValidator(validate_idempotency_key),
+    ],
+) -> str:
+    return await get_idempotency_key(request, key)
+
+
+CustomKey = Annotated[str, Depends(get_custom_key)]
+
+
+class CustomRunReceipt(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    run_id: UUID
+    workflow_version_id: UUID
+    scenario: Literal["custom"] = "custom"
 
 
 @router.get("/catalog")
@@ -162,3 +201,45 @@ def preview(definition: CustomDefinition) -> dict[str, Any]:
         "layers": definition_layers(definition),
         "limits": limits(),
     }
+
+
+@router.post(
+    "/runs",
+    status_code=201,
+    response_model=CustomRunReceipt,
+    openapi_extra=DEFINITION_BODY,
+    responses={
+        409: {
+            "model": ErrorResponse,
+            "description": "Key bound to another definition.",
+        },
+        413: {"model": ErrorResponse},
+        415: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+    description=(
+        "Requires one Idempotency-Key and a bounded Workflow definition. "
+        "Publication, Run creation, demo membership and receipt commit atomically. "
+        "Same key/canonical definition returns the original receipt and 201; "
+        "a changed definition returns 409. Success follows commit. "
+        "No automatic write retry or Worker startup."
+    ),
+)
+def create_custom_run(
+    definition: CustomDefinition, key: CustomKey, engine: Database, response: Response
+) -> CustomRunReceipt:
+    try:
+        receipt = submit_custom(engine, definition, key)
+    except CustomSubmissionConflictError:
+        raise APIError(
+            409,
+            "demo_submission_conflict",
+            "This submission key is already bound to another definition.",
+        ) from None
+    response.headers["Location"] = f"/demo/runs/{receipt.run_id}"
+    response.headers["Cache-Control"] = "no-store"
+    return CustomRunReceipt(
+        run_id=receipt.run_id, workflow_version_id=receipt.workflow_version_id
+    )

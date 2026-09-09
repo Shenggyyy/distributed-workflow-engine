@@ -338,6 +338,7 @@ def test_routes_remain_demo_only_and_openapi_request_schema_resolves(
     with TestClient(create_app(Settings())) as core:
         assert core.get(CATALOG).status_code == 404
         assert core.post(VALIDATE, json=definition()).status_code == 404
+        assert core.post("/demo/custom/runs", json=definition()).status_code == 404
         assert not any(
             path.startswith("/demo")
             for path in core.get("/openapi.json").json()["paths"]
@@ -351,4 +352,47 @@ def test_routes_remain_demo_only_and_openapi_request_schema_resolves(
     for part in reference.removeprefix("#/").split("/"):
         target = target[part]
     assert {"name", "tasks"} <= target["properties"].keys()
-    assert "post" not in schema["paths"].get("/demo/custom/runs", {})
+    submit = schema["paths"]["/demo/custom/runs"]["post"]
+    assert submit["requestBody"] == request
+    assert any(
+        header["name"] == "Idempotency-Key"
+        and header["in"] == "header"
+        and header["required"] is True
+        and "canonical definition" in header["description"]
+        for header in submit["parameters"]
+    )
+    assert {"201", "409", "413", "415", "422", "500", "503"} <= (
+        submit["responses"].keys()
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "media", "status", "code"),
+    [
+        (b"{", "application/json", 422, "invalid_request"),
+        (b" " * (BODY_LIMIT + 1), "application/json", 413, "demo_body_too_large"),
+        (b"{}", "text/plain", 415, "demo_json_required"),
+        (
+            json.dumps(definition(task("Unsafe", kind="shell"))).encode(),
+            "application/json",
+            422,
+            "invalid_request",
+        ),
+        (
+            json.dumps(definition(task("Loop", "Loop"))).encode(),
+            "application/json",
+            422,
+            "invalid_request",
+        ),
+    ],
+)
+def test_submission_reuses_bounded_validation_before_requesting_storage(
+    client: TestClient, body: bytes, media: str, status: int, code: str
+) -> None:
+    response = client.post(
+        "/demo/custom/runs",
+        content=body,
+        headers={"Content-Type": media, "Idempotency-Key": "bounded-test"},
+    )
+    assert response.status_code == status
+    assert response.json()["error"]["code"] == code
