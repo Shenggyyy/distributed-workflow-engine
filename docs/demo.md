@@ -80,6 +80,32 @@ a fresh recovery Run. Never automatically repeat an uncertain fault command;
 retained fault files block duplicate injection. The UI never controls Docker or
 accepts shell commands over HTTP. [Fault guard details](demo-design.md#scoped-fault-command).
 
+## Workers for an existing custom Run
+
+The [custom API](demo-api.md#custom-submission) can validate and create a constrained
+Run separately; the browser editor is a later implementation gate. After receiving
+its real `run_id`, start execution explicitly from the repository root:
+
+```powershell
+uv run python scripts/demo.py workers --run-id "CUSTOM_RUN_ID"
+```
+
+Replace `CUSTOM_RUN_ID` with the returned UUID. Use `--port 18081` **before**
+`workers` if the API uses that port. This command creates no Run. It validates the
+saved custom definition, requires no Worker/Attempt history or existing expected
+containers, then starts two dedicated one-slot Workers with the same readiness
+gate as distribution. They pull from the specified Run without preset task owners.
+Before this command, roots remain READY waiting for execution resources.
+
+The runtime rechecks custom names, one-slot capacity, fresh registration, definition
+limits and membership. A short lock on the demo membership row serializes admission
+of at most two distinct sessions; no core lock/lease/claim contract changes. Repeated
+or partial startup is refused. Already started containers and all evidence remain;
+inspect that Run and container logs instead of blindly retrying. To repeat a demo,
+explicitly create a new Run. This is a local resource bound, not autoscaling or
+tenant isolation. `fail` remains exclusive to the predefined recovery scenario,
+even if a custom definition copies the recovery diamond.
+
 ## Stop and keep the evidence
 
 ```powershell

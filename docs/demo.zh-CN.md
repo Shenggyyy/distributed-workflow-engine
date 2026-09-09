@@ -70,6 +70,27 @@ START/PULSE 区间至少重叠一秒。它确定 **C Attempt #1 的实际执行�
 故障命令结果不确定时不要自动重复；保留的故障文件会阻止重复注入。
 页面不控制 Docker，也不通过 HTTP 接收系统命令。[故障防护细节（英文）](demo-design.md#scoped-fault-command)。
 
+## 为已有自定义 Run 启动 Worker
+
+[自定义 API（英文）](demo-api.md#custom-submission) 已支持分别校验和创建受限 Run；
+网页编辑器属于后续实施步骤。取得真实 `run_id` 后，在仓库根目录明确启动执行：
+
+```powershell
+uv run python scripts/demo.py workers --run-id "CUSTOM_RUN_ID"
+```
+
+将 `CUSTOM_RUN_ID` 替换为返回的 UUID。如果 API 使用 18081 端口，将 `--port 18081`
+放在 `workers` **之前**。命令不会创建 Run；它核验保存的自定义定义，要求尚无 Worker、
+Attempt 历史或预期名称的已有容器，再启动两个专用的单槽位 Worker，使用与分配场景相同
+的就绪检查。Worker 从指定 Run 自行领取任务，不预先指定任务归属。
+执行这条命令之前，根任务保持 READY，等待执行资源。
+
+运行端重新核验自定义 Worker 名称、单槽位容量、新鲜注册、定义限制和成员关系。
+演示成员行上的短事务锁保证最多接纳两个不同会话，不改变核心锁、Lease 或领取契约。
+重复或部分完成后的启动会被拒绝，已启动容器和所有证据都会保留；先检查该 Run 与容器
+日志，不要盲目重试。如需重复演示，应明确创建新的 Run。这是本地资源限制，不是自动
+扩容或租户隔离。`fail` 仍只支持预定义恢复场景，即使自定义定义复制了恢复菱形也不能注入。
+
 ## 停止并保留证据
 
 ```powershell

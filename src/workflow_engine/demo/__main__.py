@@ -7,16 +7,15 @@ from threading import Event
 from uuid import UUID, uuid4
 
 import uvicorn
-from sqlalchemy import select
 
 from workflow_engine.config import Settings, load_settings
 from workflow_engine.database import database_engine
 from workflow_engine.demo.api import create_demo_app
+from workflow_engine.demo.custom_workers import add_demo_worker, check_demo_startup
 from workflow_engine.demo.handlers import registry
 from workflow_engine.demo.startup import DemoStartupError, wait_for_cohort
 from workflow_engine.domain.worker import WorkerSession
 from workflow_engine.logging import configure_logging
-from workflow_engine.schema import demo_runs, demo_workers
 from workflow_engine.worker.loop import WorkerLoop
 from workflow_engine.worker.transport import HTTPSender, WorkerTransport
 
@@ -46,21 +45,9 @@ def run_demo_worker(settings: Settings, run_id: UUID, *, cohort_size: int = 1) -
             ),
         )
         with database_engine(settings) as engine:
-            with engine.connect() as connection:
-                if (
-                    connection.scalar(
-                        select(demo_runs.c.run_id).where(demo_runs.c.run_id == run_id)
-                    )
-                    is None
-                ):
-                    raise ValueError("Only registered demo Runs may be executed.")
+            check_demo_startup(engine, run_id, session, cohort_size=cohort_size)
             transport.register()
-            with engine.begin() as connection:
-                connection.execute(
-                    demo_workers.insert().values(
-                        worker_session_id=session.id, run_id=run_id
-                    )
-                )
+            add_demo_worker(engine, run_id, session, cohort_size=cohort_size)
             if cohort_size > 1:
                 wait_for_cohort(
                     engine, transport, run_id, stop, cohort_size=cohort_size

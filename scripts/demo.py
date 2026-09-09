@@ -23,8 +23,38 @@ from scripts.demo_containers import PROJECT as PROJECT
 from scripts.demo_containers import verify_worker as verify_worker
 from scripts.demo_containers import worker_name as worker_name
 from scripts.demo_fault import FaultRefused, inject_branch_fault
+from workflow_engine.demo.custom_definitions import normalize_custom
+from workflow_engine.domain.workflow import WorkflowDefinition
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+class CustomWorkersRefused(ValueError):
+    """A bounded existing-Run startup was refused without creating another Run."""
+
+
+def check_custom_snapshot(snapshot: Any, run_id: UUID) -> None:
+    """Validate only a saved custom demo; do not reinterpret predefined history."""
+    try:
+        run = snapshot["run"]
+        if UUID(run["id"]) != run_id or run["scenario"] != "custom":
+            raise CustomWorkersRefused("Expected this exact custom demo Run.")
+        if run["status"] != "RUNNING":
+            raise CustomWorkersRefused("Custom Run is not active.")
+        normalized = normalize_custom(
+            WorkflowDefinition.model_validate(run["definition"])
+        ).model_dump(mode="json")
+        if normalized != run["definition"]:
+            raise CustomWorkersRefused("Saved custom definition is not canonical.")
+        if snapshot["workers"] or snapshot["attempts"]:
+            raise CustomWorkersRefused(
+                "This Run already has Worker or Attempt history. "
+                "Inspect its page; repeated or partial startup is not resumed."
+            )
+    except CustomWorkersRefused:
+        raise
+    except (KeyError, TypeError, ValueError):
+        raise CustomWorkersRefused("Invalid saved custom demo snapshot.") from None
 
 
 class Demo:
@@ -198,6 +228,37 @@ class Demo:
             flush=True,
         )
 
+    def workers(self, run_id: UUID) -> None:
+        """Start exactly two one-slot containers for an already-created custom Run."""
+        check_custom_snapshot(self.request(f"/demo/runs/{run_id}"), run_id)
+        for slot in ("a", "b"):
+            name = worker_name(run_id, slot)
+            if self.command("ps", "-aq", "--filter", f"name=^/{name}$").strip():
+                raise CustomWorkersRefused(
+                    "An expected container already exists. "
+                    "Inspect the existing Run; no containers were changed."
+                )
+        # Recheck after Docker inspection. Runtime membership guards and Docker's
+        # unique names enforce the bound if two CLI invocations race this read.
+        check_custom_snapshot(self.request(f"/demo/runs/{run_id}"), run_id)
+        print(
+            f"Existing Run: {run_id}\nOpen {self.origin}/demo/?run={run_id}", flush=True
+        )
+        try:
+            self.worker(run_id, "a", 1, cohort_size=2)
+            self.worker(run_id, "b", 1, cohort_size=2)
+            self.wait_ready(run_id, ("a", "b"))
+        except (ValueError, OSError, subprocess.CalledProcessError):
+            raise CustomWorkersRefused(
+                "Startup did not complete. Any started container is retained. "
+                "Inspect this Run and its container logs; do not retry automatically."
+            ) from None
+        print(
+            "Two dedicated one-slot Workers are registered. "
+            "They pull eligible tasks; no task-to-Worker assignment was preset.",
+            flush=True,
+        )
+
     def down(self) -> None:
         ids = self.command(
             "ps",
@@ -229,6 +290,8 @@ def main() -> None:
     run.add_argument("scenario", choices=["parallel", "distribution", "recovery"])
     fail = commands.add_parser("fail")
     fail.add_argument("--run-id", type=UUID, required=True)
+    workers = commands.add_parser("workers")
+    workers.add_argument("--run-id", type=UUID, required=True)
     args = parser.parse_args()
     try:
         demo = Demo(args.port)
@@ -236,12 +299,16 @@ def main() -> None:
             demo.run(args.scenario)
         elif args.command == "fail":
             demo.fail(args.run_id)
+        elif args.command == "workers":
+            demo.workers(args.run_id)
         elif args.command == "up":
             demo.up()
         else:
             demo.down()
     except FaultRefused as error:
         parser.exit(1, f"Fault refused: {error} No automatic retry.\n")
+    except CustomWorkersRefused as error:
+        parser.exit(1, f"Custom Worker startup refused: {error}\n")
     except (ValueError, OSError, subprocess.CalledProcessError):
         parser.exit(
             1,
