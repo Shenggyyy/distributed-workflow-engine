@@ -394,8 +394,33 @@ demo_runs = Table(
         server_default=func.clock_timestamp(),
     ),
     CheckConstraint(
-        "scenario IN ('parallel', 'distribution', 'recovery')", name="scenario_values"
+        "scenario IN ('parallel', 'distribution', 'recovery', 'custom')",
+        name="scenario_values",
     ),
+)
+demo_custom_submissions = Table(
+    "demo_custom_submissions",
+    metadata,
+    Column("idempotency_key", String(128, collation="C"), primary_key=True),
+    Column("definition", JSONB(none_as_null=True), nullable=False),
+    Column(
+        "run_id",
+        Uuid,
+        ForeignKey("demo_runs.run_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.clock_timestamp(),
+    ),
+    UniqueConstraint("run_id"),
+    CheckConstraint(
+        "idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'", name="key_format"
+    ),
+    CheckConstraint("jsonb_typeof(definition) = 'object'", name="definition_object"),
+    CheckConstraint("isfinite(created_at)", name="finite_time"),
 )
 demo_workers = Table(
     "demo_workers",

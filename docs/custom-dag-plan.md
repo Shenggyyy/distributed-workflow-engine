@@ -5,10 +5,11 @@ predefined scenarios remain the repeatable baseline; custom input adds a second
 entry to the same engine. No core execution semantics or historical definitions
 are changed. Implementation proceeds through the small gates below.
 
-H0–H1 are complete: the opt-in demo app serves its trusted catalog and bounded,
-read-only validation/preview endpoint. Custom persistence, Worker startup and the
-browser editor remain the later gates below; the predefined demonstrations work
-unchanged during this preparation.
+H0–H2a are complete: the opt-in demo app serves its trusted catalog and bounded,
+read-only validation/preview endpoint; revision 0012 prepares custom membership
+and immutable receipts. The submitting API, Worker startup and browser editor
+remain the later gates below. Predefined demonstrations work unchanged during
+this preparation.
 
 ## Read-only findings
 
