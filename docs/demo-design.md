@@ -104,6 +104,16 @@ DAG edges alone do not pass data. That extra feature is outside this phase.
 
 ## Repeatable scenarios and acceptance
 
+The distribution CLI starts both one-slot containers with `--cohort-size 2`.
+Before claiming, each demo runtime uses a 60-second wait budget for its own session
+and two distinct scoped Worker names to be ACTIVE with fresh database-clock
+heartbeats. It renews its own heartbeat while waiting and releases each read
+transaction before sleeping. This is a demo startup rendezvous, not task routing
+or a persistent quorum guarantee; a Worker can still fail after the check. The
+normal engine claim transaction remains the only ownership authority.
+Existing bounded HTTP/database operations can delay timeout reporting; an expired
+budget or rejected heartbeat prevents entry into the Worker loop.
+
 - Parallel: one Worker, two execution slots, four timed roots followed by Join.
 - Distribution: two independent one-slot Workers claim from one Run; the observed
   owners and sampled overlap establish the result, not an assumed assignment.

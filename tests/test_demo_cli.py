@@ -1,9 +1,10 @@
 """Fault injection is restricted to named, labelled demo Worker containers."""
 
+from unittest.mock import Mock, call, patch
 from uuid import uuid4
 
 import pytest
-from scripts.demo import MARKER, verify_worker, worker_name
+from scripts.demo import MARKER, Demo, verify_worker, worker_name
 
 
 @pytest.mark.parametrize(
@@ -37,3 +38,83 @@ def test_fault_target_requires_all_identity_checks(changed: str) -> None:
         labels[field] = "other"
     with pytest.raises(ValueError):
         verify_worker(info, run, "a")
+
+
+def test_distribution_launches_both_workers_before_readiness_check() -> None:
+    run_id = uuid4()
+    demo = object.__new__(Demo)
+    demo.origin = "http://127.0.0.1:18080"
+    with (
+        patch.object(Demo, "request", return_value={"run_id": str(run_id)}),
+        patch.object(Demo, "worker") as launch,
+        patch.object(Demo, "wait_ready") as ready,
+    ):
+        sequence = Mock()
+        sequence.attach_mock(launch, "launch")
+        sequence.attach_mock(ready, "ready")
+        assert demo.run("distribution") == run_id
+        assert sequence.mock_calls == [
+            call.launch(run_id, "a", 1, cohort_size=2),
+            call.launch(run_id, "b", cohort_size=2),
+            call.ready(run_id, ("a", "b")),
+        ]
+
+
+def test_readiness_requires_both_expected_names_and_fresh_heartbeats() -> None:
+    run_id = uuid4()
+    demo = object.__new__(Demo)
+    stamp = "2026-09-09T00:00:00Z"
+    workers = [
+        {
+            "worker_name": worker_name(run_id, "a"),
+            "status": "ACTIVE",
+            "heartbeat_expires_at": "2026-09-09T00:00:06Z",
+        },
+        {
+            "worker_name": worker_name(run_id, "b"),
+            "status": "ACTIVE",
+            "heartbeat_expires_at": stamp,
+        },
+    ]
+    before = {"run": {"id": str(run_id)}, "snapshot_at": stamp, "workers": workers}
+    after = {
+        **before,
+        "workers": [
+            workers[0],
+            {**workers[1], "heartbeat_expires_at": workers[0]["heartbeat_expires_at"]},
+        ],
+    }
+    with (
+        patch.object(Demo, "request", side_effect=[before, after]) as request,
+        patch("scripts.demo.time.sleep") as sleep,
+    ):
+        demo.wait_ready(run_id, ("a", "b"))
+    assert request.call_count == 2
+    sleep.assert_called_once_with(0.2)
+
+
+def test_readiness_timeout_does_not_launch_or_stop_any_worker() -> None:
+    run_id = uuid4()
+    demo = object.__new__(Demo)
+    snapshot = {
+        "run": {"id": str(run_id)},
+        "snapshot_at": "2026-09-09T00:00:00Z",
+        "workers": [],
+    }
+    with (
+        patch.object(Demo, "request", return_value=snapshot),
+        patch.object(Demo, "command") as command,
+        patch("scripts.demo.time.monotonic", side_effect=[0, 61]),
+        pytest.raises(ValueError, match="did not register"),
+    ):
+        demo.wait_ready(run_id, ("a", "b"))
+    command.assert_not_called()
+
+
+def test_readiness_refuses_a_different_run_snapshot() -> None:
+    demo = object.__new__(Demo)
+    with (
+        patch.object(Demo, "request", return_value={"run": {"id": str(uuid4())}}),
+        pytest.raises(ValueError, match="different Run"),
+    ):
+        demo.wait_ready(uuid4(), ("a", "b"))

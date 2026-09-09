@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import time
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -126,7 +127,11 @@ class Demo:
         self.compose("up", "-d", "--wait", "api", "scheduler")
         print(f"Open {self.origin}/demo/", flush=True)
 
-    def worker(self, run_id: UUID, slot: str, concurrency: int = 1) -> None:
+    def worker(
+        self, run_id: UUID, slot: str, concurrency: int = 1, *, cohort_size: int = 1
+    ) -> None:
+        if cohort_size not in (1, 2):
+            raise ValueError("Demo cohort must contain one or two Workers.")
         name = worker_name(run_id, slot)
         self.compose(
             "run",
@@ -146,15 +151,43 @@ class Demo:
             "worker",
             "--run-id",
             str(run_id),
+            "--cohort-size",
+            str(cohort_size),
         )
+
+    def wait_ready(self, run_id: UUID, slots: tuple[str, ...]) -> None:
+        """Observe scoped fresh registrations; never authorize or assign work."""
+        names = {worker_name(run_id, slot) for slot in slots}
+        deadline = time.monotonic() + 60
+        while True:
+            snapshot = self.request(f"/demo/runs/{run_id}")
+            if UUID(snapshot["run"]["id"]) != run_id:
+                raise ValueError("Readiness snapshot belongs to a different Run.")
+            stamp = datetime.fromisoformat(snapshot["snapshot_at"])
+            fresh = {
+                worker["worker_name"]
+                for worker in snapshot["workers"]
+                if worker["status"] == "ACTIVE"
+                and datetime.fromisoformat(worker["heartbeat_expires_at"]) > stamp
+            }
+            if time.monotonic() >= deadline:
+                raise ValueError("Demo Workers did not register within 60 seconds.")
+            if names <= fresh:
+                print("Demo cohort registered with fresh heartbeats.", flush=True)
+                return
+            time.sleep(0.2)
 
     def run(self, scenario: str) -> UUID:
         result = self.request("/demo/runs", {"scenario": scenario})
         run_id = UUID(result["run_id"])
         print(f"Run ID: {run_id}\nOpen {self.origin}/demo/?run={run_id}", flush=True)
-        self.worker(run_id, "a", 2 if scenario == "parallel" else 1)
+        cohort_size = 2 if scenario == "distribution" else 1
+        self.worker(
+            run_id, "a", 2 if scenario == "parallel" else 1, cohort_size=cohort_size
+        )
         if scenario == "distribution":
-            self.worker(run_id, "b")
+            self.worker(run_id, "b", cohort_size=cohort_size)
+            self.wait_ready(run_id, ("a", "b"))
         if scenario == "recovery":
             print(
                 f"Inject failure: uv run python scripts/demo.py fail --run-id {run_id}"

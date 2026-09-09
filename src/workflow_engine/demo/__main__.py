@@ -13,6 +13,7 @@ from workflow_engine.config import Settings, load_settings
 from workflow_engine.database import database_engine
 from workflow_engine.demo.api import create_demo_app
 from workflow_engine.demo.handlers import registry
+from workflow_engine.demo.startup import DemoStartupError, wait_for_cohort
 from workflow_engine.domain.worker import WorkerSession
 from workflow_engine.logging import configure_logging
 from workflow_engine.schema import demo_runs, demo_workers
@@ -20,7 +21,9 @@ from workflow_engine.worker.loop import WorkerLoop
 from workflow_engine.worker.transport import HTTPSender, WorkerTransport
 
 
-def run_demo_worker(settings: Settings, run_id: UUID) -> None:
+def run_demo_worker(settings: Settings, run_id: UUID, *, cohort_size: int = 1) -> None:
+    if type(cohort_size) is not int or cohort_size not in (1, 2):
+        raise ValueError("Demo cohort size must be 1 or 2.")
     configure_logging(settings, component="demo-worker")
     stop = Event()
 
@@ -58,6 +61,10 @@ def run_demo_worker(settings: Settings, run_id: UUID) -> None:
                         worker_session_id=session.id, run_id=run_id
                     )
                 )
+            if cohort_size > 1:
+                wait_for_cohort(
+                    engine, transport, run_id, stop, cohort_size=cohort_size
+                )
         logging.getLogger(__name__).info(
             "Demo Worker registered.",
             extra={
@@ -85,11 +92,12 @@ def main() -> None:
     commands.add_parser("api")
     worker = commands.add_parser("worker")
     worker.add_argument("--run-id", type=UUID, required=True)
+    worker.add_argument("--cohort-size", type=int, choices=(1, 2), default=1)
     args = parser.parse_args()
     try:
         settings = load_settings()
         if args.role == "worker":
-            run_demo_worker(settings, args.run_id)
+            run_demo_worker(settings, args.run_id, cohort_size=args.cohort_size)
         else:
             uvicorn.run(
                 create_demo_app(settings),
@@ -98,6 +106,11 @@ def main() -> None:
                 access_log=False,
                 proxy_headers=False,
             )
+    except DemoStartupError as error:
+        logging.getLogger(__name__).error(
+            str(error), extra={"event": "demo_cohort_startup_failed"}
+        )
+        raise SystemExit(1) from None
     except Exception:
         # Never print settings, database errors, request bodies or secrets.
         logging.getLogger(__name__).error(
