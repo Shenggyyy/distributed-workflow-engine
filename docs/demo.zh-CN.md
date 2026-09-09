@@ -127,7 +127,7 @@ B 不会重试。成功的观测时长必须覆盖可信 Handler 的等待时长
 仅运行一个场景时使用 `--scenario recovery`；改变端口时使用 `--port 18081`。
 脚本检查引擎证据，浏览器中的实际观察仍是独立验收步骤。
 可用 Node.js 22+ 运行时间线计算测试：
-`node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs tests/demo-dag.test.mjs`。运行演示本身不需要 Node.js。
+`node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs tests/demo-dag.test.mjs tests/demo-composer.test.mjs`。运行演示本身不需要 Node.js。
 
 ## 三分钟演示流程
 

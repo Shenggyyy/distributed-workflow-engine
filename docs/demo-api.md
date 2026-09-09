@@ -22,8 +22,8 @@ requests do not start containers: the local CLI creates labelled Run-scoped Work
 ## Custom definition preview
 
 The [custom phase](custom-dag-plan.md) separates read-only validation from explicit
-submission. The editor and custom Worker command arrive in later gates; the
-existing three scenarios remain usable.
+submission. The scoped custom Worker command is available; the editor arrives in
+a later gate. The existing three scenarios remain usable.
 Send `Content-Type: application/json` with the core definition shape, for example:
 
 ```json
@@ -95,6 +95,21 @@ The receipt key namespace is demo-local and separate from `/runs`. The existing
 `/workflows` publication and predefined `POST /demo/runs` remain non-idempotent.
 Migration [0012](migrations.md) preserves all earlier data and refuses downgrade
 when custom membership or receipts exist.
+
+The browser controller keeps validation and submission as separate state machines.
+Editing invalidates the previous preview immediately, including responses that
+arrive late. Creation sends the canonical definition from the current backend
+preview, with one frozen key/body pair. The pure controller has no DOM or engine
+side effects beyond its injected validation and submission transports.
+
+Before sending, it attempts to store a versioned pending record in local storage.
+A reload restores an unresolved record for **manual same-key/body retry**, without
+issuing a POST. A confirmed receipt can be restored without replay. While the
+outcome is unknown, edits and new submissions are disabled. Storage exceptions
+leave a visible memory-only fallback; they do not promise recovery after reload.
+Malformed recovery records or a different unresolved record from another tab
+block new submission rather than silently replacing it. This is per-operation
+idempotency, not cross-tab mutual exclusion or a global admission quota.
 
 ## Observation snapshots
 

@@ -55,7 +55,7 @@ jobs:
         run: uv run --locked pytest
 
       - name: Test browser evidence and language behavior (runner Node.js)
-        run: node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs tests/demo-dag.test.mjs
+        run: node --test tests/demo-evidence.test.mjs tests/demo-i18n.test.mjs tests/demo-page.test.mjs tests/demo-dag.test.mjs tests/demo-composer.test.mjs
 
       - name: Check local documentation links and anchors
         run: uv run --locked python scripts/check_docs.py
