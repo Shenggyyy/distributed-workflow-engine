@@ -2,6 +2,9 @@
 
 # 本地演示指南
 
+当前场景采用 `A → B/C → D`。其真实运行、浏览器验收与新截图**待 G6 完成**；
+下方历史截图对应旧版 DAG。
+
 ## 启动并打开页面
 
 需要运行 Linux 容器的 Docker Desktop、Python 3.13 和 uv。所有命令均在仓库根目录执行。
@@ -38,8 +41,14 @@ uv run python scripts/demo.py run recovery
 ```
 
 每条命令创建一个新的 Run，并输出 ID 和页面地址。为便于观察，请一次运行一个场景。
-parallel 使用一个 Worker 的两个槽位；distribution 使用两个独立的单槽位 Worker 容器。
-这两个场景的每个根任务约持续八秒，随后执行约两秒的 Join；recovery 的根任务约持续二十秒。
+parallel 使用一个 Worker 的两个槽位；distribution 和 recovery 使用两个独立的单槽位 Worker 容器。
+每个新 DAG 先执行 A（6 秒），再执行 B（8 秒）与 C（14 秒），两条分支成功后执行 D（3 秒）。
+recovery 使用 C=20 秒。任务采用可信计时 Handler；真实采样生命周期还包含观测开销。
+
+两个 Worker 的场景有 60 秒启动等待预算：限定 Run 的两个会话必须完成注册，状态为 ACTIVE，
+并且心跳按数据库时间仍有效。等待期间 Worker 持续心跳；过期或超时则拒绝开始执行。
+有界 I/O 可能使超时报告稍晚。`run` 等待注册就绪，不等待分支 START；
+这不会把 B/C 预先分给指定 Worker，也不保证就绪之后进程仍然存活。
 
 启动恢复场景后，立即把输出的 Run ID 填入以下本地命令：
 
@@ -47,11 +56,19 @@ parallel 使用一个 Worker 的两个槽位；distribution 使用两个独立�
 uv run python scripts/demo.py fail --run-id "RECOVERY_RUN_ID"
 ```
 
-将 `RECOVERY_RUN_ID` 替换为输出的 UUID。命令等待根 Handler 的真实 START 证据，
-验证容器身份和演示范围，向该容器发送 SIGKILL，然后启动替代 Worker B。
-如果根任务已经完成，请重新创建恢复 Run。六秒的 Lease/心跳窗口与持久化的
-5–10 秒抖动退避便于观察恢复。旧 Attempt 会被判定为 LOST，其实际结束时间未知；
-重试使用新的 Attempt 和 Worker 身份。页面不控制 Docker，也不通过 HTTP 接收系统命令。
+将 `RECOVERY_RUN_ID` 替换为输出的 UUID，在 `run` 返回后立即执行 `fail`。
+命令在 60 秒等待预算内要求 A 已成功、D 尚未领取，以及不同 Worker 上 B/C 的实际
+START/PULSE 区间至少重叠一秒。它确定 **C Attempt #1 的实际执行者**，
+复查限定范围容器的不可变 ID 与新鲜证据，再发送一次 SIGKILL。
+缺少 START 时仅在启动过程仍合法的情况下等待；过晚、已完成、过期或身份不符会拒绝注入。
+命令不会任意选择容器，也不会预先假定 Worker A 执行 C。
+
+六秒的 Lease/心跳窗口与持久化的 5–10 秒抖动退避便于观察恢复。
+执行 B 的存活 Worker 完成 B，保留其成功结果，在引擎允许重试后领取 C Attempt #2。
+**不会启动替代 Worker。** C 从头重新执行，D 继续等待两条分支成功。
+旧 Attempt 为 LOST，没有观测到 FINISH。如果错过安全窗口，请新建恢复 Run。
+故障命令结果不确定时不要自动重复；保留的故障文件会阻止重复注入。
+页面不控制 Docker，也不通过 HTTP 接收系统命令。[故障防护细节（英文）](demo-design.md#scoped-fault-command)。
 
 ## 停止并保留证据
 
@@ -75,9 +92,17 @@ Run/执行证据。`up` 恢复服务；新的场景命令使用新的身份。�
 uv run python -m scripts.demo_acceptance
 ```
 
-脚本创建三个真实 Run，检查同一时钟域内的执行区间确有重叠，确认两个 Worker 的执行归属，
-并注入一次限定范围的恢复故障。恢复验收必须实际观察到 RETRY_WAIT 才能通过。
-原始快照（包括重试检查点）保留在被 Git 忽略的 `.uv-cache/demo-acceptance/` 中。
+脚本创建三个真实 Run，检查同一时钟域内 **B/C** 的采样区间至少重叠一秒，
+核对每种场景的槽位和执行者，并注入一次限定范围的恢复故障。仅最终 SUCCEEDED 不能通过。
+被 Git 忽略的 `.uv-cache/demo-acceptance/` 保留 `root`、`branches`、`join_wait` 原始检查点；
+文件名为 `RUN_ID-CHECKPOINT.json`。
+恢复还必须有 `retry`、`RUN_ID-fault-before.json` 和得到确认的本地命令回执 `RUN_ID-fault.json`。
+最终快照为 `RUN_ID.json`。缺少证据时验收失败，不推测或补造状态。
+
+检查包括 Run/版本/Task/Attempt 身份及样本前缀未改写、A/B/D 各有一次成功 Attempt、
+依赖的完成准入与领取顺序、C 等待期间 D 未领取，以及每个 Attempt 对应一次真实调用。
+恢复要求 C #1 LOST 且无 FINISH/完成准入、有持久化退避，C #2 在 B 完成后由 B 原有 Worker 执行成功；
+B 不会重试。成功的观测时长必须覆盖可信 Handler 的等待时长。[完整证据检查（英文）](demo-design.md#acceptance-evidence)。
 仅运行一个场景时使用 `--scenario recovery`；改变端口时使用 `--port 18081`。
 脚本检查引擎证据，浏览器中的实际观察仍是独立验收步骤。
 可用 Node.js 22+ 运行时间线计算测试：
@@ -93,14 +118,15 @@ uv run python -m scripts.demo_acceptance
 | 时间 | 操作与讲解要点 |
 | --- | --- |
 | 0:00 | 执行 `uv run python -m scripts.demo_acceptance`。在 01 确认 Run、场景和实际发布的定义。任务明确使用计时演示 Handler，不是销售报表处理。 |
-| 0:05 | 在 02 沿 DAG 向下观察。A/B/C/D 没有依赖，可以重叠；Join 必须等待四者全部成功。在 03 指出真实 READY 记录和 Join 仍在等待的任务。这是 PostgreSQL 状态视图，不是额外消息队列。 |
-| 0:10 | 在 04 看到一个 Worker 的两个配置槽位和两个已确认 Attempt。领取、Handler 样本接收和 Lease 续期是不同证据。在 06 观察采样区间重叠，证明 Handler 生命周期并发；单凭 RUNNING 不足以证明。 |
-| 0:30 | 分配场景开始。在 04 比较两个容器/会话 ID 和各自实际领取的任务。说明 Worker pull 与事务分配；任务并未预先绑定给指定 Worker。 |
-| 0:45 | 在 05 观察成功的根任务满足 Join 的依赖，随后调度使任务 READY，Worker 再次领取。使用链接返回 03/04。依赖满足不等于记录了一个 READY 历史事件。 |
-| 1:00 | 恢复场景开始。终端确认限定范围的 SIGKILL 和脚本启动替代 Worker。在 04 观察旧心跳与续期不再推进，期限随后到达。Worker 注册状态失效与 Attempt 失效可能出现在不同快照中。 |
-| 1:10 | 在 05 查看旧 Attempt 的 LOST、保存的重试时间和 RETRY_WAIT。期限到达不是 Handler 的实际结束；引擎通过事务确认失效。旧时间线没有 FINISH。 |
-| 1:25 | 在 04/05 看到新的 Attempt 编号和执行者。新 Handler 从头执行，旧 Worker 没有主动移交任务。替代 Worker 由脚本启动，不代表自动扩容。 |
-| 2:00 | 在 06 查看 Run SUCCEEDED、各 Worker 的执行记录及替代区间之前的空档。在 Attempt 明细中比较领取、执行证据和完成回报被接受的时间。旧 Attempt 没有被接受的完成回报。 |
+| 0:05 | 在 02 沿 A 向下看到 B/C，再到 D。A 执行时 B/C 等待 A，D 等待两条分支。在 03 查看真实 PostgreSQL READY/PENDING 状态及具体阻塞任务，不是额外队列。 |
+| 0:10 | A 成功后，B/C 在一个 Worker 的两个槽位执行。在 06 观察其采样区间重叠；单凭 RUNNING 不能证明执行。领取、Handler 样本接收和 Lease 续期仍分别展示。 |
+| 0:20 | B 先于 C 成功，D 仍为 PENDING 且没有 Attempt。在 05 说明两条依赖都成功后，调度事务才能使 D READY；使用回路链接返回 03/04。 |
+| 0:30 | 分配场景开始。在 04 比较两个容器/会话 ID 与 B/C 的实际执行者。两个 Worker 从同一 Run 主动领取，脚本没有指定谁执行哪条分支。 |
+| 0:45 | 观察相同的根任务、并行分支和汇合跨两个 Worker 执行。指出 A 成功、B/C 采样重叠、B 成功但 D 仍等待，以及 D 后续的领取。 |
+| 1:00 | 恢复场景以两个 Worker 启动。本地命令等待 B/C 重叠，确定 C 的执行者并确认一次限定范围的 SIGKILL。在 04 观察其心跳/续期停止，B 的 Worker 继续执行。 |
+| 1:15 | 在 05 查看 C #1 LOST、保留的重试计划与 RETRY_WAIT。D 尚未领取。Worker 注册失效与 Attempt 失效可能出现在不同快照中；Lease 到期不是观测到的 Handler 结束。 |
+| 1:30 | B 成功一次。其原有 Worker 在退避后领取 C #2，从头执行 C。没有启动替代 Worker，也没有从中断处恢复。 |
+| 2:00 | C #2 成功后，D 执行并使 Run 成功。在 06 对比 C 的两段区间与空档、真实执行者以及领取/观测/完成准入时间。旧 C 没有 FINISH 或被接受的完成回报。 |
 | 2:30 | 说明 at-least-once、业务幂等和单机演示边界。任务成功后 Worker 正常退出，其心跳稍后仍会过期；这本身不代表任务失败。打开原始 JSON 或选择历史 Run。 |
 
 以上时间仅供讲解安排，并非恢复时延 SLA。也可使用前面的单独 `run` 与 `fail` 命令手动控制。
@@ -110,31 +136,15 @@ API 请求与快照字段见[演示 API（英文）](demo-api.md)；交互式 Op
 
 Worker 在所选 Run 结束后正常退出。即使 Run 成功，其注册心跳稍后也会过期并变成 LOST；
 这单独不能证明任务失败。恢复证据包括旧 **Attempt** 的 LOST、保留的重试计划、明确的
-故障命令以及替代 Attempt。浏览器断连时保留最后画面，并显示数据过期警告。
+故障命令以及新 Attempt。浏览器断连时保留最后画面，并显示数据过期警告。
 
 ## 真实截图
 
-以下为六步页面的原始浏览器截图，拍摄于 2026-09-09（Australia/Sydney；数据库时间显示为 UTC）。
-Run ID 和检查记录见[双语验收（英文）](release-review.md)。新的运行产生新的身份，
-页面不会回放截图中的状态。
-
-依赖关系和当前 PostgreSQL 等待条件：
-
-![中文纵向 DAG 与等待原因](images/release-dag-zh-CN.png)
-
-恢复结果：旧 Attempt 没有 FINISH，新的 Attempt 重新执行并完成：
-
-![中文恢复结果与旧、新 Attempt 的独立执行区间](images/release-recovery-zh-CN.png)
-
-还可查看[单 Worker 的实际重叠](images/release-parallel-zh-CN.png)、
-[两个独立 Worker](images/release-distribution-zh-CN.png)和
-[替代 Attempt 已领取的重试回路](images/release-replacement-zh-CN.png)。
-[验收记录（英文）](release-review.md#browser-captures)链接了全部新增截图及对应英文画面。
-同组运行中截图依次拍摄，语言切换时任务仍在继续，不代表同一个时间点。
-
-全部早期截图仍保留在[最初演示验收（英文）](demo-review.md)和
-[六步流程验收（英文）](demo-flow-review.md)。
-这些截图是带日期的运行证据；页面文案可能随后更新。
+新菱形场景的真实运行、浏览器验收与截图待 G6 完成。
+[此前双语截图（英文索引）](release-review.md#browser-captures)、
+[最初演示验收（英文）](demo-review.md)与[六步流程验收（英文）](demo-flow-review.md)
+保留了全部历史图片及 Run 身份。旧运行使用多个根任务汇合到 Join，或根任务 A 故障后由脚本启动替代 Worker，
+不能作为当前菱形场景的证据。选择旧 Run 仍按其保存的定义绘图；历史与截图状态不会被改写或回放到新 Run。
 
 ## 正确理解证据
 

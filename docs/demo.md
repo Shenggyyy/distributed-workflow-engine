@@ -2,6 +2,9 @@
 
 # Local demonstration
 
+The current scenarios use `A → B/C → D`. Their real execution/browser acceptance
+and new captures are **pending G6**; historical screenshots below use earlier DAGs.
+
 ## Start and open the page
 
 Requires Docker Desktop running Linux containers, Python 3.13 and uv. Run from the
@@ -43,8 +46,16 @@ uv run python scripts/demo.py run recovery
 
 Each command creates a fresh Run and prints its ID and page address. Run scenarios
 one at a time for a clear demonstration. Parallel uses one Worker with two slots;
-distribution uses two separate one-slot Worker containers. Each root takes about
-eight seconds, followed by a two-second join. Recovery uses a twenty-second root.
+distribution and recovery use two separate one-slot Worker containers. Each new
+DAG starts A (6 seconds), then B (8 seconds) and C (14 seconds), then D (3 seconds)
+after both branches succeed. Recovery uses C=20 seconds. These are trusted timed
+Handlers; actual sampled lifetimes include observation overhead.
+
+The two-Worker scenarios use a 60-second startup wait budget: both scoped sessions
+must be registered, ACTIVE and heartbeat-fresh by database time. Workers heartbeat
+while waiting and fail closed on expiry or timeout. Bounded I/O may delay timeout
+reporting. `run` waits for registration readiness, not branch START; this does not
+assign B/C to predetermined Workers or guarantee peers remain alive.
 
 Immediately after starting recovery, copy its Run ID into this local command:
 
@@ -52,13 +63,22 @@ Immediately after starting recovery, copy its Run ID into this local command:
 uv run python scripts/demo.py fail --run-id "RECOVERY_RUN_ID"
 ```
 
-Replace `RECOVERY_RUN_ID` with the printed UUID. The command waits for actual root
-Handler START evidence, verifies container identity and
-scope, sends SIGKILL to that container and starts replacement Worker B. If the root
-already finished, create a fresh recovery Run. Six-second lease/heartbeat windows
-and a persisted 5–10 second jittered backoff expose recovery. The old Attempt is
-LOST; its actual finish is unknown. The retry has a new Attempt and Worker identity.
-The UI never controls Docker and never accepts shell commands over HTTP.
+Replace `RECOVERY_RUN_ID` with the printed UUID. Execute `fail` immediately after
+`run` returns. Within a 60-second wait budget, it requires A success, D unclaimed,
+and at least one second of actual B/C START/PULSE overlap on different Workers.
+It resolves **C Attempt #1's actual owner**, rechecks the scoped container's
+immutable ID and fresh evidence, then sends one SIGKILL. Missing START keeps it
+waiting only while startup remains valid; a late, completed, stale or mismatched
+target is refused. No arbitrary container or fixed Worker A is selected.
+
+Six-second Lease/heartbeat windows and a persisted 5–10 second jittered backoff
+expose recovery. B's surviving Worker finishes B, retains that success, and pulls
+C Attempt #2 after the engine makes it eligible. **No replacement Worker starts.**
+C executes from the beginning; D waits for both successful branches. The old
+Attempt is LOST and has no observed FINISH. If the safe window was missed, create
+a fresh recovery Run. Never automatically repeat an uncertain fault command;
+retained fault files block duplicate injection. The UI never controls Docker or
+accepts shell commands over HTTP. [Fault guard details](demo-design.md#scoped-fault-command).
 
 ## Stop and keep the evidence
 
@@ -83,10 +103,20 @@ After `up`, keep the page open with **Follow newest Run** enabled:
 uv run python -m scripts.demo_acceptance
 ```
 
-This creates three real Runs, checks positive measured overlap in a common clock
-domain, verifies two Worker owners, and injects a scoped recovery failure. It must
-observe RETRY_WAIT before accepting recovery success. It retains raw snapshots
-(including the retry checkpoint) in ignored `.uv-cache/demo-acceptance/`.
+This creates three real Runs, verifies at least one second of specifically B/C
+measured overlap in a common clock domain, checks scenario-specific slots/owners,
+and injects a scoped recovery failure. Final SUCCEEDED alone cannot pass.
+In ignored `.uv-cache/demo-acceptance/`, it retains raw `root`, `branches` and
+`join_wait` checkpoints as `RUN_ID-CHECKPOINT.json`; recovery also requires `retry`, `RUN_ID-fault-before.json`
+and the acknowledged local command receipt `RUN_ID-fault.json`. The final snapshot
+is `RUN_ID.json`. Missing evidence fails validation rather than inventing a state.
+
+Checks include unchanged Run/version/Task/Attempt identities and sample prefixes,
+one successful A/B/D Attempt, dependency admission/claim ordering, D remaining
+unclaimed while C waits, and one actual invocation per Attempt. Recovery requires
+C #1 LOST without FINISH/admission, persisted backoff, and C #2 succeeding on B's
+existing Worker after B finishes; B is never retried. Successful observed durations
+must cover their trusted waits. [Full evidence checks](demo-design.md#acceptance-evidence).
 For one scenario use `--scenario recovery`; for a different port use `--port 18081`.
 This script checks engine evidence; browser inspection remains a separate gate.
 Pure timeline calculations can be tested with Node.js 22+:
@@ -102,14 +132,15 @@ use the loop links in step 05 to revisit 03/04. No network traffic animation is 
 | Time | Action and what to explain |
 | --- | --- |
 | 0:00 | Execute `uv run python -m scripts.demo_acceptance`. In 01, identify the Run, scenario and real published definition. Tasks are explicitly timed demo Handlers, not a sales report. |
-| 0:05 | In 02, follow downward DAG edges. A/B/C/D have no dependencies and may overlap; Join requires all four successes. In 03, point to actual READY rows and Join's named blockers. This is PostgreSQL state, not an extra queue. |
-| 0:10 | In 04, one Worker has two configured slots and two confirmed Attempts. Claim, Handler sample receipt and lease renewal are separate. In 06, overlapping sampled intervals prove concurrent Handler lifetimes; RUNNING alone does not. |
-| 0:30 | Distribution starts. In 04, compare two container/session IDs and the tasks actually claimed by each. Explain Worker pull and transactional allocation; task-to-Worker assignment is not prearranged. |
-| 0:45 | In 05, successful roots satisfy Join's dependencies. Scheduling makes subsequent work READY and Workers pull again. Follow the visible link back to 03/04. A satisfied dependency is not an invented READY event. |
-| 1:00 | Recovery starts. The terminal confirms the scoped SIGKILL and script-started replacement. In 04, the old heartbeat/renewal stops advancing and their deadlines pass. Registry loss and Attempt loss can occur in different snapshots. |
-| 1:10 | In 05, read old LOST, the saved retry time and RETRY_WAIT. Expiry alone did not end the Handler; the engine confirms loss transactionally. The old timeline has no FINISH. |
-| 1:25 | In 04/05, observe a new Attempt number and owner. It restarts the Handler from the beginning; the old Worker did not transfer it. Replacement startup is a script action, not automatic scaling. |
-| 2:00 | In 06, read Run SUCCEEDED, per-owner work and the gap before the replacement interval. In Attempt details, compare claim, execution evidence and completion admission. Old Attempt has no accepted completion. |
+| 0:05 | In 02, follow A down to B/C, then D. During A execution, B/C wait for A; D waits for both branches. In 03, read the actual PostgreSQL READY/PENDING state and named blockers, not an extra queue. |
+| 0:10 | After A succeeds, B/C run in one Worker's two slots. In 06, their sampled intervals overlap; RUNNING alone does not prove execution. Claim, Handler receipt and Lease renewal remain separate. |
+| 0:20 | B succeeds before C. D is still PENDING with no Attempt. In 05, explain that both dependencies must succeed before a scheduling transaction makes D READY; use the loop link back to 03/04. |
+| 0:30 | Distribution starts. Compare two container/session IDs and the actual B/C owners in 04. Both Workers pull from the same Run; the script did not assign either branch to a specific Worker. |
+| 0:45 | Watch the same root, parallel branches and join across two Workers. Identify A completion, B/C sampled overlap, B success while D waits, then D's later claim. |
+| 1:00 | Recovery starts with two Workers. The local command waits for B/C overlap, resolves C's owner and confirms one scoped SIGKILL. In 04, that Worker's heartbeat/renewal stops; B's Worker continues. |
+| 1:15 | In 05, read C #1 LOST, retained retry scheduling and RETRY_WAIT. D remains unclaimed. Registry loss and Attempt loss can appear in different snapshots; Lease expiry is not an observed Handler finish. |
+| 1:30 | B succeeds once. Its existing Worker pulls C #2 after backoff, then runs C from the beginning. No replacement is started and no interrupted work is resumed. |
+| 2:00 | After C #2 succeeds, D runs and the Run succeeds. In 06, compare both C intervals and the gap, actual owners, and claim/observation/admission times. Old C has no FINISH or accepted completion. |
 | 2:30 | Explain at-least-once/business idempotency and the single-machine boundary. Normal Worker exit after success later expires its heartbeat; that alone is not a task failure. Open raw JSON or select a previous Run. |
 
 Timings are approximate, not a recovery SLA. Individual `run` and `fail` commands
@@ -121,34 +152,18 @@ are described in [demo API](demo-api.md); interactive OpenAPI is at
 Workers exit normally when their selected Run finishes. Their registry heartbeat
 later expires to LOST even on a successful Run; this alone is not evidence of a
 failed Task. The recovery evidence is the old LOST **Attempt**, retained retry
-schedule, explicit fault command and replacement Attempt. Browser disconnection
+schedule, explicit fault command and new Attempt. Browser disconnection
 freezes the last view and displays a stale-data warning.
 
 ## Actual captures
 
-Unmodified browser screenshots of the six-step page, captured on
-2026-09-09 (Australia/Sydney; database timestamps displayed in UTC). Run IDs and
-checks are recorded in [bilingual acceptance](release-review.md). Fresh runs get new
-identities; no screenshot state is replayed into the page.
-
-Dependencies and current PostgreSQL waiting conditions:
-
-![Vertical DAG and waiting reasons in English](images/release-dag-en.png)
-
-Recovery outcome: the old Attempt has no FINISH; a new Attempt executes to completion:
-
-![Successful recovery with distinct old and new execution intervals in English](images/release-recovery-en.png)
-
-Also see [one Worker's measured overlap](images/release-parallel-en.png),
-[two independent Workers](images/release-distribution-en.png), and
-[the recovery wait before replacement allocation](images/release-recovery-wait-en.png).
-The [acceptance record](release-review.md#browser-captures) links every new capture,
-including the corresponding Chinese views. Paired live views were captured
-sequentially; execution continued while the language changed.
-
-All earlier screenshots remain in the [original demo review](demo-review.md) and
-[six-step flow review](demo-flow-review.md).
-These captures are dated evidence; the page's wording may change independently.
+New diamond execution/browser acceptance and screenshots are pending G6.
+[Earlier bilingual captures](release-review.md#browser-captures), the
+[original demo review](demo-review.md) and [six-step flow review](demo-flow-review.md)
+retain every historical image and Run identity. Those runs used parallel roots
+feeding Join or root-A recovery with a script-started replacement; they are not
+evidence for the current diamond. Selecting an old Run still renders its saved
+definition. No history or screenshot state is rewritten or replayed into new Runs.
 
 ## Read the evidence accurately
 

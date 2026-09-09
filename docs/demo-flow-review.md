@@ -1,5 +1,10 @@
 # Six-step flow acceptance — 2026-09-09
 
+Historical evidence: these Runs use parallel roots feeding Join and root-A
+recovery with a script-started replacement. They are not acceptance of the current
+diamond scenarios. Existing Runs and screenshots remain unchanged; see the
+[current guide](demo.md) and [diamond phase](diamond-plan.md).
+
 Phase E improves explanation of the existing engine, independently of the completed
 M0–M5 correctness gate and phase D execution-evidence gate. The Chinese page follows
 submission -> dependencies -> PostgreSQL READY view -> Worker pull -> rescheduling

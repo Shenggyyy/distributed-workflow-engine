@@ -14,10 +14,11 @@ Run submission, parallel execution, multi-Worker/Scheduler coordination, heartbe
 Lease fencing, durable retries with exponential backoff, fixed timeouts, crash
 recovery, failed-dependency propagation and Run aggregation.
 
-The **local demonstration is complete** under a separate acceptance gate: a real
-six-step page shows dependencies, confirmed ownership, sampled execution overlap
-and recovery, with complete English/Chinese presentation. See the dated
-[core review](docs/mvp-review.md) and [bilingual demo acceptance](docs/release-review.md).
+The **bilingual six-step demonstration layer is complete**. Its current scenarios
+use a diamond DAG, `A → B/C → D`, to make dependency, parallelism and recovery
+visible. **Live execution/browser acceptance of these new scenarios is pending G6**;
+the [earlier bilingual acceptance](docs/release-review.md) covers the previous
+definitions. Core completion has its own [review](docs/mvp-review.md).
 This is a trusted-deployment first version;
 no production SLA, multi-machine validation or throughput claim is implied.
 
@@ -101,22 +102,19 @@ Read **01 submission → 02 dependencies → 03 claimable Tasks → 04 Worker pu
 
 | Scenario | Real work and evidence |
 | --- | --- |
-| Parallel | One Worker with two slots; A/B/C/D then Join. Overlapping START/PULSE/FINISH intervals prove concurrent Handler lifetimes. |
-| Distribution | Two independent one-slot Workers pull from the same Run. Compare actual Task/Attempt/Worker IDs; ownership is not preassigned. |
-| Recovery | Stop only the dedicated Worker. Observe stopped heartbeat/renewal, LOST Attempt, RETRY_WAIT, a new Attempt on script-started Worker B and final success. |
+| Parallel | One Worker with two slots executes A (6s), then B (8s) and C (14s), then D (3s). B/C sampled intervals must overlap; D waits for both successes. |
+| Distribution | Two independent one-slot Workers pull from the same diamond Run. Compare actual B/C owners; ownership is not preassigned. Both sessions pass a scoped startup readiness check. |
+| Recovery | C runs for 20s. The local command resolves and stops C's actual Worker while B/C overlap. The surviving Worker finishes B, then pulls C Attempt #2 after Lease expiry and retry backoff. D still waits for both branches. No replacement Worker is started. |
 
 Claim time, Handler samples and completion admission are distinct. RUNNING and
 `created_at` do not prove execution; Lease expiry is not a Handler finish time.
 Missing FINISH stays unknown. Timed demo Handlers do not pretend to process sales
 reports or transfer outputs along DAG edges. [Evidence contracts](docs/demo-design.md).
 
-Real English browser captures: one Worker's overlapping Handler intervals, then
-two Workers executing the same Run. Run IDs and paired Chinese captures are in the
-[dated review](docs/release-review.md); new Runs receive new identities:
-
-![One Worker with measured overlap of two Handler lifetimes](docs/images/release-parallel-en.png)
-
-![Two independent Workers executing C and D from the same Run](docs/images/release-distribution-en.png)
+Current diamond screenshots and live acceptance are pending G6. The
+[retained English/Chinese screenshots](docs/release-review.md#browser-captures)
+are real historical evidence for the earlier fan-in/root-recovery definitions;
+they do not demonstrate the new diamond. Existing Runs retain their saved DAGs.
 
 ## Test and verify
 

@@ -57,6 +57,42 @@ export function recoveryView(data, attempt) {
   return {attempt, next, due: isDue(attempt.available_at, data.snapshot_at)};
 }
 
+// Match the saved graph, never a current factory or a scenario label alone.
+export function isDiamond(definition) {
+  const tasks = definition?.tasks;
+  if (!Array.isArray(tasks) || tasks.length !== 4) return false;
+  const expected = {A: [], B: ['A'], C: ['A'], D: ['B', 'C']};
+  if (new Set(tasks.map(task => task.task_id)).size !== 4) return false;
+  return tasks.every(task => Object.hasOwn(expected, task.task_id) &&
+    Array.isArray(task.depends_on) &&
+    task.depends_on.length === expected[task.task_id].length &&
+    new Set(task.depends_on).size === task.depends_on.length &&
+    task.depends_on.every(parent => expected[task.task_id].includes(parent)));
+}
+
+export function timedDiamondScenario(definition, scenario) {
+  if (!isDiamond(definition) || !['parallel', 'distribution', 'recovery'].includes(scenario)) return null;
+  const types = {A: 'demo.diamond.a', B: 'demo.diamond.b',
+    C: scenario === 'recovery' ? 'demo.diamond.recover' : 'demo.diamond.c', D: 'demo.diamond.d'};
+  return definition.tasks.every(task => task.task_type === types[task.task_id]) ? scenario : null;
+}
+
+export function diamondRecoveryView(data) {
+  if (data.run.scenario !== 'recovery' || !isDiamond(data.run.definition)) return null;
+  const b = data.tasks.find(task => task.task_key === 'B');
+  const c = data.tasks.find(task => task.task_key === 'C');
+  const d = data.tasks.find(task => task.task_key === 'D');
+  if (!b || !c || !d) return null;
+  const attempts = data.attempts.filter(attempt => attempt.task_id === b.id);
+  const sibling = b.status === 'SUCCEEDED' && attempts.length === 1 &&
+    attempts[0].attempt_number === 1 && attempts[0].status === 'SUCCEEDED' ? attempts[0] : null;
+  const latest = latestAttempt(data, c.id);
+  const retry = latest?.attempt_number > 1 ? latest : null;
+  return {sibling, retry,
+    waitingStatus: sibling && d.status === 'PENDING' && c.status !== 'SUCCEEDED' ? c.status : null,
+    sameWorker: Boolean(sibling && retry && sibling.worker_session_id === retry.worker_session_id)};
+}
+
 export function dagRows(definitions) {
   const levels = new Map();
   function level(key) {

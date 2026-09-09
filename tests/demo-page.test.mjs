@@ -125,7 +125,42 @@ function runningSnapshot() {
   };
 }
 
-async function controller({snapshot = runningSnapshot(), selected = true} = {}) {
+function diamondSnapshot({scenario = 'recovery', retried = false} = {}) {
+  const recovery = scenario === 'recovery';
+  const tasks = ['A','B','C','D'].map((key, index) => ({id:`diamond-task-${key}`,
+    task_key:key, status:index === 0 || (index === 1 && recovery) ? 'SUCCEEDED' :
+      index === 3 ? 'PENDING' : index === 2 && recovery && !retried ? 'RETRY_WAIT' : 'RUNNING'}));
+  const attempts = tasks.slice(0, 3).map((task, index) => ({
+    id:`diamond-attempt-${task.task_key}`, task_id:task.id, attempt_number:1,
+    status:index === 2 && recovery ? 'LOST' : task.status,
+    worker_session_id:index === 1 ? 'survivor-worker' : 'first-worker',
+    acquired_at:at(index ? 8 : 1), last_renewed_at:at(index ? 10 : 5), lease_expires_at:at(index ? 16 : 11),
+    accepted_at:task.status === 'SUCCEEDED' ? at(index ? 14 : 7) : null,
+    scheduled_at:index === 2 && recovery ? at(16) : null,
+    available_at:index === 2 && recovery ? at(20) : null,
+  }));
+  if (retried) attempts.push({...attempts[2], id:'diamond-attempt-C2', attempt_number:2,
+    status:'RUNNING', worker_session_id:'survivor-worker', acquired_at:at(20),
+    last_renewed_at:at(21), lease_expires_at:at(27), scheduled_at:null, available_at:null});
+  return {
+    snapshot_at:at(retried ? 22 : 18),
+    run:{id:'diamond-run', scenario, status:'RUNNING', definition:{schema_version:2,
+      tasks:tasks.map((task, index) => ({task_id:task.task_key,
+        task_type:index === 2 && recovery ? 'demo.diamond.recover' : 'demo.diamond.' + task.task_key.toLowerCase(),
+        depends_on:index === 0 ? [] : index === 3 ? ['B','C'] : ['A']}))}},
+    tasks, attempts,
+    workers:['first-worker','survivor-worker'].map((id, index) => ({id, worker_name:'raw-worker-' + index,
+      max_concurrency:1, status:recovery && index === 0 ? 'LOST' : 'ACTIVE',
+      last_heartbeat_at:at(17), heartbeat_expires_at:at(23)})),
+    samples:attempts.flatMap((attempt, index) => ['START', attempt.status === 'SUCCEEDED' ? 'FINISH' : 'PULSE'].map((phase, sequence) => ({
+      invocation_id:'diamond-invocation-' + index, attempt_id:attempt.id, clock_domain:'original-kernel',
+      phase, sequence, recorded_at:at(index > 2 ? 21 : index ? 12 : 6),
+      monotonic_ns:String(BigInt(index > 2 ? 20 : index ? 8 : 1) * 1000000000n + BigInt(sequence) * 1000000000n),
+    }))),
+  };
+}
+
+async function controller({snapshot = runningSnapshot(), selected = true, historySnapshots = []} = {}) {
   const document = documentFixture();
   const requests = [], timers = [], historyCalls = [], stored = new Map();
   let failure = null;
@@ -142,8 +177,10 @@ async function controller({snapshot = runningSnapshot(), selected = true} = {}) 
     fetch: async (path, options) => {
       requests.push({path, options});
       if (failure) throw failure;
-      const payload = path === '/demo/runs' ? snapshot ? [{run_id: snapshot.run.id,
-        scenario: snapshot.run.scenario, status: snapshot.run.status}] : [] : snapshot;
+      const snapshots = [...(snapshot ? [snapshot] : []), ...historySnapshots];
+      const payload = path === '/demo/runs' ? snapshots.map(data => ({run_id:data.run.id,
+        scenario:data.run.scenario, status:data.run.status})) :
+        snapshots.find(data => path === '/demo/runs/' + data.run.id);
       return {ok: true, json: async () => payload};
     },
   });
@@ -296,4 +333,67 @@ test('retry explanations keep LOST, future eligibility and absence of a new clai
   assert.match(page.node('recovery').textContent, /当前 Task 状态：RETRY_WAIT/);
   assert.equal(page.node('attempts').children.length, 2);
   assert.equal(page.requests.length, requests);
+});
+
+test('diamond recovery explains persisted sibling success and join waiting in both languages', async () => {
+  const snapshot = diamondSnapshot();
+  const page = await controller({snapshot});
+  assert.equal(page.node('error').hidden, true);
+  assert.match(page.node('scenario-purpose').textContent, /A → B\/C → D/);
+  assert.match(page.node('scenario-purpose').textContent, /C 20s/);
+  assert.match(page.node('results').textContent, /B remains SUCCEEDED on Attempt #1/);
+  assert.match(page.node('results').textContent, /D is PENDING: B succeeded, but C is RETRY_WAIT/);
+  assert.doesNotMatch(page.node('results').textContent, /Confirmed C Attempt #2/);
+  assert.match(page.node('replacement-note').textContent, /starts no replacement Worker/);
+  assert.doesNotMatch(page.node('replacement-note').textContent, /Historical/);
+  const rectangles = page.node('dag').children.filter(node => node.tagName === 'RECT');
+  assert.deepEqual(rectangles.map(node => node.getAttribute('y')), ['12','112','112','212']);
+  const raw = page.node('identities').textContent;
+  page.switchTo('zh-CN');
+  assert.match(page.node('results').textContent, /B 在 Attempt #1 保持 SUCCEEDED/);
+  assert.match(page.node('results').textContent, /D 仍为 PENDING：B 已成功，但 C 为 RETRY_WAIT/);
+  assert.match(page.node('replacement-note').textContent, /不启动替代 Worker/);
+  assert.equal(page.node('identities').textContent, raw);
+  const retryPage = await controller({snapshot:diamondSnapshot({retried:true})});
+  assert.match(retryPage.node('results').textContent, /Confirmed C Attempt #2 on Worker 2, the same Worker that completed B · RUNNING/);
+  retryPage.switchTo('zh-CN');
+  assert.match(retryPage.node('results').textContent, /已确认 C Attempt #2 由 Worker 2 领取，与完成 B 的是同一个 Worker · RUNNING/);
+});
+
+test('selecting a historical Run keeps its saved DAG and legacy explanation without POST or language side effects', async () => {
+  const legacy = runningSnapshot();
+  legacy.run.scenario = 'recovery';
+  legacy.run.definition.tasks = [{task_id:'A',task_type:'demo.recover',depends_on:[]},
+    {task_id:'Join',task_type:'demo.join',depends_on:['A']}];
+  legacy.tasks = [{id:'legacy-a',task_key:'A',status:'RUNNING'}, {id:'legacy-join',task_key:'Join',status:'PENDING'}];
+  legacy.attempts = [];
+  legacy.samples = [];
+  const diamond = diamondSnapshot({scenario:'distribution'});
+  const legacyJson = JSON.stringify(legacy.run.definition, null, 2);
+  const page = await controller({snapshot:diamond, historySnapshots:[legacy]});
+  assert.match(page.node('scenario-purpose').textContent, /C 14s/);
+  page.node('runs').value = legacy.run.id;
+  page.node('runs').dispatch('change');
+  await page.nextPoll();
+  assert.equal(page.node('definition').textContent, legacyJson);
+  assert.match(page.node('dag').textContent, /Join · PENDING/);
+  assert.doesNotMatch(page.node('dag').textContent, /D ·/);
+  assert.match(page.node('replacement-note').textContent, /Historical A → Join/);
+  assert.doesNotMatch(page.node('scenario-purpose').textContent, /C 20s/);
+  const requests = page.requests.length, historyCount = page.historyCalls.length;
+  page.node('attempt-details').open = false;
+  page.switchTo('zh-CN');
+  assert.match(page.node('replacement-note').textContent, /历史 A → Join/);
+  assert.equal(page.node('runs').value, legacy.run.id);
+  assert.equal(page.node('follow').checked, false);
+  assert.equal(page.node('attempt-details').open, false);
+  assert.equal(page.node('definition').textContent, legacyJson);
+  assert.equal(page.requests.length, requests);
+  assert.equal(page.historyCalls.length, historyCount);
+  page.node('runs').value = diamond.run.id;
+  page.node('runs').dispatch('change');
+  await page.nextPoll();
+  assert.match(page.node('scenario-purpose').textContent, /C 14s/);
+  assert.equal(page.node('replacement-note').hidden, true);
+  assert.ok(page.requests.every(request => !request.options.method || request.options.method === 'GET'));
 });

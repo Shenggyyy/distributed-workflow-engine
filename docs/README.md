@@ -41,14 +41,15 @@ their counts and revisions are not claims about the current checkout.
 
 ## Demonstration
 
-- [Diamond scenario transition](diamond-plan.md): the bounded next demo phase;
-  existing commands remain on the prior definitions until its cutover commit.
+- [Diamond scenario transition](diamond-plan.md): the current A -> B/C -> D
+  scenarios; their real execution/browser acceptance and captures are pending G6.
 - Startup and walkthrough: [English](demo.md) | [简体中文](demo.zh-CN.md); [design and evidence](demo-design.md),
   [scoped query API](demo-api.md).
-- [Original real execution evidence](demo-review.md) and
+- Historical [original real execution evidence](demo-review.md) and
   [six-step flow evidence](demo-flow-review.md), including retained screenshots.
 - [First-version cleanup and bilingual browser acceptance](release-review.md):
-  current paired screenshots, repository decisions and dated validation.
+  historical paired screenshots, repository decisions and dated validation for
+  the earlier fan-in/root-recovery definitions; not current diamond evidence.
 
 ## Tests, failures and acceptance
 

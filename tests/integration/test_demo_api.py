@@ -13,13 +13,18 @@ from workflow_engine.api.app import create_app
 from workflow_engine.config import Settings
 from workflow_engine.demo.api import create_demo_app
 from workflow_engine.demo.observations import append, start
-from workflow_engine.schema import attempt_leases
+from workflow_engine.demo.scenarios import Scenario, diamond_tasks
+from workflow_engine.domain.retry import ExecutionPolicy
+from workflow_engine.domain.workflow import TaskDefinition, WorkflowDefinition
+from workflow_engine.repositories.runs import RunRepository
+from workflow_engine.repositories.workflows import WorkflowRepository
+from workflow_engine.schema import attempt_leases, demo_runs
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.mark.parametrize("scenario", ["parallel", "distribution", "recovery"])
-def test_fresh_real_dag_and_scope(http_engine: Engine, scenario: str) -> None:
+def test_fresh_real_dag_and_scope(http_engine: Engine, scenario: Scenario) -> None:
     with TestClient(create_demo_app(Settings(), engine=http_engine)) as client:
         first = client.post("/demo/runs", json={"scenario": scenario})
         assert first.status_code == 201
@@ -28,12 +33,73 @@ def test_fresh_real_dag_and_scope(http_engine: Engine, scenario: str) -> None:
         snapshot = client.get("/demo/runs/" + first.json()["run_id"]).json()
         assert snapshot["run"]["scenario"] == scenario
         tasks = snapshot["tasks"]
-        assert len(tasks) == (2 if scenario == "recovery" else 5)
-        assert next(t for t in tasks if t["task_key"] == "Join")["status"] == "PENDING"
+        assert {t["task_key"]: t["status"] for t in tasks} == {
+            "A": "READY",
+            "B": "PENDING",
+            "C": "PENDING",
+            "D": "PENDING",
+        }
+        assert snapshot["run"]["definition"]["tasks"] == [
+            task.model_dump(mode="json") for task in diamond_tasks(scenario)
+        ]
         assert snapshot["attempts"] == snapshot["samples"] == []
         assert len(client.get("/demo/runs").json()) == 2
         assert client.get(f"/demo/runs/{uuid4()}").status_code == 404
         assert client.post("/demo/runs", json={"scenario": "shell"}).status_code == 422
+
+
+@pytest.mark.parametrize("scenario", ["parallel", "distribution", "recovery"])
+def test_publishing_diamond_keeps_legacy_run_definition_and_join(
+    http_engine: Engine, scenario: Scenario
+) -> None:
+    roots = ("A",) if scenario == "recovery" else ("A", "B", "C", "D")
+    policy = ExecutionPolicy(
+        max_attempts=2,
+        timeout_seconds=90,
+        initial_backoff_ms=10000,
+        max_backoff_ms=10000,
+    )
+    legacy = WorkflowDefinition(
+        name=f"legacy_demo_{uuid4().hex}",
+        schema_version=2,
+        tasks=tuple(
+            TaskDefinition(
+                task_id=key,
+                task_type="demo.recover" if scenario == "recovery" else "demo.observe",
+                execution=policy,
+            )
+            for key in roots
+        )
+        + (
+            TaskDefinition(
+                task_id="Join",
+                task_type="demo.join",
+                depends_on=roots,
+                execution=policy,
+            ),
+        ),
+    )
+    with http_engine.begin() as connection:
+        version = WorkflowRepository(connection).publish(legacy)
+        old = RunRepository(connection).create(version.id)
+        connection.execute(
+            demo_runs.insert().values(run_id=old.run.id, scenario=scenario)
+        )
+    with TestClient(create_demo_app(Settings(), engine=http_engine)) as client:
+        before = client.get(f"/demo/runs/{old.run.id}").json()
+        assert client.post("/demo/runs", json={"scenario": scenario}).status_code == 201
+        after = client.get(f"/demo/runs/{old.run.id}").json()
+        for key in ("run", "tasks", "attempts", "workers", "samples"):
+            assert before[key] == after[key]
+        assert after["run"]["definition"] == legacy.model_dump(mode="json")
+        assert after["run"]["workflow_version_id"] == str(version.id)
+        assert (
+            next(t for t in after["tasks"] if t["task_key"] == "Join")["status"]
+            == "PENDING"
+        )
+        assert str(old.run.id) in {
+            row["run_id"] for row in client.get("/demo/runs").json()
+        }
 
 
 def test_private_tokens_excluded_and_real_samples_preserved(

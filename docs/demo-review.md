@@ -1,5 +1,10 @@
 # Demonstration acceptance — 2026-09-08
 
+Historical evidence: these Runs use parallel roots feeding Join and root-A
+recovery with a script-started replacement. They are not acceptance of the current
+diamond scenarios. Existing Runs and screenshots remain unchanged; see the
+[current guide](demo.md) and [diamond phase](diamond-plan.md).
+
 ## Two independent acceptance gates
 
 | Layer | Acceptance |

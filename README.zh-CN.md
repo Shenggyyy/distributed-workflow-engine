@@ -9,8 +9,9 @@
 
 **M0–M5 核心 MVP 已完成**：DAG 校验、Workflow 版本管理、幂等 Run 提交、并行执行、多 Worker/Scheduler 协调、心跳、Lease fencing、持久化重试与指数退避、固定超时、故障恢复、失败依赖传播和 Run 状态聚合。
 
-**本地演示层已完成**，并采用独立验收标准：六步页面以完整中英文展示真实依赖、已确认的任务归属、执行采样的重叠和故障恢复。
-参见注明阶段的[核心验收（英文）](docs/mvp-review.md)与[双语演示验收（英文）](docs/release-review.md)。
+**中英双语六步演示层已完成**。当前场景采用菱形 DAG `A → B/C → D`，展示依赖、并行与故障恢复。
+**这些新场景的真实运行与浏览器验收待 G6 完成**；[此前双语验收（英文）](docs/release-review.md)对应旧定义。
+核心完成情况有独立的[验收记录（英文）](docs/mvp-review.md)。
 当前第一版面向可信部署环境，不代表生产 SLA、多机验证或已测得的吞吐量。
 
 ## 系统架构
@@ -82,19 +83,15 @@ uv run python scripts/demo.py down
 
 | 场景 | 真实工作与证据 |
 | --- | --- |
-| 并行 | 一个 Worker、两个槽位，执行 A/B/C/D 后汇合到 Join。重叠的 START/PULSE/FINISH 区间证明 Handler 生命周期并发。 |
-| 分配 | 两个独立、单槽位 Worker 从同一 Run 拉取任务。对比实际 Task/Attempt/Worker ID；归属没有预先写死。 |
-| 恢复 | 只停止专用 Worker。观察心跳/续租停止、Attempt LOST、RETRY_WAIT、脚本启动的 Worker B 领取新 Attempt，最终成功。 |
+| 并行 | 一个 Worker、两个槽位，先执行 A（6 秒），再执行 B（8 秒）与 C（14 秒），最后执行 D（3 秒）。B/C 的采样区间必须重叠；D 等待两者成功。 |
+| 分配 | 两个独立、单槽位 Worker 从同一菱形 Run 拉取任务。对比 B/C 的真实执行者，归属没有预先写死。两个会话先通过限定范围的启动就绪检查。 |
+| 恢复 | C 持续 20 秒。本地命令在 B/C 重叠时确定并停止 C 的实际 Worker。存活 Worker 完成 B，待 Lease 到期与重试退避后领取 C Attempt #2；D 仍等待两条分支成功。不启动替代 Worker。 |
 
 领取时间、Handler 采样和完成回报准入时间分别展示。RUNNING 与 `created_at` 不是执行证据，Lease 到期不代表 Handler 结束。
 没有 FINISH 就保持未知。计时演示 Handler 不伪装成销售报表处理，也不暗示 DAG 边会传递输出。[证据契约（英文）](docs/demo-design.md)。
 
-以下为真实中文浏览器截图：一个 Worker 的 Handler 区间重叠，以及两个 Worker 执行同一个 Run。
-Run ID 和对应英文截图保存在[注明阶段的验收记录（英文）](docs/release-review.md)中；新运行使用新标识：
-
-![一个 Worker 的 Handler 生命周期实际重叠为二](docs/images/release-parallel-zh-CN.png)
-
-![两个独立 Worker 从同一个 Run 执行 C 和 D](docs/images/release-distribution-zh-CN.png)
+当前菱形场景的截图与实际验收待 G6 完成。[保留的中英文截图（英文索引）](docs/release-review.md#browser-captures)
+是旧版多根汇合与根任务恢复场景的真实历史证据，不能代表新菱形场景。已有 Run 继续显示其保存的 DAG。
 
 ## 测试与验证
 

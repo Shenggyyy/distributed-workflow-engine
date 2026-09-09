@@ -3,10 +3,12 @@
 The optional demo explains the completed engine using actual executions. It lives
 in the existing package/API process and serves local vanilla HTML/CSS/JavaScript.
 There is no additional dashboard service, broker, frontend build or shell-command
-HTTP interface. This document consolidates the enduring phase D/E decisions;
+HTTP interface. This document consolidates the enduring phase D/E decisions and
+the current diamond scenario contracts;
 [original acceptance](demo-review.md) and [six-step acceptance](demo-flow-review.md)
 retain dated observations and screenshots. The current [guide](demo.md) explains
-how to run it.
+how to run it. New diamond execution/browser acceptance is pending G6; earlier
+reviews and screenshots describe the saved definitions used at their own dates.
 
 ## Isolation and trusted work
 
@@ -20,8 +22,10 @@ the demo. Commands do not truncate, downgrade, reset or remove volumes.
 
 The Scheduler uses normal durable discovery in the dedicated demo database.
 Workers pull work; their ownership is decided by the normal claim transaction,
-not assigned by the browser or preconfigured per task. The script starts replacement
-Worker B after a scoped SIGKILL. This is not autoscaling or checkpoint resume.
+not assigned by the browser or preconfigured per task. Recovery starts two Workers
+before work begins and stops C's actual owner. B's surviving Worker later pulls
+C's new Attempt. No replacement starts, no interrupted execution resumes, and no
+autoscaling is involved. Worker labels `a`/`b` do not assign Task keys A/B/C/D.
 
 ## Evidence and clocks
 
@@ -65,11 +69,17 @@ The default API/Worker do not enable demo routes/handlers. Downgrade of `0011`
 would remove demo history and is an explicit operator action; the demo commands
 never downgrade, truncate or remove volumes. Fresh scenarios use new identities.
 
+The diamond change needs no new schema, query API or core write path. It publishes
+fresh schema-version-2 Workflow definitions using new `demo.diamond.*` Handler keys.
+Legacy Handler meanings and existing immutable Workflow versions remain unchanged.
+Snapshot rendering uses each Run's saved DAG, never the latest scenario factory.
+
 
 ## Six steps, one real snapshot
 
 1. Submission: Run ID, scenario, published definition and aggregate state.
-2. Dependencies: top-to-bottom DAG, parallel roots and the join.
+2. Dependencies: the saved top-to-bottom DAG. New Runs show root A, parallel B/C
+   branches and join D; historical Runs retain their original graph.
 3. Claimable view: actual PostgreSQL READY rows and PENDING dependencies. Explain
    that satisfied dependencies do not themselves change PENDING to READY: a later
    scheduling transaction must do so. RETRY_WAIT is distinct from dependency wait.
@@ -79,8 +89,9 @@ never downgrade, truncate or remove volumes. Fresh scenarios use new identities.
    Worker pull asks for work with free capacity; transactions authorize ownership.
 5. Results and another scheduling pass: persisted completion/retry evidence, current
    dependency checks and links back to steps 3/4. Old LOST -> backoff -> new Attempt
-   is a fresh execution, not a handoff/resume. Script-started replacement is not
-   autoscaling. Historical retry schedules remain visible after eventual success.
+   is a fresh execution, not a handoff/resume. Current recovery reuses the surviving
+   sibling's Worker; historical replacement startup remains explicitly described
+   as a script action. Retry schedules remain visible after eventual success.
 6. Completion: aggregate state, work per owner, real sampled timeline and Attempt
    details/raw data. Normal Worker exit and later heartbeat expiry do not imply a
    failed Task. Terminal lease timestamps do not describe current ownership.
@@ -90,7 +101,7 @@ current conditions, not a historical event log. Deadline comparisons use its DB
 timestamp, never the browser clock. Missing evidence stays unknown. Different
 clock domains remain separate; no sample interpolation or exactly-once claim.
 
-## Minimal design change
+## Read-model boundary
 
 Expose existing `attempt_leases.last_renewed_at` as an additive nullable snapshot
 field. No schema change, migration, write path, new service or framework. Preserve
@@ -102,9 +113,14 @@ would require explicit artifact transfer/storage and retry-safe output contracts
 DAG edges alone do not pass data. That extra feature is outside this phase.
 
 
-## Repeatable scenarios and acceptance
+## Repeatable scenarios
 
-The distribution CLI starts both one-slot containers with `--cohort-size 2`.
+All new scenarios use A -> B/C -> D: A has no dependencies, B/C depend on A, and
+D depends on both branches. Planned waits are A=6s, B=8s, C=14s, D=3s; recovery
+uses C=20s. Actual sampled lifetimes include observation/processing latency.
+
+For distribution and recovery, the CLI starts both one-slot containers with
+`--cohort-size 2`.
 Before claiming, each demo runtime uses a 60-second wait budget for its own session
 and two distinct scoped Worker names to be ACTIVE with fresh database-clock
 heartbeats. It renews its own heartbeat while waiting and releases each read
@@ -114,19 +130,87 @@ normal engine claim transaction remains the only ownership authority.
 Existing bounded HTTP/database operations can delay timeout reporting; an expired
 budget or rejected heartbeat prevents entry into the Worker loop.
 
-- Parallel: one Worker, two execution slots, four timed roots followed by Join.
-- Distribution: two independent one-slot Workers claim from one Run; the observed
-  owners and sampled overlap establish the result, not an assumed assignment.
-- Recovery: stop the dedicated Worker after actual START evidence, observe saved
-  loss/retry/new allocation and final success. A missing FINISH remains unknown.
+- Parallel: one Worker, two slots. A completes before B/C execute concurrently;
+  B succeeds before C, leaving D visibly blocked until both branches succeed.
+- Distribution: two independent one-slot Workers pull from the same Run. Actual
+  distinct B/C owners and sampled overlap establish distribution, not assignment.
+- Recovery: stop C's actual Worker while B/C first Attempts overlap. B's surviving
+  Worker finishes B once, then can claim C #2 after Lease expiry and retry backoff.
+  C restarts from the beginning. D remains blocked until both branches succeed.
 
 Default demonstration windows are six seconds for heartbeat/lease and a persisted
 5–10 second jittered retry delay. These are visualization settings, not an SLA.
 Core timeout, locking, idempotency and stale-result fencing are unchanged.
 
+## Scoped fault command
+
+`run recovery` waits for both registrations to be fresh, not for Handler START.
+Call `fail --run-id RUN_ID` immediately afterward. Its 60-second wait budget allows
+legitimate pre-start snapshots; it does not authorize a guessed current execution.
+The guard requires the exact saved recovery diamond, successful A, unclaimed D,
+and B/C Attempt #1 RUNNING on different active one-slot Workers with valid leases.
+Each branch needs a single contiguous START/PULSE invocation, no FINISH, and at
+least one second of overlap in one clock domain. Latest receipts must be no more
+than two database-clock seconds old. C's last observed elapsed time must be at most
+15 seconds, leaving a conservative margin within its 20-second trusted wait.
+Completed/retried branches, unexpected identity/definition, stale observations or
+expired ownership cause refusal; missing START only permits valid startup waiting.
+
+The target slot is resolved from C's actual scoped Worker name. The command checks
+Docker project/service/Run labels, an unpaused running container and immutable ID,
+fetches a fresh snapshot identifying the same target, then reinspects by that ID.
+It exclusively writes `RUN_ID-fault-before.json` before attempting one SIGKILL to
+that exact ID. `RUN_ID-fault.json` records matching Run/Task/Attempt/Worker/invocation
+identities, snapshot time and Docker acknowledgement only after success. Neither
+file is overwritten. A failed or uncertain KILL is never automatically retried.
+
+The final snapshot request, reinspection and before-file write must fit a
+two-second monotonic freshness budget checked immediately before KILL, as well as
+the overall wait budget. Fault-specific Docker calls have five-second timeouts.
+Database reads and Docker cannot form an atomic transaction; these checks bound
+staleness but cannot remove that race. The receipt proves a local command was
+acknowledged, not a database event, Handler end timestamp or automatic handoff.
+
+## Acceptance evidence
+
+The automated runner retains actual snapshots under ignored
+`.uv-cache/demo-acceptance/`. A successful final Run is insufficient. Required
+checkpoints are `root` (A RUNNING with real START, no B/C/D Attempts), `branches`
+(first B/C RUNNING with observed overlap) and `join_wait` (B SUCCEEDED, C unfinished,
+D PENDING without an Attempt). Recovery also requires `retry` (C #1 LOST while
+Task C is RETRY_WAIT and still in backoff, D unclaimed), the exact `fault_before`
+snapshot and acknowledged command receipt. Final snapshot is `RUN_ID.json`.
+
+The fixed-diamond validator checks:
+
+- Exact saved schema/definition, stable Run/version/Task identities and immutable
+  Attempt ownership and sample prefixes across checkpoints. Every final Attempt
+  has one invocation with contiguous START/PULSE/FINISH observations in a common
+  clock domain, nondecreasing monotonic values and database receipts.
+- A/B/D each succeed on Attempt #1. Normal C succeeds once; recovery C #1 is LOST
+  with no FINISH or completion admission, and C #2 succeeds on B's existing Worker.
+  B's complete successful record is unchanged from `join_wait` to final.
+- B/C first invocations overlap for at least one second. Successful observations
+  span at least the trusted Handler duration. A's FINISH/admission precede branch
+  START/claims; both successful branches' FINISH/admission precede D START/claim.
+  Claim precedes START receipt, FINISH receipt precedes completion admission, and
+  observed database times are not later than the snapshot. `created_at` is unused.
+- Parallel has one two-slot owner; distribution/recovery have two one-slot owners
+  with different B/C first owners. In recovery, B completes before its Worker
+  claims/starts C #2, and old C's last observation precedes the new invocation.
+  Old Worker is LOST; old Lease expiry <= retry scheduling < availability <= new
+  claim. The real retry checkpoint precedes eligibility; no extra retry is hidden.
+- The fault receipt matches the exact C #1 target and pre-fault snapshot, records
+  SIGKILL/Docker acknowledgement, and includes a valid immutable container ID.
+
+Missing or inconsistent evidence fails the check. Peak overlap uses observed
+intervals; it never extends an unfinished interval to Lease expiry. Unit fixtures
+are synthetic test inputs, not demonstration evidence. Live browser acceptance of
+the current diamond scenarios remains pending G6.
+
 Browser acceptance must see real overlap, ownership, waiting dependencies and the
 recovery loop. Polling can miss brief states. There is no complete network trace,
-physical slot ID, Docker stop event or READY transition history; only confirmed
+physical slot ID, database Docker-stop event or READY transition history; only confirmed
 allocation and current conditions are displayed. History and evidence remain in
 PostgreSQL; storage lifecycle and multi-machine performance are outside this demo.
 

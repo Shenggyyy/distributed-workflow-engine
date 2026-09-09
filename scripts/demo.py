@@ -22,6 +22,7 @@ from scripts.demo_containers import MARKER as MARKER
 from scripts.demo_containers import PROJECT as PROJECT
 from scripts.demo_containers import verify_worker as verify_worker
 from scripts.demo_containers import worker_name as worker_name
+from scripts.demo_fault import FaultRefused, inject_branch_fault
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -168,63 +169,34 @@ class Demo:
         result = self.request("/demo/runs", {"scenario": scenario})
         run_id = UUID(result["run_id"])
         print(f"Run ID: {run_id}\nOpen {self.origin}/demo/?run={run_id}", flush=True)
-        cohort_size = 2 if scenario == "distribution" else 1
+        cohort_size = 2 if scenario in ("distribution", "recovery") else 1
         self.worker(
             run_id, "a", 2 if scenario == "parallel" else 1, cohort_size=cohort_size
         )
-        if scenario == "distribution":
+        if cohort_size == 2:
             self.worker(run_id, "b", cohort_size=cohort_size)
             self.wait_ready(run_id, ("a", "b"))
         if scenario == "recovery":
             print(
-                f"Inject failure: uv run python scripts/demo.py fail --run-id {run_id}"
+                "Inject failure: uv run python scripts/demo.py "
+                f"--port {self.origin.rsplit(':', 1)[1]} fail --run-id {run_id}",
+                flush=True,
             )
         return run_id
 
-    def fail(self, run_id: UUID) -> None:
-        info = json.loads(self.command("inspect", worker_name(run_id, "a")))[0]
-        identity = verify_worker(info, run_id, "a")
-        if not info["State"]["Running"]:
-            raise ValueError("Demo Worker A is not running.")
-        deadline = time.monotonic() + 30
-        while True:
-            snapshot = self.request(f"/demo/runs/{run_id}")
-            if snapshot["run"]["scenario"] != "recovery":
-                raise ValueError("Fault injection requires a recovery scenario.")
-            owner = next(
-                (
-                    w["id"]
-                    for w in snapshot["workers"]
-                    if w["worker_name"] == worker_name(run_id, "a")
-                ),
-                None,
-            )
-            task_id = next(t["id"] for t in snapshot["tasks"] if t["task_key"] == "A")
-            attempts = {
-                a["id"]
-                for a in snapshot["attempts"]
-                if a["worker_session_id"] == owner
-                and a["status"] == "RUNNING"
-                and a["task_id"] == task_id
-                and a["attempt_number"] == 1
-            }
-            samples = [s for s in snapshot["samples"] if s["attempt_id"] in attempts]
-            if any(s["phase"] == "START" for s in samples) and not any(
-                s["phase"] == "FINISH" for s in samples
-            ):
-                break
-            if (
-                snapshot["run"]["status"] in ("SUCCEEDED", "FAILED")
-                or time.monotonic() >= deadline
-            ):
-                raise ValueError(
-                    "No executing recovery Handler; create a fresh recovery Run."
-                )
-            time.sleep(0.2)
-        # Container ID avoids a name-replacement race. SIGKILL also kills children.
-        self.command("kill", "--signal", "KILL", identity, capture=False)
-        print("Worker A killed after a real START. Starting replacement B.", flush=True)
-        self.worker(run_id, "b")
+    def fail(self, run_id: UUID, *, output: Path | None = None) -> None:
+        target = inject_branch_fault(
+            self,
+            run_id,
+            output if output is not None else ROOT / ".uv-cache/demo-acceptance",
+        )
+        print(
+            f"Stopped C Attempt #1 {target.attempt_id} on {target.worker_name} "
+            "after real overlapping branch execution. "
+            "The existing surviving Worker can claim a new Attempt after recovery; "
+            "no replacement container was started.",
+            flush=True,
+        )
 
     def down(self) -> None:
         ids = self.command(
@@ -268,6 +240,8 @@ def main() -> None:
             demo.up()
         else:
             demo.down()
+    except FaultRefused as error:
+        parser.exit(1, f"Fault refused: {error} No automatic retry.\n")
     except (ValueError, OSError, subprocess.CalledProcessError):
         parser.exit(
             1,

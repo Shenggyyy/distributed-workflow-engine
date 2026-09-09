@@ -4,6 +4,12 @@ This phase changes the optional demo, not engine semantics. Starting point:
 `f98d4e7`, with the completed bilingual page and a clean working tree. Existing
 Workflow versions, Runs, Handler types and historical captures remain intact.
 
+G0–G4 prepared and independently checked the components below. G5 activates the
+diamond factory, two-Worker recovery, guarded branch fault and checkpoint runner,
+with bilingual descriptions that distinguish saved legacy definitions. The live
+three-scenario/browser/screenshot gate remains G6; preparatory tests are not that
+acceptance. The design paragraphs below retain the original cutover rationale.
+
 ## Read-only findings and design
 
 The demo API constructs workflows in `demo/api.py`; the snapshot already reads the

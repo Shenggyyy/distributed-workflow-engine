@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {intervals, peakOverlap} from '../src/workflow_engine/demo/static/evidence.js';
-import {dependencyView, workerView, leaseView, recoveryView, dagRows, isDue} from '../src/workflow_engine/demo/static/flow.js';
+import {dependencyView, workerView, leaseView, recoveryView, dagRows, isDue,
+  isDiamond, timedDiamondScenario, diamondRecoveryView} from '../src/workflow_engine/demo/static/flow.js';
 
 const interval = (start, end, domain = 'kernel') => ({start: BigInt(start), end: BigInt(end), domain});
 
@@ -103,4 +104,59 @@ test('duplicate invocations of an Attempt remain separate evidence', () => {
   ]);
   assert.equal(intervals(samples).length, 2);
   assert.equal(peakOverlap(intervals(samples)), 2);
+});
+
+const diamond = () => ({tasks: [
+  {task_id:'D', depends_on:['C','B'], task_type:'demo.diamond.d'},
+  {task_id:'C', depends_on:['A'], task_type:'demo.diamond.recover'},
+  {task_id:'A', depends_on:[], task_type:'demo.diamond.a'},
+  {task_id:'B', depends_on:['A'], task_type:'demo.diamond.b'}
+]});
+
+test('diamond recognition uses exact saved edges, independent of row order or scenario label', () => {
+  const definition = diamond(), original = JSON.stringify(definition);
+  assert.equal(isDiamond(definition), true);
+  assert.equal(timedDiamondScenario(definition, 'recovery'), 'recovery');
+  assert.equal(timedDiamondScenario(definition, 'distribution'), null);
+  assert.deepEqual(dagRows(definition.tasks), [['A'], ['C','B'], ['D']]);
+  assert.equal(JSON.stringify(definition), original);
+  definition.tasks[0].depends_on = ['A'];
+  assert.equal(isDiamond(definition), false);
+  definition.tasks[0].depends_on = ['B','B'];
+  assert.equal(isDiamond(definition), false);
+  assert.equal(isDiamond(snapshot().run.definition), false, 'Legacy A→Join stays unchanged');
+  assert.equal(isDiamond({tasks: [...diamond().tasks, {task_id:'Join', depends_on:['D']}]}), false);
+  const duplicate = diamond();
+  duplicate.tasks[0].task_id = 'C';
+  assert.equal(isDiamond(duplicate), false);
+  const custom = diamond();
+  custom.tasks[0].task_type = 'custom.handler';
+  assert.equal(isDiamond(custom), true);
+  assert.equal(timedDiamondScenario(custom, 'recovery'), null, 'Shape alone cannot establish timed Handler durations');
+});
+
+test('diamond branch wait and retained sibling descriptions use actual task and attempt states', () => {
+  const data = {run:{scenario:'recovery', definition:diamond()},
+    tasks:[{id:'a',task_key:'A',status:'SUCCEEDED'}, {id:'b',task_key:'B',status:'RUNNING'},
+      {id:'c',task_key:'C',status:'RETRY_WAIT'}, {id:'d',task_key:'D',status:'PENDING'}],
+    attempts:[{id:'b1',task_id:'b',attempt_number:1,status:'RUNNING',worker_session_id:'survivor'},
+      {id:'c1',task_id:'c',attempt_number:1,status:'LOST',worker_session_id:'lost'}]};
+  assert.equal(diamondRecoveryView(data).sibling, null, 'Do not announce B success early');
+  data.tasks[1].status = data.attempts[0].status = 'SUCCEEDED';
+  let view = diamondRecoveryView(data);
+  assert.equal(view.waitingStatus, 'RETRY_WAIT');
+  assert.equal(view.retry, null, 'Do not invent the next claim or owner');
+  data.attempts.push({id:'c2',task_id:'c',attempt_number:2,status:'RUNNING',worker_session_id:'survivor'});
+  data.tasks[2].status = 'RUNNING';
+  view = diamondRecoveryView(data);
+  assert.equal(view.sameWorker, true);
+  assert.equal(view.waitingStatus, 'RUNNING');
+  data.attempts[2].worker_session_id = 'different-observed-owner';
+  assert.equal(diamondRecoveryView(data).sameWorker, false, 'Do not relabel unexpected ownership');
+  data.tasks[2].status = 'SUCCEEDED';
+  assert.equal(diamondRecoveryView(data).waitingStatus, null, 'Successful C is no longer a blocker');
+  data.attempts.push({...data.attempts[0], id:'b2', attempt_number:2});
+  assert.equal(diamondRecoveryView(data).sibling, null, 'Never hide a second B Attempt');
+  data.run.definition = snapshot().run.definition;
+  assert.equal(diamondRecoveryView(data), null);
 });

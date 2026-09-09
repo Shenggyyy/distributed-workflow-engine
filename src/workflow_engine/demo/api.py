@@ -1,8 +1,8 @@
 """Opt-in fixed scenarios and coherent, scoped demonstration snapshots."""
 
 from pathlib import Path
-from typing import Annotated, Any, Literal
-from uuid import UUID, uuid4
+from typing import Annotated, Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -13,8 +13,7 @@ from workflow_engine.api.app import create_app
 from workflow_engine.api.dependencies import get_engine
 from workflow_engine.api.errors import APIError
 from workflow_engine.config import Settings
-from workflow_engine.domain.retry import ExecutionPolicy
-from workflow_engine.domain.workflow import TaskDefinition, WorkflowDefinition
+from workflow_engine.demo.scenarios import Scenario, diamond_definition
 from workflow_engine.repositories.runs import RunRepository
 from workflow_engine.repositories.workflows import WorkflowRepository
 from workflow_engine.schema import (
@@ -32,7 +31,6 @@ from workflow_engine.schema import (
     workflow_versions,
 )
 
-Scenario = Literal["parallel", "distribution", "recovery"]
 Database = Annotated[Engine, Depends(get_engine)]
 router = APIRouter(prefix="/demo", tags=["local demonstration"])
 
@@ -42,41 +40,13 @@ class ScenarioRequest(BaseModel):
     scenario: Scenario
 
 
-def definition(scenario: Scenario) -> WorkflowDefinition:
-    roots = ("A",) if scenario == "recovery" else ("A", "B", "C", "D")
-    policy = ExecutionPolicy(
-        max_attempts=2,
-        timeout_seconds=90,
-        initial_backoff_ms=10000,
-        max_backoff_ms=10000,
-    )
-    return WorkflowDefinition(
-        name=f"demo_{scenario}_{uuid4().hex}",
-        schema_version=2,
-        tasks=tuple(
-            TaskDefinition(
-                task_id=key,
-                task_type="demo.recover" if scenario == "recovery" else "demo.observe",
-                execution=policy,
-            )
-            for key in roots
-        )
-        + (
-            TaskDefinition(
-                task_id="Join",
-                task_type="demo.join",
-                depends_on=roots,
-                execution=policy,
-            ),
-        ),
-    )
-
-
 @router.post("/runs", status_code=201)
 def create_run(body: ScenarioRequest, engine: Database) -> dict[str, object]:
     """Every explicit request creates a fresh run; do not automatically retry POST."""
     with engine.begin() as connection:
-        version = WorkflowRepository(connection).publish(definition(body.scenario))
+        version = WorkflowRepository(connection).publish(
+            diamond_definition(body.scenario)
+        )
         result = RunRepository(connection).create(version.id)
         connection.execute(
             demo_runs.insert().values(run_id=result.run.id, scenario=body.scenario)

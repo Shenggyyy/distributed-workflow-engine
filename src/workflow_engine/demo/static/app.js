@@ -7,7 +7,10 @@ import {
   leaseView,
   recoveryView,
   dagRows,
-  latestAttempt
+  latestAttempt,
+  isDiamond,
+  timedDiamondScenario,
+  diamondRecoveryView
 } from './flow.js';
 import {
   intervals,
@@ -118,7 +121,9 @@ function drawDag(data, workerLabel) {
 
 function renderFlow(data, values, workerLabel, color) {
   const taskName = attempt => data.tasks.find(t => t.id === attempt.task_id)?.task_key || t('common.unknown');
-  $('scenario-purpose').textContent = t('scenario.purpose.' + (['parallel', 'distribution', 'recovery'].includes(data.run.scenario) ? data.run.scenario : 'unknown'));
+  const diamond = timedDiamondScenario(data.run.definition, data.run.scenario);
+  $('scenario-purpose').textContent = diamond ? t('scenario.diamond.' + diamond) :
+    t('scenario.purpose.' + (['parallel', 'distribution', 'recovery'].includes(data.run.scenario) ? data.run.scenario : 'unknown'));
   const definitionText = JSON.stringify(data.run.definition, null, 2);
   if ($('definition').textContent !== definitionText) $('definition').textContent = definitionText;
   $('ready-tasks').replaceChildren();
@@ -222,6 +227,19 @@ function renderFlow(data, values, workerLabel, color) {
     }), 'success-line'));
   }
   if (!$('results').children.length) $('results').append(el('p', t('result.none'), 'muted'));
+  const branchRecovery = diamondRecoveryView(data);
+  if (branchRecovery?.sibling) {
+    $('results').append(el('p', t('result.diamondSiblingKept'), 'success-line'));
+    if (branchRecovery.waitingStatus) $('results').append(el('p', t('result.diamondJoinWaiting', {
+      status: branchRecovery.waitingStatus
+    }), 'explanation'));
+    if (branchRecovery.retry) $('results').append(el('p', t(branchRecovery.sameWorker ?
+      'result.diamondSurvivorClaim' : 'result.diamondOtherClaim', {
+      number: branchRecovery.retry.attempt_number,
+      worker: workerLabel(branchRecovery.retry.worker_session_id),
+      status: branchRecovery.retry.status
+    }), 'explanation'));
+  }
   $('recovery').replaceChildren();
   for (const attempt of data.attempts.filter(a => ['LOST', 'FAILED', 'TIMED_OUT'].includes(a.status))) {
     const view = recoveryView(data, attempt),
@@ -253,7 +271,9 @@ function renderFlow(data, values, workerLabel, color) {
     $('recovery').append(box);
   }
   if (!$('recovery').children.length) $('recovery').append(el('p', t('recovery.none'), 'muted'));
-  $('replacement-note').hidden = data.run.scenario !== 'recovery';
+  $('replacement-note').hidden = data.run.scenario !== 'recovery' ||
+    (isDiamond(data.run.definition) && !diamond);
+  $('replacement-note').textContent = t(diamond ? 'step5.diamondRecoveryNote' : 'step5.replacementNote');
   const successes = data.tasks.filter(t => t.status === 'SUCCEEDED').length;
   $('outcome').textContent = t('outcome.count', {
       status: data.run.status,

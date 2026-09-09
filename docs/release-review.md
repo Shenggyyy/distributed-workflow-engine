@@ -1,5 +1,10 @@
 # First-version preparation and bilingual acceptance
 
+Historical evidence: these Runs use parallel roots feeding Join and root-A
+recovery with a script-started replacement. They are not acceptance of the current
+diamond scenarios. Existing Runs and screenshots remain unchanged; see the
+[current guide](demo.md) and [diamond phase](diamond-plan.md).
+
 Reviewed on **2026-09-09 (Australia/Sydney)**. This is the R0–R5 documentation and
 presentation phase, not a new engine feature release or a production certification.
 The implementation under test is `a6768b4`; this final documentation change records
