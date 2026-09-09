@@ -61,6 +61,15 @@ retry ordering. Lease expiry is never a Handler end. The validator also checks D
 is unclaimed while retrying, a real RETRY_WAIT checkpoint, one successful sibling
 Attempt, different recovery ownership and final success. Keep all raw identifiers.
 
+The prepared `scripts/demo_evidence.py` validator requires retained live snapshots
+of root execution, first B/C overlap and B's success while D still waits for C.
+Recovery additionally requires a RETRY_WAIT snapshot and the exact pre-fault
+snapshot/acknowledgement. It checks pinned definitions/identities, immutable sample
+prefixes, database admission/claim order and at least one second of B/C observed
+overlap in a common clock domain. Final SUCCEEDED alone cannot pass. Fixtures in
+unit tests are synthetic test inputs only; the CLI will supply real API snapshots
+when this validator is activated in G5.
+
 ## Small independent commits
 
 1. G0: this bounded design and audit record.
