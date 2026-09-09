@@ -136,6 +136,7 @@ def test_stock_api_and_non_demo_run_not_exposed(http_engine: Engine) -> None:
             "app.js",
             "dag.js",
             "composer.js",
+            "composer-view.js",
             "evidence.js",
             "flow.js",
             "i18n.js",

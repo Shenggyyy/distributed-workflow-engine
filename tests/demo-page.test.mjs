@@ -6,6 +6,8 @@ import * as flow from '../src/workflow_engine/demo/static/flow.js';
 import * as dag from '../src/workflow_engine/demo/static/dag.js';
 import * as evidence from '../src/workflow_engine/demo/static/evidence.js';
 import * as i18n from '../src/workflow_engine/demo/static/i18n.js';
+import * as composerView from '../src/workflow_engine/demo/static/composer-view.js';
+import {COMPOSER_STORAGE_KEY} from '../src/workflow_engine/demo/static/composer.js';
 import {messages} from '../src/workflow_engine/demo/static/messages.js';
 
 const html = readFileSync(new URL('../src/workflow_engine/demo/static/index.html', import.meta.url), 'utf8');
@@ -26,8 +28,17 @@ class Node {
     this.hidden = false;
     this.open = false;
     this.checked = false;
+    this.disabled = false;
+    this.readOnly = false;
+    this.scrollTop = 0;
+    this.selectionDirection = 'none';
     this.value = '';
   }
+  set value(value) {
+    this.currentValue = String(value);
+    this.selectionStart = this.selectionEnd = this.currentValue.length;
+  }
+  get value() { return this.currentValue; }
   set textContent(value) { this.ownText = String(value); this.children = []; }
   get textContent() { return this.ownText + this.children.map(n => n.textContent).join(''); }
   setAttribute(name, value) {
@@ -51,6 +62,10 @@ class Node {
     node.parentNode = this.parentNode;
   }
   addEventListener(event, callback) { (this.listeners[event] ||= []).push(callback); }
+  focus() { this.ownerDocument.activeElement = this; }
+  setSelectionRange(start, end, direction = 'none') {
+    this.selectionStart = start; this.selectionEnd = end; this.selectionDirection = direction;
+  }
   dispatch(event) {
     for (const callback of this.listeners[event] || []) callback({target: this, currentTarget: this});
   }
@@ -185,35 +200,73 @@ function customSnapshot({serial = false} = {}) {
   };
 }
 
-async function controller({snapshot = runningSnapshot(), selected = true, historySnapshots = [], port = '18080'} = {}) {
+const customPolicy = {max_attempts: 2, timeout_seconds: 90, initial_backoff_ms: 10000, max_backoff_ms: 10000};
+const customReceipt = {run_id: 'dc5741ce-6432-4fea-ac89-6439fe0b03d9',
+  workflow_version_id: 'bf40bb47-ae6a-4f1a-8e3b-90b8b138d98b', scenario: 'custom'};
+const customKey = 'submitted-from-page-test';
+function customDefinition() {
+  return {name: 'Page_custom_workflow', schema_version: 2, tasks: [
+    {task_id: 'Publish_report', task_type: 'demo.join', depends_on: ['Read_rows'], execution: {...customPolicy}},
+    {task_id: 'Read_rows', task_type: 'demo.observe', depends_on: [], execution: {...customPolicy}}
+  ]};
+}
+function customCatalog() {
+  return {
+    handlers: [['demo.observe',8], ['demo.recover',20], ['demo.join',2], ['demo.diamond.a',6],
+      ['demo.diamond.b',8], ['demo.diamond.c',14], ['demo.diamond.recover',20], ['demo.diamond.d',3]]
+      .map(([task_type, seconds]) => ({task_type, seconds})),
+    limits: {max_tasks: 12, max_body_bytes: 16384, max_attempts: 2, timeout_seconds: 90,
+      worker_count: 2, slots_per_worker: 1},
+    templates: ['parallel', 'distribution', 'recovery'].map(scenario => ({scenario,
+      definition: {name: `demo_custom_template_${scenario}`, schema_version: 2,
+        tasks: diamondSnapshot({scenario}).run.definition.tasks.map(task => ({...task, execution: {...customPolicy}}))}}))
+  };
+}
+const response = (payload, status = 200) => ({ok: status >= 200 && status < 300, status,
+  json: async () => structuredClone(payload)});
+const settle = () => new Promise(resolve => setImmediate(resolve));
+function deferred() {
+  let resolve, reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return {promise, resolve, reject};
+}
+
+async function controller({snapshot = runningSnapshot(), selected = true, historySnapshots = [], port = '18080',
+  requestHandler, storedEntries = [], storageDenied = false} = {}) {
   const document = documentFixture();
-  const requests = [], timers = [], historyCalls = [], stored = new Map();
+  const requests = [], timers = [], historyCalls = [], stored = new Map(storedEntries);
   let failure = null;
   const window = {scrollY: 1234, scrollX: 0, innerHeight: 800,
-    localStorage: {getItem(key) { return stored.get(key) ?? null; }, setItem(key, value) { stored.set(key, value); }},
+    localStorage: {getItem(key) { if (storageDenied) throw new Error('Storage denied'); return stored.get(key) ?? null; },
+      setItem(key, value) { if (storageDenied) throw new Error('Storage denied'); stored.set(key, value); },
+      removeItem(key) { stored.delete(key); }},
     scrollTo(x, y) { this.scrollY = typeof x === 'object' ? x.top : y; }};
   const context = vm.createContext({
-    ...flow, ...dag, ...evidence, ...i18n, document, window,
+    ...flow, ...dag, ...evidence, ...i18n, ...composerView, document, window,
     navigator: {languages: ['en-GB'], language: 'en-GB'},
     location: {search: selected && snapshot ? '?run=' + snapshot.run.id : '', port, protocol: 'http:'},
     history: {replaceState(...args) { historyCalls.push(args); }},
-    URLSearchParams, AbortSignal, TypeError, Error,
+    URLSearchParams, AbortSignal, TypeError, Error, crypto: {randomUUID: () => customKey},
     setTimeout(callback) { timers.push(callback); },
-    fetch: async (path, options) => {
+    fetch: async (path, options = {}) => {
       requests.push({path, options});
       if (failure) throw failure;
+      if (requestHandler) {
+        const handled = requestHandler(path, options);
+        if (handled !== undefined) return handled;
+      }
+      if (path === '/demo/custom/catalog') return response(customCatalog());
       const snapshots = [...(snapshot ? [snapshot] : []), ...historySnapshots];
       const payload = path === '/demo/runs' ? snapshots.map(data => ({run_id:data.run.id,
         scenario:data.run.scenario, status:data.run.status})) :
         snapshots.find(data => path === '/demo/runs/' + data.run.id);
-      return {ok: true, json: async () => payload};
+      return response(payload);
     },
   });
   vm.runInContext(source, context, {filename: 'app.js'});
-  const settle = () => new Promise(resolve => setImmediate(resolve));
   await settle();
   return {
-    document, requests, timers, window, stored, historyCalls,
+    document, requests, timers, window, stored, historyCalls, settle,
     node(id) { return document.getElementById(id); },
     switchTo(language) {
       const button = document.querySelectorAll('[data-language]').find(node => node.dataset.language === language);
@@ -519,4 +572,306 @@ test('custom Worker startup command disappears after membership or a terminal re
   assert.equal(page.node('worker-command').hidden, true);
   assert.equal(page.node('resource-guidance').hidden, true);
   assert.ok(command.includes(snapshot.run.id));
+});
+
+const customPosts = page => page.requests.filter(request => request.options.method === 'POST');
+const creations = page => customPosts(page).filter(request => request.path === '/demo/custom/runs');
+const previewPayload = () => ({definition: customDefinition(), layers: [['Read_rows'], ['Publish_report']],
+  limits: customCatalog().limits});
+function typeDraft(page, text) {
+  page.node('custom-json').value = text;
+  page.node('custom-json').dispatch('input');
+}
+async function previewDraft(page, text = JSON.stringify(customDefinition(), null, 2)) {
+  typeDraft(page, text);
+  page.node('custom-validate').dispatch('click');
+  await page.settle();
+  assert.equal(page.node('custom-preview').hidden, false);
+  assert.equal(page.node('custom-create').disabled, false);
+  return text;
+}
+function createdSnapshot() {
+  const data = customSnapshot();
+  data.run.id = customReceipt.run_id;
+  data.run.definition = customDefinition();
+  data.tasks = data.run.definition.tasks.map((task, index) => ({id: `created-task-${index}`,
+    task_key: task.task_id, status: task.depends_on.length ? 'PENDING' : 'READY'}));
+  return data;
+}
+
+test('editor templates only copy drafts, and backend preview retains canonical names without execution states', async () => {
+  const page = await controller({requestHandler: path => path === '/demo/custom/validate' ? response(previewPayload()) : undefined});
+  const selected = page.node('runs').value;
+  const initialRequests = page.requests.length;
+  assert.equal(page.requests.filter(request => request.path === '/demo/custom/catalog').length, 1);
+  assert.equal(page.node('custom-template').children.length, 3);
+  assert.match(page.node('custom-handlers').textContent, /demo\.observe/);
+  assert.match(page.node('custom-limits').textContent, /12/);
+  page.node('custom-template').value = 'recovery';
+  page.node('custom-template').dispatch('change');
+  page.node('custom-load').dispatch('click');
+  await page.settle();
+  assert.deepEqual(JSON.parse(page.node('custom-json').value), customCatalog().templates[2].definition);
+  assert.equal(page.node('custom-preview').hidden, true);
+  assert.equal(page.requests.length, initialRequests);
+  assert.equal(page.node('runs').value, selected);
+  const submitted = customDefinition();
+  delete submitted.schema_version;
+  for (const task of submitted.tasks) delete task.execution;
+  const text = await previewDraft(page, JSON.stringify(submitted, null, 2));
+  const request = customPosts(page)[0];
+  assert.equal(request.path, '/demo/custom/validate');
+  assert.equal(request.options.body, text);
+  assert.equal(new Headers(request.options.headers).get('Content-Type'), 'application/json');
+  assert.deepEqual(JSON.parse(page.node('custom-canonical').textContent), customDefinition());
+  const previewNodes = descendants(page.node('custom-preview-dag')).filter(node => node.getAttribute('data-task-key'));
+  assert.deepEqual(previewNodes.map(node => node.getAttribute('data-task-key')), ['Publish_report', 'Read_rows']);
+  assert.doesNotMatch(page.node('custom-preview-dag').textContent, /READY|RUNNING|SUCCEEDED|Worker|Attempt/);
+  assert.equal(page.node('runs').value, selected);
+  assert.equal(creations(page).length, 0);
+  assert.equal(page.document.querySelectorAll('.step').length, 6);
+});
+
+test('editing during validation invalidates preview and language switching preserves draft caret and selected evidence', async () => {
+  const late = deferred();
+  const page = await controller({requestHandler: path => path === '/demo/custom/validate' ? late.promise : undefined});
+  const draft = JSON.stringify(customDefinition(), null, 2);
+  typeDraft(page, draft);
+  page.node('custom-validate').dispatch('click');
+  assert.equal(page.node('custom-create').disabled, true);
+  const edited = draft.replace('Page_custom_workflow', 'Edited_workflow');
+  typeDraft(page, edited);
+  const textarea = page.node('custom-json');
+  textarea.focus();
+  textarea.setSelectionRange(5, 17, 'backward');
+  textarea.scrollTop = 80;
+  page.node('composer-panel').open = true;
+  page.node('attempt-details').open = false;
+  const before = {requests: page.requests.length, run: page.node('runs').value,
+    follow: page.node('follow').checked, scroll: page.window.scrollY, geometry: bars(page)};
+  page.switchTo('zh-CN');
+  assert.equal(textarea.value, edited);
+  assert.equal(textarea.selectionStart, 5);
+  assert.equal(textarea.selectionEnd, 17);
+  assert.equal(textarea.selectionDirection, 'backward');
+  assert.equal(textarea.scrollTop, 80);
+  assert.equal(page.document.activeElement, textarea);
+  assert.equal(page.node('composer-panel').open, true);
+  assert.equal(page.node('attempt-details').open, false);
+  assert.equal(page.node('runs').value, before.run);
+  assert.equal(page.node('follow').checked, before.follow);
+  assert.equal(page.window.scrollY, before.scroll);
+  assert.deepEqual(bars(page), before.geometry);
+  assert.equal(page.requests.length, before.requests);
+  late.resolve(response(previewPayload()));
+  await page.settle();
+  assert.equal(page.node('custom-preview').hidden, true);
+  assert.equal(page.node('custom-create').disabled, true);
+  assert.equal(textarea.value, edited);
+  page.switchTo('en');
+  assert.equal(page.requests.length, before.requests);
+  assert.equal(creations(page).length, 0);
+});
+
+test('explicit create sends one frozen operation and selects the confirmed no-Worker Run', async () => {
+  const created = deferred();
+  const data = createdSnapshot();
+  const page = await controller({port: '18081', requestHandler: path => {
+    if (path === '/demo/custom/validate') return response(previewPayload());
+    if (path === '/demo/custom/runs') return created.promise;
+    if (path === '/demo/runs/' + customReceipt.run_id) return response(data);
+  }});
+  await previewDraft(page);
+  const selected = page.node('runs').value;
+  page.node('custom-create').dispatch('click');
+  page.node('custom-create').dispatch('click');
+  assert.equal(creations(page).length, 1);
+  assert.equal(page.node('custom-json').readOnly, true);
+  assert.equal(page.node('custom-create').disabled, true);
+  const sent = creations(page)[0];
+  assert.equal(sent.options.body, JSON.stringify(customDefinition()));
+  assert.equal(new Headers(sent.options.headers).get('Idempotency-Key'), customKey);
+  assert.equal(page.node('custom-key').textContent, customKey);
+  assert.equal(page.node('custom-body').textContent, sent.options.body);
+  page.node('custom-operation').open = true;
+  const requests = page.requests.length;
+  page.switchTo('zh-CN');
+  assert.equal(page.node('custom-operation').open, true);
+  assert.equal(page.node('runs').value, selected);
+  assert.equal(page.requests.length, requests);
+  assert.equal(page.node('custom-key').textContent, customKey);
+  created.resolve(response(customReceipt, 201));
+  await page.settle();
+  assert.deepEqual(JSON.parse(page.node('custom-receipt').textContent), customReceipt);
+  assert.equal(page.node('runs').value, customReceipt.run_id);
+  assert.equal(page.node('follow').checked, false);
+  assert.equal(page.node('content').hidden, true, 'Receipt selects a Run but cannot invent its snapshot');
+  await page.nextPoll();
+  assert.equal(page.node('content').hidden, false);
+  assert.ok(page.node('run-id').textContent.includes(customReceipt.run_id));
+  assert.equal(page.node('run-status').textContent, 'RUNNING');
+  assert.equal(page.node('worker-command').hidden, false);
+  assert.equal(page.node('worker-command').textContent,
+    `uv run python scripts/demo.py --port 18081 workers --run-id ${customReceipt.run_id}`);
+  assert.equal(page.node('overlap').textContent, '0');
+  assert.equal(page.node('owners').textContent, '0');
+  assert.equal(page.node('sample-count').textContent, '0');
+  assert.equal(page.node('replacement-note').hidden, true);
+  assert.match(page.node('ready-tasks').textContent, /Read_rows/);
+  assert.match(page.node('waiting-tasks').textContent, /Read_rows \(READY\)/);
+  assert.equal(creations(page).length, 1);
+  assert.equal(page.timers.length, 1, 'Creation must not introduce another poll loop');
+});
+
+test('unknown submit is visibly retried with the same key and body, and reload never submits automatically', async () => {
+  let attempts = 0;
+  const page = await controller({requestHandler: path => {
+    if (path === '/demo/custom/validate') return response(previewPayload());
+    if (path === '/demo/custom/runs') {
+      if (++attempts === 1) return Promise.reject(new TypeError('private-response-loss-sentinel'));
+      return response(customReceipt, 201);
+    }
+    if (path === '/demo/runs/' + customReceipt.run_id) return response(createdSnapshot());
+  }});
+  await previewDraft(page);
+  page.node('custom-create').dispatch('click');
+  await page.settle();
+  assert.equal(page.node('custom-retry').hidden, false);
+  assert.equal(page.node('custom-json').readOnly, true);
+  assert.equal(page.node('custom-create').disabled, true);
+  assert.doesNotMatch(page.node('custom-errors').textContent, /private-response-loss-sentinel/);
+  const pending = page.stored.get(COMPOSER_STORAGE_KEY);
+  assert.equal(JSON.parse(pending).key, customKey);
+  assert.equal(JSON.parse(pending).body, creations(page)[0].options.body);
+  const oldSelection = page.node('runs').value;
+  const restored = await controller({storedEntries: [[COMPOSER_STORAGE_KEY, pending]], requestHandler: path => {
+    if (path === '/demo/custom/runs') return response(customReceipt, 201);
+    if (path === '/demo/runs/' + customReceipt.run_id) return response(createdSnapshot());
+  }});
+  assert.equal(restored.node('runs').value, oldSelection);
+  assert.equal(restored.node('custom-retry').hidden, false);
+  assert.equal(creations(restored).length, 0);
+  const before = restored.requests.length;
+  const english = restored.node('custom-status').textContent;
+  restored.switchTo('zh-CN');
+  assert.notEqual(restored.node('custom-status').textContent, english);
+  assert.match(restored.node('custom-status').textContent, /[\u4e00-\u9fff]/);
+  assert.equal(restored.requests.length, before);
+  restored.node('custom-retry').dispatch('click');
+  restored.node('custom-retry').dispatch('click');
+  await restored.settle();
+  assert.equal(creations(restored).length, 1);
+  assert.equal(creations(restored)[0].options.body, creations(page)[0].options.body);
+  assert.equal(new Headers(creations(restored)[0].options.headers).get('Idempotency-Key'), customKey);
+  assert.equal(restored.node('runs').value, customReceipt.run_id);
+  assert.deepEqual(JSON.parse(restored.node('custom-receipt').textContent), customReceipt);
+});
+
+test('validation errors translate safely while retaining API code and precise field path', async () => {
+  const page = await controller({requestHandler: path => path === '/demo/custom/validate' ? response({error: {
+    code: 'invalid_request', message: 'private-server-message-sentinel',
+    details: [{type: 'demo_handler_not_allowed', location: ['body', 'tasks', 1, 'task_type'], input: 'private-input-sentinel'}]
+  }}, 422) : undefined});
+  typeDraft(page, JSON.stringify(customDefinition()));
+  page.node('custom-validate').dispatch('click');
+  await page.settle();
+  assert.equal(page.node('custom-errors').hidden, false);
+  const english = page.node('custom-errors').textContent;
+  assert.match(english, /invalid_request/);
+  assert.match(english, /demo_handler_not_allowed/);
+  assert.match(english, /body.*tasks.*1.*task_type/);
+  assert.doesNotMatch(english, /private-.*-sentinel/);
+  assert.equal(page.node('custom-preview').hidden, true);
+  assert.equal(page.node('custom-create').disabled, true);
+  const count = page.requests.length;
+  page.switchTo('zh-CN');
+  const chinese = page.node('custom-errors').textContent;
+  assert.notEqual(chinese, english);
+  assert.match(chinese, /[\u4e00-\u9fff]/);
+  assert.match(chinese, /demo_handler_not_allowed/);
+  assert.doesNotMatch(chinese, /private-.*-sentinel/);
+  assert.equal(page.requests.length, count);
+  assert.equal(creations(page).length, 0);
+});
+
+test('storage fallback and corrupt saved operation are visible without losing current observation', async () => {
+  const fallback = await controller({storageDenied: true});
+  assert.equal(fallback.node('custom-storage').hidden, false);
+  const english = fallback.node('custom-storage').textContent;
+  fallback.switchTo('zh-CN');
+  assert.notEqual(fallback.node('custom-storage').textContent, english);
+  assert.match(fallback.node('custom-storage').textContent, /[\u4e00-\u9fff]/);
+  assert.equal(fallback.node('run-status').textContent, 'RUNNING');
+  const raw = '{"unrecoverable":true}';
+  const blocked = await controller({storedEntries: [[COMPOSER_STORAGE_KEY, raw]]});
+  assert.equal(blocked.node('custom-recovery').hidden, false);
+  assert.equal(blocked.node('custom-recovery').textContent, raw);
+  assert.equal(blocked.node('custom-json').readOnly, true);
+  assert.equal(blocked.node('custom-create').disabled, true);
+  assert.equal(blocked.node('custom-validate').disabled, true);
+  assert.equal(blocked.stored.get(COMPOSER_STORAGE_KEY), raw);
+  assert.equal(blocked.node('run-status').textContent, 'RUNNING');
+  assert.equal(creations(blocked).length, 0);
+});
+
+test('restored success requires explicit Observe and starting a new draft does not create another Run', async () => {
+  const stored = JSON.stringify({version: 1, key: customKey, body: JSON.stringify(customDefinition()), receipt: customReceipt});
+  const page = await controller({storedEntries: [[COMPOSER_STORAGE_KEY, stored]], requestHandler: path =>
+    path === '/demo/runs/' + customReceipt.run_id ? response(createdSnapshot()) : undefined});
+  assert.equal(page.node('runs').value, 'run-unchanged-id');
+  assert.deepEqual(JSON.parse(page.node('custom-receipt').textContent), customReceipt);
+  assert.equal(page.node('custom-observe').hidden, false);
+  assert.equal(page.node('custom-retry').hidden, true);
+  const requests = page.requests.length;
+  page.switchTo('zh-CN');
+  assert.equal(page.requests.length, requests);
+  assert.equal(page.node('runs').value, 'run-unchanged-id');
+  page.node('custom-observe').dispatch('click');
+  assert.equal(page.node('runs').value, customReceipt.run_id);
+  assert.equal(page.requests.length, requests);
+  await page.nextPoll();
+  assert.ok(page.node('run-id').textContent.includes(customReceipt.run_id));
+  const observedRequests = page.requests.length;
+  page.node('custom-new').dispatch('click');
+  assert.equal(page.node('custom-json').value, '');
+  assert.equal(page.node('custom-json').readOnly, false);
+  assert.equal(page.node('custom-create').disabled, true);
+  assert.equal(page.node('custom-receipt').hidden, true);
+  assert.equal(page.stored.has(COMPOSER_STORAGE_KEY), false);
+  page.node('custom-template').value = 'parallel';
+  page.node('custom-load').dispatch('click');
+  assert.deepEqual(JSON.parse(page.node('custom-json').value), customCatalog().templates[0].definition);
+  assert.equal(page.node('runs').value, customReceipt.run_id);
+  assert.equal(page.requests.length, observedRequests);
+  assert.equal(customPosts(page).length, 0);
+});
+
+test('catalog failure and explicit reload preserve drafts and existing observation', async () => {
+  let requests = 0;
+  const reload = deferred();
+  const page = await controller({requestHandler: path => {
+    if (path === '/demo/custom/catalog') return ++requests === 1 ?
+      response({error: {code: 'database_unavailable', message: 'private-catalog-sentinel'}}, 503) : reload.promise;
+  }});
+  assert.equal(page.node('custom-load').disabled, true);
+  assert.equal(page.node('custom-catalog-error').hidden, false);
+  assert.doesNotMatch(page.node('custom-catalog-error').textContent, /private-catalog-sentinel/);
+  const draft = JSON.stringify(customDefinition(), null, 2);
+  typeDraft(page, draft);
+  const english = page.node('custom-catalog-error').textContent;
+  page.switchTo('zh-CN');
+  assert.notEqual(page.node('custom-catalog-error').textContent, english);
+  assert.equal(requests, 1);
+  assert.equal(page.node('run-status').textContent, 'RUNNING');
+  page.node('custom-catalog-reload').dispatch('click');
+  page.node('custom-catalog-reload').dispatch('click');
+  assert.equal(requests, 2);
+  reload.resolve(response(customCatalog()));
+  await page.settle();
+  assert.equal(page.node('custom-catalog-error').hidden, true);
+  assert.equal(page.node('custom-load').disabled, false);
+  assert.equal(page.node('custom-json').value, draft);
+  assert.equal(page.node('custom-preview').hidden, true);
+  assert.equal(page.node('runs').value, 'run-unchanged-id');
+  assert.equal(customPosts(page).length, 0);
 });

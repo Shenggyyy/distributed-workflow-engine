@@ -80,11 +80,33 @@ a fresh recovery Run. Never automatically repeat an uncertain fault command;
 retained fault files block duplicate injection. The UI never controls Docker or
 accepts shell commands over HTTP. [Fault guard details](demo-design.md#scoped-fault-command).
 
+## Custom DAG editor
+
+Open **Custom DAG — validate, preview and create** at
+`http://127.0.0.1:18080/demo/`. Load a template copy or paste Workflow JSON, then
+choose **Validate and preview**. No Run is created by either action. Any edit
+invalidates the preview. Inspect its real edges and canonical JSON, then choose
+**Confirm and create Run**. The page selects the returned Run and shows its actual
+six-step snapshot. Without Workers, roots are READY and dependent tasks wait.
+
+Only the catalog's trusted timed Handlers are accepted: 1–12 tasks, 16 KiB UTF-8
+body, at most two Attempts per task, 90s timeout and fixed 5–10s retry backoff.
+Names follow the core ASCII identifier rules. These are demo-entry limits; naming
+a node does not implement business processing and dependencies do not pass outputs.
+A copied diamond becomes a custom Run with two one-slot Workers; predefined
+scenario launch behavior and fault injection do not carry over.
+
+If creation loses its response, use **Resolve with the same key and body**. The
+editor retains the frozen operation, disables edits, and never sends an automatic
+retry. A reload restores available local recovery data without POSTing. When local
+storage fails, copy the displayed key/body before leaving the page. Language changes
+preserve the draft, preview and selected Run. [API and error contracts](demo-api.md#custom-submission).
+
 ## Workers for an existing custom Run
 
-The [custom API](demo-api.md#custom-submission) can validate and create a constrained
-Run separately; the browser editor is a later implementation gate. After receiving
-its real `run_id`, start execution explicitly from the repository root:
+The editor or [custom API](demo-api.md#custom-submission) creates a constrained
+Run separately from execution. After receiving its real `run_id`, start Workers
+explicitly from the repository root:
 
 ```powershell
 uv run python scripts/demo.py workers --run-id "CUSTOM_RUN_ID"

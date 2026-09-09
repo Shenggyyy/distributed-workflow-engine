@@ -5,15 +5,15 @@ predefined scenarios remain the repeatable baseline; custom input adds a second
 entry to the same engine. No core execution semantics or historical definitions
 are changed. Implementation proceeds through the small gates below.
 
-H0–H5a are complete: the opt-in demo app serves its trusted catalog, bounded
+H0–H5b are complete: the opt-in demo app serves its trusted catalog, bounded
 read-only preview and atomic idempotent submission API. Revision 0012 stores
 explicit custom membership and immutable receipts. The local `workers --run-id`
 command starts a bounded two-Worker cohort for an existing custom Run. The shared
 DAG renderer handles saved definitions and the observer explains custom resource
-waiting in both languages. The pure editor state module now protects preview
-revisions and pending submission identity; browser integration remains H5b below.
-Predefined demonstrations work unchanged during
-this preparation.
+waiting in both languages. The bilingual editor protects preview revisions and
+pending submission identity, loads template copies and selects confirmed Runs.
+Execution acceptance and the complete browser walkthrough remain H6/H7 below.
+Predefined demonstrations remain available.
 
 ## Read-only findings
 
@@ -145,6 +145,13 @@ startup command was hidden for this completed Run. Historical recovery Run
 `e69d9250-3c05-4f04-8984-f48c3a83ad55` still rendered its saved `A → Join` edge,
 without renaming it or imposing a diamond. Long-name, skip-edge and 12-node serial
 layouts additionally have renderer tests; new editor browser acceptance remains H7.
+
+H5b browser smoke (2026-09-09): loading a template and validating it produced a
+neutral structural preview without changing the selected historical Run. Editing
+immediately hid that preview and disabled creation. A real backend 422
+`self_dependency` response displayed an English and Chinese explanation while
+preserving the JSON draft, Run selection and scroll position. The full
+input-to-execution walkthrough remains H7; this smoke did not create a Run.
 
 Use the actual browser to enter a non-diamond DAG with different names and topology,
 validate, preview, create a real Run, observe it waiting with no Worker, start the

@@ -16,6 +16,7 @@ import {
   peakOverlap
 } from './evidence.js';
 import {drawDefinitionDag} from './dag.js';
+import {initComposerView} from './composer-view.js';
 const $ = id => document.getElementById(id);
 const language = createI18n({
   languages: navigator.languages?.length ? navigator.languages : [navigator.language],
@@ -418,19 +419,21 @@ function renderConnection() {
   } else {
     $('freshness').textContent = latestSnapshot ? t('freshness.snapshot', {
       time: utc(latestSnapshot.snapshot_at)
-    }) : t(hasListed ? 'freshness.empty' : 'freshness.connecting');
+    }) : t(selected || !hasListed ? 'freshness.connecting' : 'freshness.empty');
   }
 }
 
 function selectLanguage(next) {
   const y = window.scrollY;
-  const anchor = y > 0 ? [...document.querySelectorAll('.step')].find(node => node.getBoundingClientRect().bottom > 130) : null;
+  const anchor = y > 0 ? [...document.querySelectorAll('.composer'), ...document.querySelectorAll('.step')]
+    .find(node => node.getBoundingClientRect().bottom > 130) : null;
   const offset = anchor?.getBoundingClientRect().top;
   if (!language.select(next)) return;
   translateStatic();
   renderRunOptions();
   if (latestSnapshot) render(latestSnapshot);
   renderConnection();
+  composerView.renderLanguage();
   // Keep existing details elements and the reader's place despite text reflow.
   const top = anchor ? window.scrollY + anchor.getBoundingClientRect().top - offset : y;
   window.scrollTo({
@@ -475,5 +478,27 @@ async function poll() {
     renderConnection();
     setTimeout(poll, 500);
   }
+}
+const composerView = initComposerView({
+  document, t, fetch,
+  storage: () => window.localStorage,
+  newKey: () => crypto.randomUUID(),
+  onCreated: receipt => {
+    selected = receipt.run_id;
+    $('follow').checked = false;
+    history.replaceState(null, '', '?run=' + selected);
+    latestSnapshot = null;
+    lastError = null;
+    $('content').hidden = true;
+    $('empty').hidden = true;
+    $('composer-panel').open = false;
+    renderRunOptions();
+    renderConnection();
+    // The existing GET poll observes the committed Run. No local task state or
+    // Worker activity is inferred from the creation receipt.
+  }
+});
+if (!selected || ['unknown', 'blocked'].includes(composerView.model.getState().phase)) {
+  $('composer-panel').open = true;
 }
 poll();

@@ -22,8 +22,8 @@ requests do not start containers: the local CLI creates labelled Run-scoped Work
 ## Custom definition preview
 
 The [custom phase](custom-dag-plan.md) separates read-only validation from explicit
-submission. The scoped custom Worker command is available; the editor arrives in
-a later gate. The existing three scenarios remain usable.
+submission. The editor and scoped custom Worker command are available; the
+existing three scenarios remain usable.
 Send `Content-Type: application/json` with the core definition shape, for example:
 
 ```json

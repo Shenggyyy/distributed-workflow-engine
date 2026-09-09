@@ -41,6 +41,47 @@
       <button type="button" data-language="en" lang="en" aria-pressed="false" data-i18n="language.en"></button>
     </div>
   </nav>
+  <details class="panel composer" id="composer-panel">
+    <summary data-i18n="composer.title"></summary>
+    <p id="custom-boundary" class="explanation" data-i18n="composer.boundary"></p>
+    <div class="composer-actions">
+      <label for="custom-template" data-i18n="composer.templateLabel"></label>
+      <select id="custom-template" data-i18n-aria-label="composer.templateLabel"></select>
+      <button id="custom-load" type="button" data-i18n="composer.load" disabled></button>
+      <button id="custom-catalog-reload" type="button" data-i18n="composer.catalog.reload"></button>
+    </div>
+    <p class="muted" data-i18n="composer.templateNote"></p>
+    <p id="custom-catalog-error" role="alert" hidden></p>
+    <details class="composer-catalog"><summary data-i18n="composer.catalog.title"></summary>
+      <p id="custom-limits"></p><ul id="custom-handlers"></ul>
+      <p class="muted" data-i18n="composer.policy"></p>
+    </details>
+    <label for="custom-json" data-i18n="composer.jsonLabel"></label>
+    <textarea id="custom-json" rows="12" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="custom-boundary custom-limits" data-i18n-aria-label="composer.jsonLabel"></textarea>
+    <div class="composer-actions">
+      <button id="custom-validate" class="primary" type="button" data-i18n="composer.validate"></button>
+      <button id="custom-new" type="button" data-i18n="composer.new"></button>
+      <button id="custom-retry" type="button" data-i18n="composer.retry" hidden></button>
+      <button id="custom-observe" type="button" data-i18n="composer.observe" hidden></button>
+    </div>
+    <p id="custom-status" class="explanation" role="status" aria-live="polite"></p>
+    <ul id="custom-errors" class="composer-errors" role="alert" hidden></ul>
+    <p id="custom-storage" class="muted" hidden></p>
+    <section id="custom-preview" hidden>
+      <h3 data-i18n="composer.previewTitle"></h3>
+      <p class="muted" data-i18n="composer.previewNote"></p>
+      <div class="dag-wrap"><svg id="custom-preview-dag" role="img" data-i18n-aria-label="composer.previewLabel"></svg></div>
+      <details><summary data-i18n="composer.canonical"></summary><pre id="custom-canonical"></pre></details>
+      <div class="composer-actions"><button id="custom-create" class="primary" type="button" data-i18n="composer.create" disabled></button></div>
+    </section>
+    <pre id="custom-receipt" hidden></pre>
+    <details id="custom-operation" hidden>
+      <summary data-i18n="composer.operation"></summary>
+      <p class="muted" data-i18n="composer.operationNote"></p>
+      <code id="custom-key"></code><pre id="custom-body"></pre>
+    </details>
+    <pre id="custom-recovery" hidden></pre>
+  </details>
   <div id="empty" data-i18n="controls.empty"></div>
   <div id="content" hidden>
     <section class="panel step" id="submission">

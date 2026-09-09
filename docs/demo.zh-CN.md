@@ -70,10 +70,27 @@ START/PULSE 区间至少重叠一秒。它确定 **C Attempt #1 的实际执行�
 故障命令结果不确定时不要自动重复；保留的故障文件会阻止重复注入。
 页面不控制 Docker，也不通过 HTTP 接收系统命令。[故障防护细节（英文）](demo-design.md#scoped-fault-command)。
 
+## 自定义 DAG 编辑器
+
+在 `http://127.0.0.1:18080/demo/` 打开 **自定义 DAG — 校验、预览与创建**。
+载入模板副本或粘贴 Workflow JSON，点击 **校验并预览**；这些操作不会创建 Run。
+修改内容会使旧预览失效。检查真实连线与规范化 JSON 后，再点击 **确认创建 Run**。
+页面会选中返回的真实 Run，显示六步快照。尚无 Worker 时，根任务为 READY，后续任务等待依赖。
+
+仅接受目录中可信的计时 Handler：1–12 个任务、16 KiB UTF-8 请求体，每任务最多两个
+Attempt、90 秒超时和固定 5–10 秒重试退避。名称遵守核心 ASCII 标识规则。这些是演示入口
+限制；给节点命名不会实现业务处理，依赖也不会传递输出。菱形副本提交后是由两个单槽位
+Worker 执行的自定义 Run，不继承预定义场景的启动行为与故障注入。
+
+创建响应丢失时，点击 **用相同键与定义确认结果**。编辑器保留固定提交身份并锁定编辑，
+不会自动重试。刷新后恢复可用的本地记录，但不会发送 POST；本地存储不可用时，离开页面
+前请复制显示的键与定义。语言切换保留草稿、预览和选中的 Run。
+[API 与错误契约（英文）](demo-api.md#custom-submission)。
+
 ## 为已有自定义 Run 启动 Worker
 
-[自定义 API（英文）](demo-api.md#custom-submission) 已支持分别校验和创建受限 Run；
-网页编辑器属于后续实施步骤。取得真实 `run_id` 后，在仓库根目录明确启动执行：
+编辑器或[自定义 API（英文）](demo-api.md#custom-submission) 创建受限 Run，执行另行启动。
+取得真实 `run_id` 后，在仓库根目录明确启动 Worker：
 
 ```powershell
 uv run python scripts/demo.py workers --run-id "CUSTOM_RUN_ID"
