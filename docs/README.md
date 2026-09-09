@@ -41,6 +41,8 @@ their counts and revisions are not claims about the current checkout.
 
 ## Demonstration
 
+- [Diamond scenario transition](diamond-plan.md): the bounded next demo phase;
+  existing commands remain on the prior definitions until its cutover commit.
 - Startup and walkthrough: [English](demo.md) | [简体中文](demo.zh-CN.md); [design and evidence](demo-design.md),
   [scoped query API](demo-api.md).
 - [Original real execution evidence](demo-review.md) and
