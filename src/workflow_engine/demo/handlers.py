@@ -9,6 +9,7 @@ from uuid import UUID
 from workflow_engine.config import Settings
 from workflow_engine.database import database_engine
 from workflow_engine.demo.observations import append, start
+from workflow_engine.demo.scenarios import DIAMOND_DURATIONS
 from workflow_engine.domain.completion import CompletionOutcome, CompletionResult
 from workflow_engine.worker.handlers import (
     HandlerContext,
@@ -68,5 +69,9 @@ def registry(settings: Settings) -> HandlerRegistry:
             HandlerRegistration("demo.observe", ObservedHandler(settings, 8)),
             HandlerRegistration("demo.recover", ObservedHandler(settings, 20)),
             HandlerRegistration("demo.join", ObservedHandler(settings, 2)),
+            *(
+                HandlerRegistration(kind, ObservedHandler(settings, seconds))
+                for kind, seconds in DIAMOND_DURATIONS.items()
+            ),
         ]
     )

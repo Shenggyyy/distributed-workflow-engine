@@ -18,6 +18,9 @@ and D depends on both branches. New explicitly registered timed Handler keys kee
 old Handler meanings unchanged. Intended durations are A=6s, B=8s, C=14s, D=3s;
 recovery uses C=20s. Actual sampled lifetimes include observation/processing latency.
 These are bounded teaching waits, not business data processing or timing SLAs.
+The prepared factory is `demo/scenarios.py`. Its five `demo.diamond.*` Handler
+registrations are distinct from the legacy keys; the public scenario endpoint is
+switched only in G5 after fault and evidence helpers are ready.
 
 Parallel uses one Worker with two slots. Distribution and recovery use two
 independent one-slot Workers. A demo-only startup rendezvous waits for both scoped
