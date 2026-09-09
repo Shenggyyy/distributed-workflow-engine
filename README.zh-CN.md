@@ -10,7 +10,8 @@
 **M0–M5 核心 MVP 已完成**：DAG 校验、Workflow 版本管理、幂等 Run 提交、并行执行、多 Worker/Scheduler 协调、心跳、Lease fencing、持久化重试与指数退避、固定超时、故障恢复、失败依赖传播和 Run 状态聚合。
 
 **中英双语六步演示层已完成**。当前场景采用菱形 DAG `A → B/C → D`，展示依赖、并行与故障恢复。
-**这些新场景的真实运行与浏览器验收待 G6 完成**；[此前双语验收（英文）](docs/release-review.md)对应旧定义。
+**三个菱形场景均已通过真实运行与双语浏览器验收**：B/C 采样重叠、不同执行归属以及保留兄弟任务成功结果的恢复，
+见[菱形场景验收（英文）](docs/diamond-review.md)。
 核心完成情况有独立的[验收记录（英文）](docs/mvp-review.md)。
 当前第一版面向可信部署环境，不代表生产 SLA、多机验证或已测得的吞吐量。
 
@@ -90,8 +91,16 @@ uv run python scripts/demo.py down
 领取时间、Handler 采样和完成回报准入时间分别展示。RUNNING 与 `created_at` 不是执行证据，Lease 到期不代表 Handler 结束。
 没有 FINISH 就保持未知。计时演示 Handler 不伪装成销售报表处理，也不暗示 DAG 边会传递输出。[证据契约（英文）](docs/demo-design.md)。
 
-当前菱形场景的截图与实际验收待 G6 完成。[保留的中英文截图（英文索引）](docs/release-review.md#browser-captures)
-是旧版多根汇合与根任务恢复场景的真实历史证据，不能代表新菱形场景。已有 Run 继续显示其保存的 DAG。
+以下为真实中文浏览器截图：一个 Worker 上的 B/C 执行区间重叠，以及恢复时保留 B 的成功，
+由存活 Worker 完成 C #2。Run ID、实测区间及[全部双语截图（英文索引）](docs/diamond-review.md#browser-captures)
+属于带日期的证据，不是性能保证；新运行使用新身份。
+
+![一个 Worker 执行菱形 DAG 中实际重叠的 B 和 C](docs/images/diamond-parallel-zh-CN.jpg)
+
+![存活 Worker 完成 C Attempt 2，旧 C 没有 FINISH 的恢复结果](docs/images/diamond-recovery-zh-CN.jpg)
+
+旧版[多根汇合与根任务恢复截图（英文索引）](docs/release-review.md#browser-captures)仍作为历史证据保留。
+已有 Run 继续显示其保存的 DAG。
 
 ## 测试与验证
 

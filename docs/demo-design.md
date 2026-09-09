@@ -7,8 +7,9 @@ HTTP interface. This document consolidates the enduring phase D/E decisions and
 the current diamond scenario contracts;
 [original acceptance](demo-review.md) and [six-step acceptance](demo-flow-review.md)
 retain dated observations and screenshots. The current [guide](demo.md) explains
-how to run it. New diamond execution/browser acceptance is pending G6; earlier
-reviews and screenshots describe the saved definitions used at their own dates.
+how to run it. The [diamond acceptance](diamond-review.md) records real execution
+and bilingual browser evidence; earlier reviews and screenshots describe the
+saved definitions used at their own dates.
 
 ## Isolation and trusted work
 
@@ -205,8 +206,9 @@ The fixed-diamond validator checks:
 
 Missing or inconsistent evidence fails the check. Peak overlap uses observed
 intervals; it never extends an unfinished interval to Lease expiry. Unit fixtures
-are synthetic test inputs, not demonstration evidence. Live browser acceptance of
-the current diamond scenarios remains pending G6.
+are synthetic test inputs, not demonstration evidence. The
+[current acceptance record](diamond-review.md) preserves the real diamond Run
+identities, measured intervals and browser captures.
 
 Browser acceptance must see real overlap, ownership, waiting dependencies and the
 recovery loop. Polling can miss brief states. There is no complete network trace,

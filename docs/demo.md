@@ -2,8 +2,8 @@
 
 # Local demonstration
 
-The current scenarios use `A → B/C → D`. Their real execution/browser acceptance
-and new captures are **pending G6**; historical screenshots below use earlier DAGs.
+The current scenarios use `A → B/C → D`. All three passed real execution and
+bilingual browser acceptance; see the dated [diamond review](diamond-review.md).
 
 ## Start and open the page
 
@@ -157,7 +157,27 @@ freezes the last view and displays a stale-data warning.
 
 ## Actual captures
 
-New diamond execution/browser acceptance and screenshots are pending G6.
+Unmodified browser captures of real diamond Runs from a requested 1280 × 900
+viewport, taken on 2026-09-09
+(Australia/Sydney; database timestamps are UTC). The
+[acceptance record](diamond-review.md#browser-captures) identifies every Run and
+capture. Language pairs were taken sequentially while execution continued.
+
+Distribution in progress: A succeeded, B/C have distinct actual owners, and D
+remains PENDING. The retained samples separately establish execution overlap:
+
+![Live diamond branches on different Workers with D waiting](images/diamond-branches-en.jpg)
+
+Recovery after retry admission: B remains successful on Attempt #1; C #2 is already
+RUNNING on that same Worker and D still waits. This image is after RETRY_WAIT;
+the [earlier wait capture](images/diamond-recovery-workers-en.jpg) shows that state:
+
+![C Attempt 2 RUNNING on B's surviving Worker while D waits](images/diamond-retry-en.jpg)
+
+Also see [one Worker's final overlap](images/diamond-parallel-en.jpg),
+[two Workers' final timeline](images/diamond-distribution-timeline-en.jpg) and
+[final recovery](images/diamond-recovery-en.jpg).
+
 [Earlier bilingual captures](release-review.md#browser-captures), the
 [original demo review](demo-review.md) and [six-step flow review](demo-flow-review.md)
 retain every historical image and Run identity. Those runs used parallel roots

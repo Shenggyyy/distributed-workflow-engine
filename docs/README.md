@@ -42,7 +42,9 @@ their counts and revisions are not claims about the current checkout.
 ## Demonstration
 
 - [Diamond scenario transition](diamond-plan.md): the current A -> B/C -> D
-  scenarios; their real execution/browser acceptance and captures are pending G6.
+  scenarios and their bounded implementation phases.
+- [Diamond execution and browser acceptance](diamond-review.md): actual Run IDs,
+  measured branch overlap, surviving-Worker recovery and current bilingual captures.
 - Startup and walkthrough: [English](demo.md) | [简体中文](demo.zh-CN.md); [design and evidence](demo-design.md),
   [scoped query API](demo-api.md).
 - Historical [original real execution evidence](demo-review.md) and

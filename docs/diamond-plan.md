@@ -4,20 +4,21 @@ This phase changes the optional demo, not engine semantics. Starting point:
 `f98d4e7`, with the completed bilingual page and a clean working tree. Existing
 Workflow versions, Runs, Handler types and historical captures remain intact.
 
-G0–G4 prepared and independently checked the components below. G5 activates the
+G0–G4 prepared and independently checked the components below. G5 activated the
 diamond factory, two-Worker recovery, guarded branch fault and checkpoint runner,
 with bilingual descriptions that distinguish saved legacy definitions. The live
-three-scenario/browser/screenshot gate remains G6; preparatory tests are not that
-acceptance. The design paragraphs below retain the original cutover rationale.
+three-scenario/browser/screenshot gate passed in G6; the
+[acceptance record](diamond-review.md) preserves actual Runs and captures, separate
+from preparatory tests. The design paragraphs below retain the original cutover rationale.
 
 ## Read-only findings and design
 
 The demo API constructs workflows in `demo/api.py`; the snapshot already reads the
 Run's immutable saved definition. DAG drawing and dependency/retry explanations
 are definition-driven. No schema, migration, new API, core transaction or locking
-change is needed. The CLI currently starts recovery with one Worker and kills the
-owner of root A; its validator also assumes that old shape. Those assumptions must
-change together when the new definitions are activated.
+change is needed. At the starting revision, the CLI used one recovery Worker and
+killed root A's owner; its validator assumed that old shape. Those assumptions
+were changed together when G5 activated the new definitions.
 
 All three new scenarios use `A -> B/C -> D`: A has no dependencies, B/C depend on A,
 and D depends on both branches. New explicitly registered timed Handler keys keep
@@ -103,7 +104,7 @@ Keep the current bilingual homepages and reader-oriented navigation. Update the
 current design and commands in place at cutover. Current screenshots become
 `diamond-*`; older `demo-*`, `flow-*` and `release-*` images stay in their dated
 reviews, explicitly identified as earlier definitions. Detailed final evidence
-will be in `docs/diamond-review.md`. No prior Run is redrawn using the new factory.
+is in [diamond-review.md](diamond-review.md). No prior Run is redrawn using the new factory.
 
 This remains one machine with multiple Linux containers, at-least-once execution
 and business idempotency requirements. No multi-machine validation, exactly-once,

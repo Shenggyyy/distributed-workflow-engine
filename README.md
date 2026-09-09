@@ -16,9 +16,10 @@ recovery, failed-dependency propagation and Run aggregation.
 
 The **bilingual six-step demonstration layer is complete**. Its current scenarios
 use a diamond DAG, `A → B/C → D`, to make dependency, parallelism and recovery
-visible. **Live execution/browser acceptance of these new scenarios is pending G6**;
-the [earlier bilingual acceptance](docs/release-review.md) covers the previous
-definitions. Core completion has its own [review](docs/mvp-review.md).
+visible. **All three diamond scenarios passed real execution and bilingual browser
+acceptance**: sampled B/C overlap, distinct ownership and sibling-preserving
+recovery are recorded in the [diamond review](docs/diamond-review.md).
+Core completion has its own [review](docs/mvp-review.md).
 This is a trusted-deployment first version;
 no production SLA, multi-machine validation or throughput claim is implied.
 
@@ -111,10 +112,17 @@ Claim time, Handler samples and completion admission are distinct. RUNNING and
 Missing FINISH stays unknown. Timed demo Handlers do not pretend to process sales
 reports or transfer outputs along DAG edges. [Evidence contracts](docs/demo-design.md).
 
-Current diamond screenshots and live acceptance are pending G6. The
-[retained English/Chinese screenshots](docs/release-review.md#browser-captures)
-are real historical evidence for the earlier fan-in/root-recovery definitions;
-they do not demonstrate the new diamond. Existing Runs retain their saved DAGs.
+Real English browser captures: one Worker's B/C execution overlaps, then a recovery
+Run retains B's success and completes C #2 on the surviving Worker. Run IDs, measured
+intervals and [all paired captures](docs/diamond-review.md#browser-captures) are dated
+evidence, not performance guarantees. New Runs receive new identities.
+
+![One Worker executes overlapping B and C Handler lifetimes in the diamond](docs/images/diamond-parallel-en.jpg)
+
+![Recovery completes C Attempt 2 on the surviving Worker with no FINISH for old C](docs/images/diamond-recovery-en.jpg)
+
+Earlier [fan-in/root-recovery screenshots](docs/release-review.md#browser-captures)
+remain historical evidence. Existing Runs retain their saved DAGs.
 
 ## Test and verify
 

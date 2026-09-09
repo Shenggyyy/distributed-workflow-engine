@@ -2,8 +2,8 @@
 
 # 本地演示指南
 
-当前场景采用 `A → B/C → D`。其真实运行、浏览器验收与新截图**待 G6 完成**；
-下方历史截图对应旧版 DAG。
+当前场景采用 `A → B/C → D`。三个场景均已通过真实运行与双语浏览器验收，
+见注明日期的[菱形场景验收（英文）](diamond-review.md)。
 
 ## 启动并打开页面
 
@@ -140,7 +140,25 @@ Worker 在所选 Run 结束后正常退出。即使 Run 成功，其注册心跳
 
 ## 真实截图
 
-新菱形场景的真实运行、浏览器验收与截图待 G6 完成。
+以下为真实菱形 Run 的原始浏览器截图，截取时请求的视口为 1280 × 900，拍摄于 2026-09-09
+（Australia/Sydney；数据库时间为 UTC）。[验收记录（英文）](diamond-review.md#browser-captures)
+注明每个 Run 和截图；双语画面依次拍摄，切换时任务仍在继续。
+
+分配场景的根任务正在执行：A 为 RUNNING，B/C 等待 A，D 等待两条分支。
+后续的[英文分支画面](images/diamond-branches-en.jpg)展示不同 Worker 已领取 B/C；
+保留的采样另行证明其执行重叠：
+
+![A 正在执行，B/C 与 D 仍等待依赖的真实菱形 DAG](images/diamond-root-zh-CN.jpg)
+
+恢复任务已重新领取：B 保持 Attempt #1 成功，C #2 已由同一个 Worker 执行，D 继续等待。
+这张图已过 RETRY_WAIT 阶段；[此前的等待画面（英文）](images/diamond-recovery-workers-en.jpg)展示该状态：
+
+![B 的存活 Worker 执行 C Attempt 2，D 仍等待](images/diamond-retry-zh-CN.jpg)
+
+还可查看[单 Worker 最终重叠](images/diamond-parallel-zh-CN.jpg)、
+[两个 Worker 的最终时间线](images/diamond-distribution-timeline-zh-CN.jpg)与
+[最终恢复结果](images/diamond-recovery-zh-CN.jpg)。
+
 [此前双语截图（英文索引）](release-review.md#browser-captures)、
 [最初演示验收（英文）](demo-review.md)与[六步流程验收（英文）](demo-flow-review.md)
 保留了全部历史图片及 Run 身份。旧运行使用多个根任务汇合到 Join，或根任务 A 故障后由脚本启动替代 Worker，
